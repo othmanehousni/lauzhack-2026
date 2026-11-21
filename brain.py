@@ -66,12 +66,13 @@ RETURN_BONUS = 0.1  # "back to the slides" lands on the last one shown unless th
 NAMES = 0.04  # how much saying a slide's title or its deck's name counts, next to the meaning of the sentence
 HERE_BONUS = 0.03  # a slide named by its topic is looked for in the deck on screen first
 SUGGEST = 0.02  # following the talk: a slide ahead that beats the one on air by this much, but not by MARGIN, is suggested
-FILE_MIN, CLOSE = 0.03, 0.02  # how much a request must fit a document better than a request naming nothing does, and how
+FILE_MIN, CLOSE = 0.05, 0.02  # how much a request must fit a document better than a request naming nothing does, and how
 # close to the best file another must be to be offered with it
 LEAN = 0.05  # how much the classifier's slide-or-file reading weighs against how well a slide or a file fits the words
 FUZZY = 0.85  # how close a run of words must be to a website or app name
 WEB = {"website", "site", "page", "dot"}  # these make a name both a website and an app mean the website
 NAMED = WEB | {"app", "application"}  # next to these, a name that is also a plain word (Notes, Photos) is a name
+GOVERNS = {"to", "open", "launch", "start", "into"}  # right after these, with no article, a plain word is a name: "switch to notes"
 TLDS = set("com org net edu gov io ai co ch fr de uk eu us app dev me tv so gg xyz info".split())  # so report.pdf is no address
 NUMBERS = {w: n for n, w in enumerate("""one two three four five six seven eight nine ten eleven twelve thirteen fourteen
 fifteen sixteen seventeen eighteen nineteen twenty""".split(), 1)}
@@ -207,6 +208,8 @@ def slide_number(said: str) -> int | None:
         nxt = w[i + 1]
         if x in ("first", "last") and nxt in ("slide", "page"):
             return 1 if x == "first" else -1
+        if x[:-2].isdigit() and x[-2:] in ("st", "nd", "rd", "th") and nxt in ("slide", "page"):  # "7th slide"
+            return int(x[:-2])
         if x in ("slide", "page"):
             n = NUMBERS.get(" ".join(w[i + 1:i + 3])) or NUMBERS.get(nxt) or (int(nxt) if nxt.isdigit() else None)
             if n:
@@ -318,11 +321,13 @@ class Catalog:
     def place(self, said: str) -> Action | None:
         """The website or app the sentence names. Runs of up to three words are compared without spaces, so "git hub"
         finds GitHub; the closest name wins, and the longest of equally close ones ("Google Docs" over "Google"). A
-        one-word name that is written like a plain word (Notes, Photos) counts only where the transcript writes it as a
-        name, capitalized after the first word, or next to "app" or "website": "the warehouse photo" is no app."""
+        one-word name that is written like a plain word (Notes, Photos) counts only where it is used as a name:
+        capitalized after the first word, right after "to" or "open" with no article, or next to "app" or "website".
+        "The warehouse photo" is no app."""
         raw = "".join(c if c.isalnum() else " " for c in said).split()
         w = [x.lower() for x in raw]
-        named = {i for i, x in enumerate(raw) if i and x[:1].isupper() or NAMED & set(w[max(i - 1, 0):i + 2])}
+        named = {i for i, x in enumerate(raw)
+                 if i and (x[:1].isupper() or w[i - 1] in GOVERNS) or NAMED & set(w[max(i - 1, 0):i + 2])}
         runs = {(n, "".join(w[i:i + n]), n > 1 or i in named) for n in (1, 2, 3) for i in range(len(w) - n + 1)}
         close: dict[str, float] = {}
         for name in self.places:
@@ -541,8 +546,11 @@ class Brain:
         d = self.find(query)
         if (d.do or d.offer) and float(self.catalog.fits(query).max()) + LEAN * lean > named:
             return d
-        if group == "open" and named < FILE_MIN:
+        if named < FILE_MIN and group == "open":
             return Decision(Action("ask", said), why="for the vision model")
+        if named < FILE_MIN:  # "show the slides": the last one shown, or the first deck
+            v = self.start
+            return Decision(Action("slide", v.last.target if v.last else self.catalog.slides[0].id), why="the slides, none named")
         return Decision(Action("slide", self.catalog.slides[i].id), why="closest slide")
 
     def find(self, query: np.ndarray) -> Decision:
@@ -567,8 +575,10 @@ class Brain:
             n = next((NUMBERS[b] - 1 for a, b in zip(w, w[1:]) if a in ("number", "option") and b in NUMBERS), None)
         if n is not None and -len(offer) <= n < len(offer):
             return Decision(offer[n], why=f"picked by position {n}")
-        scores = [float(x @ query) if (x := self.catalog.vec(a)) is not None else -1.0 for a in offer]
-        return Decision(offer[int(np.argmax(scores))], why="picked by description")
+        scores = sorted(((float(x @ query) if (x := self.catalog.vec(a)) is not None else -1.0, k) for k, a in enumerate(offer)), reverse=True)
+        if scores[0][0] - scores[1][0] < CLOSE:  # the words describe none of them better than another
+            return Decision(why="no pick")
+        return Decision(offer[scores[0][1]], why="picked by description")
 
     def follow(self, sims: np.ndarray) -> Decision:
         """While the slides are on air, the slide ahead in the deck that the talk has moved on to: shown when it clearly

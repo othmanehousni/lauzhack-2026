@@ -10,7 +10,7 @@
 import AVFoundation
 import Speech
 
-let PAUSE = 0.6  // seconds without new words that end an utterance
+let PAUSE = 1.0  // seconds without new words that end an utterance; clear requests act on the live words before
 let GAP = 2.0  // silence after each audio file
 
 func emit(_ fields: [String: Any]) {

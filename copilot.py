@@ -7,6 +7,7 @@
 
 import argparse
 import base64
+import functools
 import json
 import os
 import queue
@@ -71,6 +72,12 @@ AGENT_SCHEMA = {
 }
 
 
+@functools.cache
+def in_repository(folder: str) -> bool:
+    p = Path(folder)
+    return (p / ".git").exists() or (p.parent != p and in_repository(str(p.parent)))
+
+
 class Files:
     """Showable files in the folders vm.py mounts, so their paths are the same in the VM. Spotlight lists them once in
     the background (about 13 s for 150k files); after that a lookup is a scan of names in memory. Until then, and for
@@ -85,10 +92,11 @@ class Files:
 
     @staticmethod
     def wanted(path: str) -> bool:
-        """Not inside a hidden folder, a package or a library of code."""
+        """Not inside a hidden folder, a package, a library of code or a code repository, where a `.ts` file is
+        TypeScript, not a video."""
         parts = Path(path).parts[:-1]
         return not any(p.startswith(".") or p in ("node_modules", "site-packages", "Library") or p.endswith((".app", ".framework", ".bundle"))
-                       for p in parts)
+                       for p in parts) and not in_repository(str(Path(path).parent))
 
     def spotlight(self, query: str) -> list[str]:
         found = subprocess.run(["mdfind", *self.places, query], capture_output=True, text=True).stdout.splitlines()
