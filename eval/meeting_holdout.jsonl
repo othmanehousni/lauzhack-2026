@@ -1,0 +1,33 @@
+{"say": "Good afternoon everyone, I think we're only waiting for Thomas, ah, there he is.", "want": [null]}
+{"say": "Shall we start? I'm sharing the steering deck for the Tarif 2027 programme now.", "want": ["Steering_Committee p1"]}
+{"say": "Five points on today's list, and I'd like a decision on two of them before we finish.", "want": ["Steering_Committee p2"]}
+{"say": "Where we stand overall, we're amber, the pricing model is rebuilt but the broker portal has slipped by two weeks.", "want": ["Steering_Committee p3"]}
+{"say": "Isabelle, to your question, no, the slip doesn't move the filing date, at least not yet.", "want": ["Steering_Committee p3"]}
+{"say": "The workstream page we can pass over, it was all in your pre-read, and Thomas, hold the budget question, it's coming.", "want": ["Steering_Committee p3"]}
+{"say": "So, the money. We've spent one point six of the two point four million, and the forecast now lands at two point seven.", "want": ["Steering_Committee p5"]}
+{"say": "Sophie wants to see where that comes from, so could we have the spreadsheet where we track the programme's spend line by line?", "want": ["file /Users/hamid/Documents/Leman Assurances/Steering/Programme budget tracker.xlsx"]}
+{"say": "Column F is the extra actuarial contractors, that's your three hundred thousand.", "want": ["keep"]}
+{"say": "Zoom in a little, they can't read it at the far end of the table.", "want": ["control zoom in"]}
+{"say": "Fine, I'm done with the spreadsheet, put the presentation back.", "want": ["Steering_Committee p5"]}
+{"say": "Thomas, you wanted the Q3 picture as well, could I have the Q3 stuff on screen?", "want": ["choose"]}
+{"say": "Take the spreadsheet.", "want": ["file /Users/hamid/Documents/Finance/Q3 2026/Q3 numbers.xlsx"]}
+{"say": "Hmm, no, actually the memo reads better for the board, show that instead.", "want": ["file /Users/hamid/Documents/Finance/Q3 2026/Q3 board memo.pdf"]}
+{"say": "Okay, enough on finance. Advance one slide.", "want": ["Steering_Committee p6"]}
+{"say": "As I said on the status page, the portal is late, but what worries me most is the claims data in the old system, half the records have no postcode.", "want": ["Steering_Committee p6"]}
+{"say": "And then hail. You all remember June, but put on the footage of the storm, it's barely two minutes.", "want": ["file /Users/hamid/Desktop/Hail storm Morges — June.mp4"]}
+{"say": "Can it fill the whole screen?", "want": ["control full screen"]}
+{"say": "Wait, freeze on this frame, look at the cars.", "want": ["control pause the video"]}
+{"say": "Okay, let's get back to the risks.", "want": ["Steering_Committee p6"]}
+{"say": "On Isabelle's point about how sensitive clients are to price, there's a slide from this morning's workshop on renewals dropping when we raise prices.", "want": ["Pricing_Workshop p5"]}
+{"say": "Every five percent costs us about two points of retention, and young families leave first.", "want": ["Pricing_Workshop p5"]}
+{"say": "And the simulation workbook, the one we ran for the new tariff, open that.", "want": ["choose"]}
+{"say": "The one with the flood zones.", "want": ["file /Users/hamid/Documents/Leman Assurances/Tarif 2027/Pricing simulation — flood surcharge.xlsx"]}
+{"say": "Oh, and there was something Patrick sent round on Friday, could we have that?", "want": ["keep"]}
+{"say": "Doesn't matter, I'll email it after. So, the decisions I need from you today.", "want": ["Steering_Committee p7"]}
+{"say": "For the first one, I'd like you to see, um, the", "want": ["keep"]}
+{"say": "the note where we asked for the extra money.", "want": ["file /Users/hamid/Documents/Leman Assurances/Steering/Contingency release request.pdf"]}
+{"say": "And Sophie's asking when the filing window closes, so go to the FINMA site, find their page on tariff filing deadlines and show it.", "want": ["ask"]}
+{"say": "Thanks. Jump to eight, the last one.", "want": ["Steering_Committee p8"]}
+{"say": "Filing in June, broker training over the summer, and the new premiums go live on the first of January.", "want": ["Steering_Committee p8"]}
+{"say": "Let me flip back a slide, we never actually voted.", "want": ["Steering_Committee p7"]}
+{"say": "So, hands up for the four percent, thank you, that's carried.", "want": ["Steering_Committee p7"]}

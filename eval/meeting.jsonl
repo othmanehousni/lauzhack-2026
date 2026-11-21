@@ -1,0 +1,34 @@
+{"say": "Hi Claire, hi Marc, thanks for making the time. Can you both hear me okay?", "want": [null]}
+{"say": "Great. So let me put up what I prepared, this is the review of your home insurance for this year.", "want": ["Home_Insurance_Review p1"]}
+{"say": "Um, here's roughly what we'll go through in the next half hour.", "want": ["Home_Insurance_Review p2"]}
+{"say": "Right, so first of all, what you're covered for today.", "want": ["Home_Insurance_Review p3"]}
+{"say": "The house is insured for one point two million, the contents for a hundred and fifty thousand, and your deductible is two hundred francs.", "want": ["Home_Insurance_Review p3"]}
+{"say": "Yes Marc, the garage counts as part of the building, so it's in there too.", "want": ["Home_Insurance_Review p3"]}
+{"say": "And this is what all of that costs you each year, split up by part.", "want": ["Home_Insurance_Review p4"]}
+{"say": "I'll skip the liability part, nothing changed there, and we'll come to the deductible in a minute.", "want": ["Home_Insurance_Review p4"]}
+{"say": "Actually, before that, let me jump to the questions people usually ask us at this point.", "want": ["Home_Insurance_Review p6"]}
+{"say": "And Claire, I can see it on your face, so, can you lower your premium? Yes, mostly through the deductible, here are the three scenarios.", "want": ["Home_Insurance_Review p5", "file /Users/hamid/Documents/Clients/Dubois/Premium simulation — Dubois.xlsx"]}
+{"say": "Okay so the next thing I want to show you is the market size.", "want": ["Home_Insurance_Review p7"]}
+{"say": "Premiums are going up everywhere, mostly because rebuilding costs more and we've had a lot of hail.", "want": ["Home_Insurance_Review p7"]}
+{"say": "And can you pull up the offer we sent them?", "want": ["choose"]}
+{"say": "The second one.", "want": ["file /Users/hamid/Documents/Clients/Dubois/Home offer — revised.pdf"]}
+{"say": "So this is the April version, deductible at five hundred and the premium down to nineteen sixty.", "want": ["keep"]}
+{"say": "Can you scroll down a bit, to where it says how long it's valid?", "want": ["control scroll down"]}
+{"say": "Okay, let's close that and go back to the slides.", "want": ["Home_Insurance_Review p7"]}
+{"say": "Marc, you asked how this compares with what you'd pay somewhere else, so here it is next to two other insurers.", "want": ["Home_Insurance_Review p8"]}
+{"say": "And remember the split from earlier? It's the building part where we come out cheaper.", "want": ["Home_Insurance_Review p8"]}
+{"say": "Next slide please.", "want": ["Home_Insurance_Review p9"]}
+{"say": "So that's the new offer on one page, higher deductible, lower premium, and a bit more for your contents.", "want": ["Home_Insurance_Review p9"]}
+{"say": "Marc, sorry, you're asking about the garden shed? Let me open your current contract, it's in there.", "want": ["file /Users/hamid/Documents/Clients/Dubois/Home contract 2021.pdf"]}
+{"say": "Yeah, outbuildings up to twenty square metres are covered, so the shed's fine.", "want": ["keep"]}
+{"say": "Can you pull up, um", "want": ["keep"]}
+{"say": "your claims history, the spreadsheet with last year's water damage.", "want": ["file /Users/hamid/Documents/Clients/Dubois/Claims history — Dubois.xlsx"]}
+{"say": "And the photo of the house, so we're all looking at the same roof when I talk about it.", "want": ["file /Users/hamid/Documents/Clients/Dubois/Dubois house.jpg"]}
+{"say": "Claire's asking what the leak sensor actually does, so, um, show them how one of those water sensors works under the sink.", "want": ["ask"]}
+{"say": "Pause it there.", "want": ["control pause the video"]}
+{"say": "Okay, close that.", "want": ["close"]}
+{"say": "And can you open the, um, thing from the offsite?", "want": ["keep"]}
+{"say": "Never mind. Back to the slides.", "want": ["Home_Insurance_Review p9"]}
+{"say": "Let's go back to slide five for a second, I want to be sure you pick the right deductible.", "want": ["Home_Insurance_Review p5"]}
+{"say": "Okay, and the last thing is what happens now, you tell me which deductible you want, I send you the contract, and the new cover starts in May.", "want": ["Home_Insurance_Review p10"]}
+{"say": "Sorry, go back one, Marc wants to see the offer summary again.", "want": ["Home_Insurance_Review p9"]}

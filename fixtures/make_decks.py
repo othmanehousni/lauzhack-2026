@@ -36,6 +36,38 @@ DECKS = {
         ("Integrations", ["SAP EWM, Manhattan, Blue Yonder connectors", "Open REST API for custom WMS"]),
         ("Timeline", ["Q1: Gripper v3 GA", "Q2: Scheduler beta", "Q4: Cold-storage launch"]),
     ],
+    "Home_Insurance_Review": [
+        ("Home insurance review", ["Claire and Marc Dubois", "Annual review with Leman Assurances", "Hamid, your advisor"]),
+        ("Agenda", ["Your current cover", "Premium and deductible options", "Market and competitors", "The revised offer and next steps"]),
+        ("Your current cover", ["Building insured for CHF 1.2M", "Contents insured for CHF 150,000", "Water damage and natural hazards included", "Deductible CHF 200 per claim"]),
+        ("Premium breakdown", ["CHF 2,140 per year in total", "Building 58%, contents 27%", "Liability 9%, home assistance 6%"]),
+        ("Deductible scenarios", ["CHF 200 deductible: CHF 2,140 per year", "CHF 500 deductible: CHF 1,960 per year", "CHF 1,000 deductible: CHF 1,790 per year", "A higher deductible lowers the premium"]),
+        ("What clients ask us", ["Can I lower my premium?", "What if I raise the deductible?", "How does this compare?"]),
+        ("Market size", ["Swiss home insurance premiums per year", "2023: CHF 3.1bn", "2024: CHF 3.3bn", "2025: CHF 3.6bn", "2026: CHF 3.9bn, up 26% on 2023"]),
+        ("Compared with other insurers", ["Same cover, CHF 500 deductible", "Insurer A: CHF 2,290 per year", "Insurer B: CHF 2,050, natural hazards extra", "Leman Assurances: CHF 1,960 per year"]),
+        ("Your revised offer", ["Deductible raised to CHF 500", "Premium CHF 1,960 per year, down 8%", "Contents cover raised to CHF 180,000", "Valid until 30 April"]),
+        ("Next steps", ["Choose your deductible", "We send the contract to sign", "New cover starts 1 May"]),
+    ],
+    "Pricing_Workshop": [
+        ("Pricing workshop", ["Home and contents tariff 2027", "Actuarial, product and distribution teams"]),
+        ("Goals for today", ["Agree the risk factors we rate on", "Set the target loss ratio", "Settle the discount rules"]),
+        ("Risk factors", ["Building age and construction type", "Postcode flood and hail zone", "Claims in the last five years", "Sum insured for contents"]),
+        ("Loss ratios", ["Home portfolio loss ratio 71% in 2025", "Water damage is 44% of claims cost", "Hail claims doubled since 2021", "Target 65% by end of 2027"]),
+        ("Price elasticity", ["Each 5% increase costs 2 points of retention", "Young families and renters leave first", "Homeowners over 60 barely react"]),
+        ("Pricing simulation", ["Base rate +4%, flood and hail zones +9%", "CHF 1,000 deductible lowers the premium 12%", "Portfolio premium +CHF 6.8M a year", "Retention down 1.5 points"]),
+        ("Discounts", ["Home and motor bundle: 10%", "Five claims-free years: 8%", "Certified water leak sensor: 5%", "All discounts capped at 20%"]),
+        ("Open questions", ["Scale the deductible discount or keep steps?", "Pass the hail surcharge to existing clients?", "Who funds the broker commission budget?"]),
+    ],
+    "Steering_Committee": [
+        ("Steering committee", ["Tarif 2027 programme, Leman Assurances", "Monthly steering with the board"]),
+        ("Agenda", ["Status", "Budget", "Risks", "Decisions needed", "Timeline"]),
+        ("Project status", ["Overall status: amber", "Pricing model rebuilt and back-tested", "Broker portal changes two weeks late", "Tariff filing date unchanged"]),
+        ("Workstreams", ["Risk model: done", "Claims data clean-up: 80%", "Broker portal: in progress", "Broker training: not started"]),
+        ("Budget", ["CHF 2.4M approved, CHF 1.6M spent", "Forecast CHF 2.7M at completion", "Overrun from extra actuarial contractors"]),
+        ("Risks", ["Claims data from the legacy system", "Hail claims after the June storm", "Broker pushback on higher premiums", "FINMA filing window closes 30 June"]),
+        ("Decisions needed", ["Release CHF 300k from contingency", "Approve a 4% average premium increase", "Move broker launch from July to September"]),
+        ("Timeline", ["June: tariff filed with FINMA", "August: broker training", "1 January 2027: new premiums live"]),
+    ],
 }
 
 W, H = 960, 540
