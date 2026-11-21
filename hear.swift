@@ -3,9 +3,10 @@
 // Reads names to listen for (apps, websites, slide titles) on stdin, one per line, up to an empty line. Then prints one
 // JSON line each time the words of the utterance being spoken change: {"text", "kind": "live" | "final", "ago"}, where
 // "ago" is how many seconds ago the words last changed. When the microphone has been quiet for PAUSE seconds and no new
-// words came for SETTLED seconds, the presenter has paused: the analyzer finalizes what it heard and the final text of
-// the utterance follows. Both are needed: words arrive up to a second late, and loudness alone cannot say which words.
-// The text sent is the analyzer's last tentative text: the final text it gives when asked to finalize early is worse.
+// words came for SETTLED seconds, the presenter has paused and the utterance's final text follows. Both are needed:
+// words arrive up to a second late, and loudness alone cannot say which words. What was said before the voice stopped
+// was sent: the analyzer's final results time each word, so the words of one that also covers what is said next are
+// split there. (Asked to finalize early, the analyzer writes worse text, so it finalizes when it decides to.)
 //
 // With audio files as arguments, it hears those instead of the microphone, at the pace they would be spoken, each
 // followed by GAP seconds of silence, and prints {"note": "playing N"} as file N starts.
@@ -14,6 +15,7 @@ import Speech
 
 let PAUSE = 1.2  // seconds of quiet that end an utterance; clear requests act on the live words before
 let SETTLED = 0.6  // seconds without new words, so the last ones have arrived
+let TAIL = 1.0  // a word's quiet end can outlast the loud part by this much; what is said next starts PAUSE after
 let GAP = 2.0  // silence after each audio file
 
 func emit(_ fields: [String: Any]) {
@@ -105,13 +107,32 @@ final class Feed: @unchecked Sendable {
     }
 }
 
-/// The utterance being spoken: its final text so far, the tentative text after it, when its words last changed, and
-/// whether a pause is flushing the analyzer.
+/// What was said since the last utterance sent: the words of the analyzer's final results, each with the audio time it
+/// ends at (the first word of a result starts where the result does, said or not), its latest tentative text, and when
+/// the words last changed.
 @MainActor
 final class Utterance {
-    var said = "", tentative = "", changed = 0.0, flushing = false
+    var final: [(text: String, end: Double)] = [], tentative = ""
+    var cut = 0.0  // audio before this was sent already
+    var changed = 0.0
 
-    var text: String { [said, tentative].filter { !$0.isEmpty }.joined(separator: " ") }
+    var text: String {
+        (final.filter { $0.end > cut }.map(\.text).joined() + tentative).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func add(_ result: SpeechTranscriber.Result) {
+        guard result.range.end.seconds > cut + 0.05 else { return }  // about audio already sent
+        if result.isFinal {
+            var at = result.range.start.seconds
+            final += result.text.runs.map { run in
+                if let range = run.audioTimeRange { at = range.end.seconds }
+                return (String(result.text[run.range].characters), at)
+            }
+            tentative = ""
+        } else if result.range.start.seconds >= cut - TAIL - 0.3 {  // untimed: only when it starts after the voice stopped
+            tentative = String(result.text.characters)
+        }
+    }
 
     func send(_ kind: String, _ now: Double) {
         if !text.isEmpty { emit(["text": text, "kind": kind, "ago": max(0, now - changed)]) }
@@ -128,7 +149,7 @@ struct Hear {
         guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: "en-US")) else {
             fail("this Mac has no English model for SpeechTranscriber")
         }
-        let transcriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+        let transcriber = SpeechTranscriber(locale: locale, preset: .timeIndexedProgressiveTranscription)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
             emit(["note": "getting Apple's English speech model ready"])
             try await request.downloadAndInstall()
@@ -164,27 +185,13 @@ struct Hear {
             while true {
                 try await Task.sleep(for: .milliseconds(100))
                 guard !utterance.text.isEmpty, feed.quiet >= PAUSE, feed.now - utterance.changed >= SETTLED else { continue }
-                if !utterance.tentative.isEmpty {
-                    utterance.flushing = true  // the analyzer sends its last tentative text for all it heard
-                    try? await analyzer.finalize(through: nil)
-                    try await Task.sleep(for: .milliseconds(50))
-                }
                 utterance.send("final", feed.now)
-                (utterance.said, utterance.tentative, utterance.flushing) = ("", "", false)
+                (utterance.cut, utterance.final, utterance.tentative) = (feed.now - feed.quiet + TAIL, [], "")
             }
         }
         for try await result in transcriber.results {
-            let text = String(String(result.text.characters).drop { $0.isWhitespace || $0.isPunctuation })
-                .trimmingCharacters(in: .whitespacesAndNewlines)
             let before = utterance.text
-            if utterance.flushing && (result.isFinal || text.isEmpty) {  // after its last tentative text, it may send an empty one
-                continue
-            } else if result.isFinal {
-                utterance.said = [utterance.said, text].filter { !$0.isEmpty }.joined(separator: " ")
-                utterance.tentative = ""
-            } else {
-                utterance.tentative = text
-            }
+            utterance.add(result)
             guard utterance.text != before else { continue }  // silence also gets results, empty or repeated
             if words(utterance.text) != words(before) { utterance.changed = feed.now }
             utterance.send("live", feed.now)
