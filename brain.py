@@ -28,6 +28,7 @@ from pathlib import Path
 import numpy as np
 from pypdf import PdfReader
 
+from intents import INTENTS
 from stage import CACHE, CONTROLS, ON_STAGE
 
 OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
@@ -65,8 +66,8 @@ RETURN_BONUS = 0.1  # "back to the slides" lands on the last one shown unless th
 NAMES = 0.04  # how much saying a slide's title or its deck's name counts, next to the meaning of the sentence
 HERE_BONUS = 0.03  # a slide named by its topic is looked for in the deck on screen first
 SUGGEST = 0.02  # following the talk: a slide ahead that beats the one on air by this much, but not by MARGIN, is suggested
-FILE_MIN, CLOSE = 0.35, 0.02  # how close a file must be to the request, and how close to the best one to be offered with it
-HUB = 1.0  # how much a file that is close to every other document (a bare "Screenshot.png") is marked down
+FILE_MIN, CLOSE = 0.03, 0.02  # how much a request must fit a document better than a request naming nothing does, and how
+# close to the best file another must be to be offered with it
 LEAN = 0.05  # how much the classifier's slide-or-file reading weighs against how well a slide or a file fits the words
 FUZZY = 0.85  # how close a run of words must be to a website or app name
 WEB = {"website", "site", "page", "dot"}  # these make a name both a website and an app mean the website
@@ -282,9 +283,10 @@ class Catalog:
                                    + "; ".join(s.title for s in self.slides if s.doc == self.slides[i].doc) for i in self.covers])
         self.files = list(files)
         self.file_vecs = remember([file_doc(f) for f in self.files]) if self.files else self.slide_vecs[:0]
-        # A file that says little is close to every request, so how close it is to the other documents counts against it
-        hub = (self.file_vecs @ np.vstack([self.slide_vecs, self.file_vecs]).T).mean(1)
-        self.file_hub = HUB * (hub - hub.mean())
+        # A document that says little ("Screenshot.png") is close to every request, so what counts is how much closer a
+        # request is to it than a request naming nothing is: the unfinished examples, "can you pull up the, um"
+        empty = remember([QUERY.format(t) for t in INTENTS["unfinished"]]).mean(0)
+        self.slide_empty, self.file_empty = self.slide_vecs @ empty, self.file_vecs @ empty
         # "X (Twitter)" is named X and Twitter; names under three letters match too much
         self.sites = {n: Action("url", url) for name, url in SITES.items() for n in name.removesuffix(")").split(" (") if len(n) >= 3}
         self.places = self.sites | {app: Action("app", app) for app in apps if len(app) >= 3}  # an app takes a shared name
@@ -299,8 +301,8 @@ class Catalog:
         return s + np.array([HERE_BONUS if x.doc == here else 0.0 for x in self.slides])
 
     def fits(self, query: np.ndarray) -> np.ndarray:
-        """How close each file is to a request describing it."""
-        return self.file_vecs @ query - self.file_hub
+        """How much closer each file is to a request than a request naming nothing is."""
+        return self.file_vecs @ query - self.file_empty
 
     def vec(self, a: Action) -> np.ndarray | None:
         """The vector of a slide or file, to compare it with what the presenter says."""
@@ -529,14 +531,14 @@ class Brain:
         """A slide or a file, whichever fits the words better once the classifier's reading is counted: `lean` runs
         from -1 (surely a slide) to 1 (surely something outside the deck). A request outside the deck that fits no file
         goes to the vision model."""
-        slide = Action("slide", self.catalog.slides[int(np.argmax(sims))].id)
+        i = int(np.argmax(sims))
+        named = float(sims[i] - self.catalog.slide_empty[i]) - LEAN * lean  # how much the slide is named, as Catalog.fits
         d = self.find(query)
-        if (best := d.do or next(iter(d.offer), None)) is not None:
-            if float(self.catalog.fits(query).max()) + LEAN * lean > float(sims.max()) - LEAN * lean:
-                return d
-        if group == "open" and float(sims.max()) - LEAN * lean < FILE_MIN:
+        if (d.do or d.offer) and float(self.catalog.fits(query).max()) + LEAN * lean > named:
+            return d
+        if group == "open" and named < FILE_MIN:
             return Decision(Action("ask", said), why="for the vision model")
-        return Decision(slide, why="closest slide")
+        return Decision(Action("slide", self.catalog.slides[i].id), why="closest slide")
 
     def find(self, query: np.ndarray) -> Decision:
         """The file the request describes, or the few that fit it about as well as the best, to choose from."""
