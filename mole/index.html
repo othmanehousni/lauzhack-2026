@@ -6,100 +6,93 @@
 <style>
   :root {
     --ink-lch: 0.229 0.006 56.1; /* --ink from mole.css, for translucent ink */
-    --card: oklch(0.985 0.005 82.4);
-    --hair: oklch(var(--ink-lch) / .1);
     --fill: oklch(var(--ink-lch) / .05);
     --muted: oklch(var(--ink-lch) / .64);
-    --dust: oklch(0.9 0.013 82.4);
-    --ember-tint: oklch(0.86 0.07 37.3);
-    --sage-tint: oklch(0.917 0.015 136.1);
     --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
     --sans: -apple-system, system-ui, sans-serif;
-    --serif: ui-serif, "New York", Georgia, serif;
   }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
-  main { max-width: 960px; margin: 0 auto; padding: 56px 32px 80px; display: grid; gap: 64px; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.5 -apple-system, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 960px; margin: 0 auto; padding: 56px 32px 80px; display: grid; gap: 48px; }
   main > * { min-width: 0; }
-  h1 { font: 600 56px/1 var(--serif); letter-spacing: -0.03em; margin: 0 0 12px; }
-  header p { margin: 0; max-width: 58ch; color: var(--muted); text-wrap: pretty; }
-  h2 { font: 500 12px/1 var(--sans); letter-spacing: .02em; color: var(--muted); margin: 0 0 14px; }
+  h1 { font: 600 56px/1 ui-serif, "New York", Georgia, serif; letter-spacing: -0.03em; margin: 0 0 12px; }
+  header p { margin: 0; max-width: 56ch; color: rgb(31 28 26 / .6); text-wrap: pretty; }
+  h2 { font: 500 12px/1 -apple-system, system-ui, sans-serif; letter-spacing: .02em; color: rgb(31 28 26 / .5); margin: 0 0 14px; }
   p { text-wrap: pretty; }
   .note { margin: 12px 0 0; max-width: 64ch; font-size: 13px; color: var(--muted); }
-  .tnum { font-variant-numeric: tabular-nums; }
 
-  /* -- the laptop ---------------------------------------------------------------------------------------------- */
-
-  .screen { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; transition: background-color .3s ease; }
-  .screen[data-wall="0"] { background-color: var(--ember); }
-  .screen[data-wall="1"] { background-color: var(--ink); }
-  .screen[data-wall="2"] { background-color: oklch(1 0 0); box-shadow: inset 0 0 0 1px var(--hair); }
-  .screen[data-wall="3"] { background-color: var(--sage-tint); }
+  .screen { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; container-type: inline-size; transition: background-color .3s ease; }
+  .screen[data-wall="0"] { background-color: #141416; }
+  .screen[data-wall="1"] { background-color: #f2531c; }
+  .screen[data-wall="2"] { background-color: #1f1c1a; }
+  .screen[data-wall="3"] { background-color: #ffffff; box-shadow: inset 0 0 0 1px rgb(31 28 26 / .1); }
+  .screen[data-wall="4"] { background-color: #dfe6dc; }
   .screen .mole-bar { position: absolute; left: 50%; bottom: 24px; translate: -50% 0; }
+  /* In the meeting the bar sits on the presenter's side: under the shared frame, never inside it. */
+  .screen[data-wall="0"] .mole-bar { left: 33.8cqw; bottom: calc(6cqw + 5px); box-shadow: 0 0 0 1px rgb(0 0 0 / .25), 0 10px 30px rgb(0 0 0 / .4); }
 
-  .menubar { position: absolute; inset: 0 0 auto; height: 24px; padding: 0 14px; display: flex; align-items: center; gap: 8px; background: oklch(0.985 0.005 82.4 / .72); font: 500 12px/1 var(--sans); }
-  .menubar b { font-weight: 600; }
-  .menubar .listening { margin-left: auto; width: 6px; height: 6px; border-radius: 1.5px; background: var(--sage); }
+  /* -- the meeting mock: everything in cqw, so it scales with the screen (laid out at 896px wide) -------------------- */
+  .meeting { display: none; position: absolute; inset: 0; color: #ececef; font: 1.2cqw/1.3 -apple-system, system-ui, sans-serif; }
+  .screen[data-wall="0"] .meeting { display: block; }
+  .z-top { position: absolute; inset: 0 0 auto; height: 3.6cqw; display: flex; align-items: center; padding: 0 1.8cqw; color: rgb(255 255 255 / .72); }
+  .z-top b { font-weight: 500; color: rgb(255 255 255 / .42); margin-left: .8cqw; font-variant-numeric: tabular-nums; }
+  .z-sharing { position: absolute; left: 50%; translate: -50% 0; display: flex; align-items: center; gap: .8cqw; padding: .4cqw .45cqw .4cqw 1.1cqw; border-radius: 99px; background: #1f8a4c; color: #fff; font-weight: 600; white-space: nowrap; }
+  .z-sharing i { width: .7cqw; height: .7cqw; border-radius: 50%; background: #fff; }
+  .z-sharing span { padding: .3cqw .9cqw; border-radius: 99px; background: #e5484d; font-size: 1.05cqw; }
 
-  .win { position: absolute; background: var(--card); border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--hair); }
-  .win-bar { height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 10px; font: 500 12px/1 var(--sans); color: var(--muted); }
-  .win-bar > i { width: 8px; height: 8px; border-radius: 50%; background: oklch(var(--ink-lch) / .14); }
-  .win-bar span { margin-left: 6px; }
-  .win-bar em { margin-left: auto; font-style: normal; display: inline-flex; align-items: center; gap: 5px; }
-  .win-bar em::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ember); }
-  .call { left: 3.5%; top: 13%; width: 30%; }
-  .vm { right: 3.5%; top: 9%; width: 58%; }
-  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 0 4px 4px; }
-  .tiles span { aspect-ratio: 4 / 3; border-radius: 6px; display: grid; place-items: center; font: 600 12px/1 var(--sans); }
-  .tiles span:nth-child(1) { background: var(--dust); }
-  .tiles span:nth-child(2) { background: var(--sage); }
-  .tiles span:nth-child(3) { background: var(--lens); }
-  .tiles span:nth-child(4) { background: var(--ember-tint); }
-  .stage { display: grid; margin: 0 4px 4px; border-radius: 6px; overflow: hidden; }
+  .z-stage { position: absolute; left: 1.8cqw; top: 5cqw; width: 64cqw; height: 36cqw; border-radius: .5cqw; overflow: hidden; background: #fbf8f2; outline: .22cqw solid #2fbf71; outline-offset: .2cqw; }
+  .z-tag { position: absolute; z-index: 1; left: 0; top: 0; padding: .25cqw .8cqw; border-bottom-right-radius: .5cqw; background: #2fbf71; color: #0b2b18; font: 600 .95cqw/1.3 -apple-system, system-ui, sans-serif; }
+  .z-slide { position: absolute; inset: 0; opacity: 0; transition: opacity .35s ease; color: var(--ink); }
+  .screen[data-slide=slide6] .z-slide[data-name=slide6], .screen[data-slide=slide7] .z-slide[data-name=slide7],
+  .screen[data-slide=offer] .z-slide[data-name=offer], .screen[data-slide=video] .z-slide[data-name=video] { opacity: 1; }
+
+  .z-deck { padding: 4.2cqw 4.4cqw; box-sizing: border-box; display: flex; flex-direction: column; }
+  .z-kicker { font: 600 .95cqw/1 -apple-system, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: rgb(31 28 26 / .45); }
+  .z-deck h3 { font: 600 3.4cqw/1.05 ui-serif, "New York", Georgia, serif; letter-spacing: -0.02em; margin: 1cqw 0 0; }
+  .z-page { position: absolute; right: 2.4cqw; bottom: 1.8cqw; font: 700 1.1cqw/1 -apple-system, system-ui, sans-serif; color: rgb(31 28 26 / .5); }
+  .z-points { list-style: none; margin: 3cqw 0 0; padding: 0; display: grid; gap: 1.4cqw; font-size: 1.7cqw; }
+  .z-points b { color: #f2531c; margin-right: 1.2cqw; font-size: 1.2cqw; }
+  .z-chart { margin-top: auto; height: 17cqw; display: flex; align-items: flex-end; gap: 2.4cqw; padding-left: .4cqw; border-bottom: .12cqw solid rgb(31 28 26 / .3); }
+  .z-chart i { width: 6.5cqw; background: rgb(31 28 26 / .16); position: relative; border-radius: .2cqw .2cqw 0 0; }
+  .z-chart i:last-child { background: #f2531c; }
+  .z-chart i::after { content: attr(data-year); position: absolute; left: 0; right: 0; top: 100%; margin-top: .6cqw; text-align: center; font: 500 .95cqw/1 -apple-system, system-ui, sans-serif; color: rgb(31 28 26 / .5); }
+
+  .z-pdf { background: #e7e4df; }
+  .z-pdf header { display: flex; justify-content: space-between; padding: .7cqw 1.6cqw .7cqw 11.5cqw; background: #f7f6f3; border-bottom: 1px solid rgb(31 28 26 / .1); font-size: 1cqw; color: rgb(31 28 26 / .6); }
+  .z-sheet { position: absolute; left: 50%; translate: -50% 0; top: 4.4cqw; width: 30cqw; height: 40cqw; padding: 2.6cqw 2.8cqw; box-sizing: border-box; background: #fff; box-shadow: 0 .3cqw 1.2cqw rgb(0 0 0 / .12); }
+  .z-sheet h4 { font: 600 1.9cqw/1.1 ui-serif, "New York", Georgia, serif; margin: 0; }
+  .z-sheet p { margin: .5cqw 0 2cqw; font-size: .95cqw; color: rgb(31 28 26 / .5); }
+  .z-row { display: flex; justify-content: space-between; align-items: center; padding: .9cqw 0; border-top: 1px solid rgb(31 28 26 / .08); font-size: 1cqw; }
+  .z-row i { width: 7cqw; height: .8cqw; border-radius: .4cqw; background: rgb(31 28 26 / .12); }
+  .z-row.z-hot i { background: #f2531c; }
+
+  .z-video { background: #0e0e10; color: #fff; }
+  .z-video h5 { position: absolute; left: 2cqw; top: 2.4cqw; margin: 0; font: 600 1.4cqw/1 -apple-system, system-ui, sans-serif; }
+  .z-video .z-play { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 6cqw; height: 6cqw; border-radius: 50%; background: rgb(255 255 255 / .14); display: grid; place-items: center; }
+  .z-video .z-play::after { content: ""; margin-left: .5cqw; border-left: 1.8cqw solid #fff; border-top: 1.1cqw solid transparent; border-bottom: 1.1cqw solid transparent; }
+  .z-video .z-progress { position: absolute; left: 2cqw; right: 2cqw; bottom: 2cqw; height: .35cqw; border-radius: 1cqw; background: rgb(255 255 255 / .2); }
+  .z-video .z-progress::before { content: ""; position: absolute; inset: 0 65% 0 0; border-radius: inherit; background: #f2531c; }
+
+  .z-people { position: absolute; left: 67.6cqw; top: 5cqw; width: 30.6cqw; height: 44.4cqw; display: grid; grid-template-rows: repeat(3, 1fr); gap: .8cqw; }
+  .z-tile { position: relative; overflow: hidden; border-radius: .6cqw; background: var(--bg); }
+  .z-tile::before { content: ""; position: absolute; left: 50%; top: 18%; translate: -50% 0; width: 4.8cqw; height: 4.8cqw; border-radius: 50%; background: var(--fg); }
+  .z-tile::after { content: ""; position: absolute; left: 50%; bottom: -2.6cqw; translate: -50% 0; width: 11cqw; height: 7cqw; border-radius: 5.5cqw 5.5cqw 0 0; background: var(--fg); }
+  .z-tile span { position: absolute; z-index: 1; left: .7cqw; bottom: .6cqw; padding: .2cqw .6cqw; border-radius: .35cqw; background: rgb(0 0 0 / .5); font-size: 1.05cqw; }
+  .z-tile.z-talking { box-shadow: inset 0 0 0 .2cqw #2fbf71; }
+
+  .z-tools { position: absolute; inset: auto 0 0; height: 6cqw; display: flex; align-items: center; justify-content: center; gap: 3.2cqw; background: #1c1c1f; border-top: 1px solid rgb(255 255 255 / .06); }
+  .z-tools > span { display: grid; justify-items: center; gap: .3cqw; font-size: .95cqw; color: rgb(255 255 255 / .7); }
+  .z-tools svg { width: 2cqw; height: 2cqw; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: #ececef; }
+  .z-tools .z-green svg { color: #2fbf71; }
+  .z-tools .z-end { position: absolute; right: 1.8cqw; padding: .55cqw 1.4cqw; border-radius: .5cqw; background: #e5484d; color: #fff; font-weight: 600; font-size: 1.1cqw; }
 
   .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-  .controls button { font: 500 13px/1 var(--sans); color: var(--ink); background: var(--fill); border: 0; border-radius: 8px; height: 32px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: background-color .15s ease, color .15s ease, scale .16s var(--ease-out); }
+  .controls button { font: 500 13px/1 -apple-system, system-ui, sans-serif; color: var(--ink); background: rgb(31 28 26 / .05); border: 0; border-radius: 8px; height: 32px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: background-color .15s ease, color .15s ease, scale .16s var(--ease-out); }
   .controls button[aria-pressed=true] { background: var(--ink); color: var(--paper); }
   .controls button:active { scale: .97; }
-  kbd { font: 500 12px/1 ui-monospace, monospace; opacity: .64; }
+  .controls button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  kbd { font: 500 11px/1 ui-monospace, monospace; opacity: .5; }
 
-  /* -- slides: drawn in container units, so one markup serves the stage and every thumbnail ---------------------- */
-
-  .slide { container-type: inline-size; position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: var(--card); color: var(--ink); grid-area: 1 / 1; transition: opacity calc(200ms * var(--slow)) ease; }
-  @starting-style { .slide { opacity: 0; } }
-  .slide > * { position: absolute; margin: 0; }
-  .slide b { left: 7cqw; top: 15cqw; width: 46cqw; font: 600 5.6cqw/1.08 var(--serif); letter-spacing: -0.03em; }
-  .slide small { left: 7cqw; top: 7cqw; font: 500 2.4cqw/1 var(--sans); color: var(--muted); }
-  .slide span { left: 7cqw; bottom: 7cqw; font: 500 2.6cqw/1 var(--sans); opacity: .75; }
-
-  .slide[data-slide=cover] { background: var(--ember); }
-  .slide[data-slide=cover] span { opacity: 1; }
-  .slide[data-slide=cover] b { top: auto; bottom: 13cqw; width: auto; font-size: 11cqw; }
-  .bars { right: 7cqw; bottom: 9cqw; width: 34cqw; height: 34cqw; display: flex; align-items: flex-end; gap: 2cqw; }
-  .bars i { flex: 1; border-radius: .6cqw .6cqw 0 0; background: var(--ink); }
-  .bars i:nth-child(1) { height: 30%; } .bars i:nth-child(2) { height: 42%; } .bars i:nth-child(3) { height: 55%; } .bars i:nth-child(4) { height: 72%; }
-  .bars i:nth-child(5) { height: 100%; background: var(--ember); }
-  .slide[data-slide=video] { background: var(--ink); color: var(--card); }
-  .play { left: 50%; top: 46%; translate: -50% -50%; width: 13cqw; aspect-ratio: 1; border-radius: 50%; background: var(--card); }
-  .play::after { content: ""; position: absolute; inset: 32% 28% 32% 38%; background: var(--ink); clip-path: polygon(0 0, 100% 50%, 0 100%); }
-  .slide[data-slide=recap] { background: var(--sage-tint); }
-  .notes { right: 8cqw; top: 13cqw; width: 37cqw; height: 32cqw; }
-  .notes i { position: absolute; width: 17cqw; aspect-ratio: 1; border-radius: .8cqw; }
-  .notes i:nth-child(1) { left: 0; top: 5cqw; rotate: -6deg; background: var(--lens); }
-  .notes i:nth-child(2) { left: 11cqw; top: 0; rotate: 4deg; background: var(--ember-tint); }
-  .notes i:nth-child(3) { left: 20cqw; top: 11cqw; rotate: -2deg; background: var(--card); }
-  .slide[data-slide=pdf] { background: var(--dust); }
-  .page { left: 50%; top: 8cqw; width: 30cqw; height: 52cqw; translate: -50% 0; border-radius: .6cqw; background:
-    linear-gradient(var(--ink) 0 0) 4cqw 5cqw / 13cqw 1.6cqw no-repeat,
-    repeating-linear-gradient(oklch(var(--ink-lch) / .18) 0 .8cqw, transparent 0 3cqw) 4cqw 11cqw / 22cqw 38cqw no-repeat,
-    var(--card); }
-  .photos { inset: 7cqw; display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: 1.6cqw; }
-  .photos i { border-radius: 1cqw; }
-  .photos i:nth-child(1) { grid-row: span 2; background: var(--sage); }
-  .photos i:nth-child(2) { background: var(--ember-tint); }
-  .photos i:nth-child(3) { background: var(--lens); }
-
-  /* -- the phone ----------------------------------------------------------------------------------------------- */
+  /* -- the phone: the companion for when the presenter stands up and walks ------------------------------------------ */
 
   .pocket { display: grid; grid-template-columns: 1fr 300px; gap: 64px; align-items: center; }
   .copy p { margin: 0; max-width: 46ch; }
@@ -128,9 +121,10 @@
   .status .cam { position: absolute; left: 50%; top: 12px; width: 12px; height: 12px; translate: -50% 0; border-radius: 50%; background: var(--ink); }
   .status svg { width: 34px; height: 12px; fill: currentColor; }
   .top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px 8px 20px; }
-  .top b { display: block; font: 600 15px/20px var(--sans); letter-spacing: -0.01em; }
+  .top > div:first-child { min-width: 0; }
+  .top b { display: block; font: 600 15px/20px var(--sans); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
-  .mic { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 11px; border-radius: 16px; background: var(--fill); font: 500 13px/1 var(--sans); transition: background-color calc(200ms * var(--slow)) ease, color calc(200ms * var(--slow)) ease; }
+  .mic { flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 11px; border-radius: 16px; background: var(--fill); font: 500 13px/1 var(--sans); transition: background-color calc(200ms * var(--slow)) ease, color calc(200ms * var(--slow)) ease; }
   [data-mic=phone] .mic { background: var(--ink); color: var(--paper); }
   .wave { display: flex; align-items: center; gap: 2px; height: 12px; }
   .wave i { width: 2px; height: 100%; border-radius: 1px; background: currentColor; scale: 1 .4; animation: wave calc(900ms * var(--slow)) ease-in-out infinite alternate; }
@@ -140,49 +134,58 @@
   .src span { grid-area: 1 / 1; transition: opacity calc(200ms * var(--slow)) ease, filter calc(200ms * var(--slow)) ease, translate calc(220ms * var(--slow)) var(--ease-out); }
   [data-mic=laptop] [data-src=phone], [data-mic=phone] [data-src=laptop] { opacity: 0; filter: blur(2px); translate: 0 4px; }
 
-  .phone .mole-bar { flex: 1; width: auto; height: auto; padding: 0 20px; flex-direction: column; justify-content: center; gap: 12px; background: none; box-shadow: none; border-radius: 0; transition: transform calc(220ms * var(--slow)) var(--ease-out); }
-  .phone[data-asking] .mole-bar { transform: translateY(-90px); transition-duration: calc(420ms * var(--slow)); transition-timing-function: var(--ease-drawer); }
-  .phone .mole-fig { align-self: center; width: 184px; height: 179px; margin: 0; }
+  /* The mole stands alone on the phone, and its own options panel drops under it, in thumb reach. As the panel opens
+     the centred column grows, so the mole glides up to make room. */
+  .phone .mole-bar { flex: 1; width: auto; padding: 0 4px; justify-content: center; background: none; box-shadow: none; border-radius: 0; }
+  .phone .mole-opts { order: 1; }
+  .phone .mole-row { height: auto; padding: 0; flex-direction: column; align-items: center; gap: 12px; }
+  .phone .mole-fig { align-self: center; width: 200px; height: auto; aspect-ratio: 154 / 114.8; margin: 0; }
   .phone .mole-text { flex: none; width: 100%; text-align: center; }
   .phone .mole-dot { display: none; }
   .phone .mole-text .mole-words { padding: 0; --wx: 0px; --wy: 0px; }
   .phone .mole-title { font: 600 22px/28px var(--sans); letter-spacing: -0.02em; }
   .phone .mole-heard { height: 20px; margin-top: 4px; font-size: 14px; line-height: 20px; }
+  .phone .mole-hint { padding: 16px 10px 8px; justify-content: center; }
+  .phone .mole-hint > span:last-child { display: none; } /* everything on the phone is the presenter's alone */
+  .phone .mole-list { border-bottom: 0; }
+  /* A thumb needs a taller row than a cursor, and the name must not truncate: on two versions of one file the end of the
+     name is the difference, so the date drops under it. */
+  .phone .mole-opt { grid-template-columns: 20px 16px minmax(0, 1fr); height: 52px; }
+  .phone .mole-key, .phone .mole-glyph { grid-row: 1 / 3; }
+  .phone .mole-name { align-self: end; }
+  .phone .mole-meta { grid-column: 3; align-self: start; }
 
-  .now { flex: none; display: grid; grid-template-columns: 88px 1fr; gap: 12px; align-items: center; margin: 0 12px 28px; padding: 8px; border-radius: 20px; background: var(--fill); }
+  .now { flex: none; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; align-items: center; margin: 0 12px 28px; padding: 8px; border-radius: 20px; background: var(--fill); }
   .now > div > small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
   .now > div > b { display: block; font: 500 15px/20px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .thumb { display: grid; border-radius: 12px; overflow: hidden; outline: 1px solid oklch(0 0 0 / .1); outline-offset: -1px; }
-  .home { position: absolute; left: 50%; bottom: 8px; width: 100px; height: 4px; translate: -50% 0; border-radius: 2px; background: oklch(var(--ink-lch) / .25); z-index: 1; }
+  /* A live copy of the shared frame: its slides are laid out in cqw of a 896px screen, so a container 88 / .64 px wide
+     makes the frame (64cqw) exactly as wide as the thumbnail. */
+  .thumb { position: relative; height: 49.5px; border-radius: 12px; overflow: hidden; outline: 1px solid oklch(0 0 0 / .1); outline-offset: -1px; }
+  .thumb-cq { width: 137.5px; container-type: inline-size; }
+  .thumb-stage { position: relative; width: 64cqw; height: 36cqw; background: #fbf8f2; font: 1.2cqw/1.3 var(--sans); }
+  .thumb .z-slide { opacity: 1; transition: none; }
+  .home { position: absolute; left: 50%; bottom: 8px; width: 100px; height: 4px; translate: -50% 0; border-radius: 2px; background: oklch(var(--ink-lch) / .25); }
 
-  .pick { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 16px 12px 12px; border-radius: 30px; background: var(--card); box-shadow: 0 0 0 1px var(--hair); transform: translateY(calc(100% + 16px)); visibility: hidden; transition: transform calc(220ms * var(--slow)) var(--ease-out), visibility 0s calc(220ms * var(--slow)); }
-  .pick[data-open] { transform: none; visibility: visible; transition: transform calc(420ms * var(--slow)) var(--ease-drawer), visibility 0s; }
-  .pick > small { display: block; margin: 0 8px 8px; font-size: 13px; line-height: 18px; color: var(--muted); }
-  .pick ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-  .pick li { opacity: 0; translate: 0 6px; transition: opacity calc(200ms * var(--slow)) ease, translate calc(260ms * var(--slow)) var(--ease-out); }
-  .pick[data-open] li { opacity: 1; translate: none; transition-delay: calc((90ms + var(--i) * 45ms) * var(--slow)); }
-  .pick button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; border-radius: 16px; transition: background-color calc(150ms * var(--slow)) ease, scale calc(160ms * var(--slow)) var(--ease-out); }
-  .pick li button { display: grid; grid-template-columns: 22px 56px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px; }
-  .pick li button > span > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pick button:active, .pick button[data-picked] { scale: .97; background: oklch(var(--ink-lch) / .07); }
-  .pick button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-  .pick .thumb { border-radius: 6px; }
-  .pick li button > span > b { display: block; font: 500 15px/20px var(--sans); }
-  .pick em { display: block; font-style: normal; font-size: 12.5px; line-height: 16px; color: var(--muted); }
-  .key { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--fill); font: 500 12px/1 ui-monospace, monospace; color: var(--muted); }
-  .pick .skip { height: 44px; margin-top: 4px; text-align: center; font: 500 14px/44px var(--sans); color: var(--muted); }
+  /* -- states, choices and the loop ----------------------------------------------------------------------------- */
 
-  /* -- states and the loop ------------------------------------------------------------------------------------- */
-
-  .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  /* The figure is wider than it is tall (room for the card the mole sets down), so the cells are a little wider too. */
+  .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 8px; }
   .sheet button { all: unset; display: grid; padding: 12px; border-radius: 12px; cursor: pointer; transition: background-color .15s ease; }
-  .sheet button:focus-visible, .controls button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  .sheet .mole-bar { width: auto; height: auto; padding: 0; flex-direction: column; align-items: stretch; gap: 10px; background: none; box-shadow: none; border-radius: 0; }
-  .sheet .mole-fig { align-self: flex-start; width: 132px; height: 128px; margin: 0; }
+  .sheet button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .sheet .mole-bar { width: auto; background: none; box-shadow: none; border-radius: 0; }
+  .sheet .mole-row { height: auto; padding: 0; flex-direction: column; align-items: stretch; gap: 10px; }
+  .sheet .mole-fig { align-self: flex-start; width: 172px; height: 128px; margin: 0; }
   .sheet .mole-heard { display: none; }
   .sheet .mole-title > span { white-space: normal; }
   .sheet .mole-text .mole-words { --wy: 0px; }
   .sheet .mole-text .mole-dot { translate: none; }
+
+  /* Choosing cells show the whole bar as it looks on screen, bottom-aligned so the panels' heights compare. */
+  .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 8px; }
+  .choices button { all: unset; display: grid; grid-template-rows: 1fr auto; justify-items: center; gap: 16px; padding: 32px 16px 14px; border-radius: 12px; background: rgb(31 28 26 / .04); cursor: pointer; transition: background-color .15s ease; }
+  .choices button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .choices .mole-bar { align-self: end; }
+  .choices small { justify-self: start; font: 500 12px/1 -apple-system, system-ui, sans-serif; color: rgb(31 28 26 / .5); }
 
   .hood { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px 32px; }
   .hood p { margin: 0; }
@@ -192,51 +195,86 @@
   .legend { white-space: nowrap; }
   .sw { display: inline-block; width: 9px; margin: 0 2px 0 6px; border-radius: 2px; }
   .ticks [data-did=acted], .sw[data-did=acted] { background: var(--sage); }
-  .ticks [data-did=asked], .sw[data-did=asked] { background: var(--ember); }
+  .ticks [data-did=asked], .sw[data-did=asked] { background: var(--plum); }
   .ticks [data-now] { background: var(--ink); }
   pre { margin: 20px 0 0; padding: 16px 20px; border-radius: 12px; background: var(--fill); font: 12.5px/1.65 ui-monospace, "SF Mono", Menlo, monospace; overflow-x: auto; }
   pre .c { color: var(--muted); }
 
   @media (hover: hover) and (pointer: fine) {
-    .controls button:hover:not([aria-pressed=true]) { background: oklch(var(--ink-lch) / .09); }
-    .sheet button:hover, .pick button:hover { background: oklch(var(--ink-lch) / .04); }
+    .controls button:hover:not([aria-pressed=true]) { background: rgb(31 28 26 / .09); }
+    .sheet button:hover { background: rgb(31 28 26 / .04); }
+    .choices button:hover { background: rgb(31 28 26 / .07); }
   }
   @media (max-width: 760px) {
     .pocket { grid-template-columns: 1fr; gap: 40px; }
-    .screen { aspect-ratio: 4 / 5; }
-    .call { display: none; }
-    .vm { left: 4%; right: 4%; top: 12%; width: auto; }
-    .screen .mole-bar { max-width: calc(100% - 24px); }
+    .choices { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) {
     .wave i { animation: none; }
-    .walker, .pick li, .src span { transition-property: opacity; }
-    .pick { transition-property: visibility; }
+    .walker, .src span { transition-property: opacity; }
   }
 </style>
 
 <main>
   <header>
     <h1>The Mole.</h1>
-    <p>A companion for meetings. While you talk, it finds the slide or file that backs your point and puts it on the shared screen. It presents from a VM of its own, so your desktop and the call stay yours, and it follows you to your phone when you walk.</p>
+    <p>A companion for meetings. While you talk, it finds the slide or document that backs your point and puts it on the shared screen. It presents on an agent desktop of its own, so your desktop and the call stay yours, and it follows you to your phone when you walk.</p>
   </header>
-
   <section>
     <h2>On the laptop</h2>
-    <div class="screen" data-wall="0">
-      <div class="menubar"><b>Mole</b><span>Q3 review</span><i class="listening"></i><span class="tnum">12:04</span></div>
-      <div class="win call">
-        <div class="win-bar"><i></i><i></i><i></i><span>Q3 review · call</span></div>
-        <div class="tiles"><span>You</span><span>AM</span><span>JL</span><span>SK</span></div>
-      </div>
-      <div class="win vm">
-        <div class="win-bar"><i></i><i></i><i></i><span>Copilot screen</span><em>Shared</em></div>
-        <div class="stage" id="stage"></div>
+    <div class="screen" data-wall="0" data-slide="slide6">
+      <div class="meeting" aria-hidden="true">
+        <div class="z-top">Home insurance review<b>24:13</b><div class="z-sharing"><i></i>You're sharing: Agent desktop<span>Stop share</span></div></div>
+        <div class="z-stage">
+          <div class="z-tag">Shared · Agent desktop</div>
+          <div class="z-slide z-deck" data-name="slide6">
+            <div class="z-kicker">Your home cover</div>
+            <h3>What clients ask us</h3>
+            <ol class="z-points">
+              <li><b>01</b>Can I lower my premium?</li>
+              <li><b>02</b>What if I raise the deductible?</li>
+              <li><b>03</b>How does this compare?</li>
+            </ol>
+            <div class="z-page">06</div>
+          </div>
+          <div class="z-slide z-deck" data-name="slide7">
+            <div class="z-kicker">The opportunity</div>
+            <h3>Market size</h3>
+            <div class="z-chart"><i data-year="2023" style="height: 38%"></i><i data-year="2024" style="height: 52%"></i><i data-year="2025" style="height: 70%"></i><i data-year="2026" style="height: 92%"></i></div>
+            <div class="z-page">07</div>
+          </div>
+          <div class="z-slide z-pdf" data-name="offer">
+            <header><span id="pdfName">Home offer — revised.pdf</span><span>1 / 4</span></header>
+            <div class="z-sheet">
+              <h4>Home insurance offer</h4>
+              <p>Revised · 2 April</p>
+              <div class="z-row z-hot">Deductible<i></i></div>
+              <div class="z-row">Premium per year<i></i></div>
+              <div class="z-row">Contents covered<i></i></div>
+              <div class="z-row">Valid until<i></i></div>
+            </div>
+          </div>
+          <div class="z-slide z-video" data-name="video"><h5>Robot gripper demo</h5><div class="z-play"></div><div class="z-progress"></div></div>
+        </div>
+        <div class="z-people">
+          <div class="z-tile" style="--bg: #34383f; --fg: #59606b"><span>Claire · client</span></div>
+          <div class="z-tile" style="--bg: #3d3833; --fg: #6a6058"><span>Marc · client</span></div>
+          <div class="z-tile z-talking" style="--bg: #333b36; --fg: #5d6b62"><span>Hamid (you)</span></div>
+        </div>
+        <div class="z-tools">
+          <span><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Mute</span>
+          <span><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>Stop video</span>
+          <span><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.8-3.4 3.2-5 6-5s5.2 1.6 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14c2.3.2 3.9 1.7 4.5 4.5"/></svg>Participants</span>
+          <span><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat</span>
+          <span class="z-green"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 14V8M9 10.5l3-3 3 3M8 20h8"/></svg>Share</span>
+          <span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>Record</span>
+          <div class="z-end">End</div>
+        </div>
       </div>
       <div id="live"></div>
     </div>
     <div class="controls" id="controls"></div>
-    <p class="note">The desktop app starts a VM and shares its window, Copilot screen, in the call. The agent presents there and never touches your own desktop. The mole sits in a bar over your desktop and says what it understood.</p>
+    <p class="note">The desktop app starts a VM, the agent desktop, and shares only that window in the call. The agent opens decks, files and sites there, never on your own desktop, and the mole sits on your side of the screen, outside the shared frame.</p>
   </section>
 
   <section class="pocket">
@@ -248,7 +286,7 @@
         <div class="track" aria-hidden="true"><i class="edge"></i><div class="walker"><i></i></div></div>
         <output id="dist">0.4 m</output>
       </div>
-      <p><b>When it hesitates, it asks.</b> If two slides or files fit what you said, the phone buzzes and offers them. Tap one or say its number. Do nothing and the screen stays as it is.</p>
+      <p><b>When it hesitates, it asks.</b> If two documents fit what you said, the phone buzzes and the mole holds both up. Tap one or say its number. Nothing is shared until you pick.</p>
       <div class="controls" id="pocketControls"></div>
     </div>
 
@@ -256,18 +294,13 @@
       <i class="buzz l"></i><i class="buzz r"></i>
       <div class="phone" id="phone" data-mic="laptop">
         <div class="screen-in">
-          <div class="status"><span>12:04</span><i class="cam"></i><svg viewBox="0 0 34 12" aria-hidden="true"><path d="M1 11h2V8H1zM5 11h2V6H5zM9 11h2V3.5H9zM13 11h2V1h-2z"/><rect x="19.5" y="1.5" width="13.5" height="9" rx="2.25" fill="none" stroke="currentColor"/><rect x="21" y="3" width="8" height="6" rx="1"/></svg></div>
+          <div class="status"><span>24:13</span><i class="cam"></i><svg viewBox="0 0 34 12" aria-hidden="true"><path d="M1 11h2V8H1zM5 11h2V6H5zM9 11h2V3.5H9zM13 11h2V1h-2z"/><rect x="19.5" y="1.5" width="13.5" height="9" rx="2.25" fill="none" stroke="currentColor"/><rect x="21" y="3" width="8" height="6" rx="1"/></svg></div>
           <div class="top">
-            <div><b>Q3 review</b><small>Presenting</small></div>
-            <div class="mic"><i class="wave"><i></i><i></i><i></i><i></i></i><span class="src"><span data-src="laptop">Laptop mic</span><span data-src="phone">Phone mic</span></span></div>
+            <div><b>Presenting</b><small>Home insurance review</small></div>
+            <div class="mic"><i class="wave"><i></i><i></i><i></i><i></i></i><span class="src"><span data-src="laptop">Laptop</span><span data-src="phone">Phone</span></span></div>
           </div>
           <div id="pocketMole"></div>
-          <div class="now"><div class="thumb" id="nowThumb"></div><div><small>On screen</small><b id="nowName"></b></div></div>
-          <div class="pick" id="pick" role="group" aria-labelledby="pickHint" inert>
-            <small id="pickHint">Tap one or say its number.</small>
-            <ol id="pickList"></ol>
-            <button class="skip" id="skip">Keep this screen</button>
-          </div>
+          <div class="now"><div class="thumb" aria-hidden="true"><div class="thumb-cq"><div class="thumb-stage" id="nowThumb"></div></div></div><div><small>On screen</small><b id="nowName"></b></div></div>
           <i class="home"></i>
         </div>
       </div>
@@ -278,13 +311,17 @@
     <h2>States</h2>
     <div class="sheet" id="sheet"></div>
   </section>
+  <section>
+    <h2>Choosing a document · only the presenter sees this, nothing is shared until they pick</h2>
+    <div class="choices" id="choices"></div>
+  </section>
 
   <section>
     <h2>Under the hood</h2>
     <div class="hood">
       <p><b>One codebase.</b> Kotlin Multiplatform shares the agent, built on Koog, between the desktop app and the Android companion.</p>
       <p><b>Nothing leaves the room.</b> EmbeddingGemma embeds each sentence on the device, and a Gemma model fine-tuned on meeting talk decides what to show.</p>
-      <p><b>A stage of its own.</b> The VM holds the decks, files and browser the agent drives. Your desktop stays as you left it.</p>
+      <p><b>A stage of its own.</b> The agent desktop holds the decks, files and browser the agent drives. Your desktop stays as you left it.</p>
     </div>
     <div class="ticks" id="ticks" aria-hidden="true"></div>
     <p class="note">Twice a second, a coroutine asks the agent whether there is anything to do. <span class="legend"><i class="sw" data-did="acted"></i>It acted.</span> <span class="legend"><i class="sw" data-did="asked"></i>It asked you.</span></p>
@@ -296,7 +333,7 @@ flow {
     }
 }.collect { move ->
     when (move) {
-        is Move.Show -> vm.show(move.target)
+        is Move.Show -> agentDesktop.show(move.target)
         is Move.Ask -> phone.buzz().ask(move.options)
         Move.Nothing -> Unit
     }
@@ -307,69 +344,88 @@ flow {
 <script src="mole.js"></script>
 <script>
   const LINE = "so let's look at the market size";
+  // Finding a slide runs heard → working → retrieving → ready → back; the rest are the other moments.
   const SAMPLES = {
     idle: { heard: "" },
-    heard: { title: "I've got it.", heard: LINE },
+    heard: { title: "I've got it.", heard: LINE, card: "07" },
     working: { title: "Finding slide 7…", heard: LINE },
+    retrieving: { title: "I found slide 7.", heard: LINE },
     ready: { title: "Slide 7 is ready.", heard: LINE },
+    back: { title: "Back to you.", heard: "" },
     unsure: { heard: "open the, um, thing from the offsite" },
-    back: { heard: "" },
     thinking: { title: "Thinking…", heard: "show them how the warehouse robot picks" },
     waiting: { title: "Open… what?", heard: "open up, um", timeout: 8000 },
     tunneling: { title: "Step 2 · clicking Search", heard: "search robot grippers on youtube" },
     failed: { title: "Couldn't find “roadmap”.", heard: "pull up the roadmap" },
     hello: { title: "Hi. I'm listening.", heard: "" },
   };
-  const KEYS = ["hidden", ...Object.keys(SAMPLES)];
-  const SLIDES = {
-    cover: { name: "Q3 review", where: "Q3 review · slide 1", html: "<b>Q3 review</b><span>Acme · November 2026</span>" },
-    market: { name: "Market size", where: "Q3 review · slide 7", html: "<small>07</small><b>A €4.2B market, growing 18% a year.</b><i class=bars><i></i><i></i><i></i><i></i><i></i></i>" },
-    video: { name: "Robot grippers", where: "YouTube", html: "<i class=play></i><span>Robot grippers, in slow motion</span>" },
-    recap: { name: "Offsite recap", where: "Q3 review · slide 12", html: "<small>12</small><b>Offsite recap</b><i class=notes><i></i><i></i><i></i></i>" },
-    pdf: { name: "Offsite notes.pdf", where: "Documents", html: "<i class=page></i>" },
-    photos: { name: "Team photos", where: "Offsite 2026 folder", html: "<i class=photos><i></i><i></i><i></i></i>" },
-  };
-  const OFFSITE = ["recap", "pdf", "photos"];
-  const PICK_MS = 8000; // the phone keeps the choice open this long, then keeps the screen
+
+  const OFFERS = [
+    { name: "Home offer — March.pdf", meta: "Sent 12 Mar", kind: "pdf" },
+    { name: "Home offer — revised.pdf", meta: "Sent 2 Apr", kind: "pdf" },
+  ];
+  const Q3 = [
+    { name: "Q3 review.pptx", meta: "Slide 7", kind: "slides" },
+    { name: "Q3 numbers.xlsx", meta: "Edited today", kind: "sheet" },
+    { name: "Q3 board memo.pdf", meta: "4 pages", kind: "pdf" },
+  ];
+  const CHOICES = [
+    { label: "Two versions of one file", state: "choosing", words: { heard: "pull up the offer we sent them", options: OFFERS } },
+    { label: "Three kinds of file", state: "choosing", words: { heard: "show them the Q3 numbers", options: Q3 } },
+    { label: "Picked by voice", state: "picked", words: { title: "Opening the revised offer…", heard: "the second one", options: OFFERS, pick: 1 } },
+  ];
+
+  const LIVE = { ...SAMPLES, choosing: CHOICES[0].words, picked: CHOICES[2].words };
+  const KEYS = ["hidden", ...Object.keys(LIVE)];
+  const SHOWN = { slide6: "What clients ask us", slide7: "Market size", video: "Robot gripper demo" };
 
   for (const [state, words] of Object.entries(SAMPLES)) {
-    const pick = Object.assign(document.createElement("button"), { onclick: () => show(state) });
+    const pick = Object.assign(document.createElement("button"), { onclick: () => show(state, { card: "07", ...words }) });
     pick.setAttribute("aria-label", `Show ${state} on the screen`);
     const bar = Mole.create(document.createElement("div"));
     bar.el.setAttribute("aria-hidden", "true");
-    bar.set(state, words);
+    bar.set(state, { card: "07", ...words });
     pick.append(bar.el);
     sheet.append(pick);
   }
 
-  const live = Mole.create(document.querySelector("#live"));
-  // The phone mirrors the bar; only the bar announces, so screen readers hear each line once.
-  const pocket = Mole.create(document.querySelector("#pocketMole"));
+  for (const { label, state, words } of CHOICES) {
+    const cell = Object.assign(document.createElement("button"), { onclick: () => show(state, words) });
+    cell.setAttribute("aria-label", `Show “${label}” on the screen`);
+    const bar = Mole.create(document.createElement("div"));
+    bar.el.setAttribute("aria-hidden", "true");
+    bar.set(state, words);
+    cell.append(bar.el, Object.assign(document.createElement("small"), { textContent: label }));
+    choices.append(cell);
+  }
+
+  const live = Mole.create(document.querySelector("#live"), { onpick: pickLive });
+  // The phone mirrors the bar, rows and all; only the bar announces, so a screen reader hears each line once.
+  const pocket = Mole.create(document.querySelector("#pocketMole"), { onpick: pickLive });
   pocket.el.removeAttribute("role");
-  pocket.el.setAttribute("aria-hidden", "true");
   const screen = document.querySelector(".screen");
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
-  let run = 0, slow = 1, pickTimer = 0;
+  let run = 0, slow = 1;
   const wait = ms => new Promise(r => setTimeout(r, ms * slow));
+  let liveOptions = OFFERS;
 
-  // The app on the phone never hides: when the bar dives away, the phone's mole goes back to listening.
+  // Both moles take every line. The app on the phone never hides: when the bar dives away, the phone's mole goes back to
+  // listening. The phone buzzes once each time the mole starts weighing options.
   function set(state, words = {}) {
     live.set(state, words);
+    const was = pocket.el.dataset.state;
     pocket.set(state === "hidden" ? "idle" : state, state === "hidden" ? { heard: "" } : words);
+    if (state === "choosing" && was !== "choosing") buzz();
   }
 
-  function put(box, id) {
-    const next = Object.assign(document.createElement("div"), { className: "slide", innerHTML: SLIDES[id].html });
-    next.dataset.slide = id;
-    const old = [...box.children];
-    box.append(next);
-    setTimeout(() => old.forEach(o => o.remove()), 200 * slow);
-  }
-
-  function onScreen(id) {
-    put(stage, id);
-    put(nowThumb, id);
-    nowName.textContent = SLIDES[id].name;
+  // What the shared frame shows: slide6, slide7, offer or video. It changes when the mole lands something on screen, and
+  // the phone's card shows a copy of it.
+  function present(name) {
+    screen.dataset.slide = name;
+    const copy = document.querySelector(`.z-slide[data-name=${name}]`).cloneNode(true);
+    copy.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+    nowThumb.replaceChildren(copy);
+    nowName.textContent = name === "offer" ? pdfName.textContent : SHOWN[name];
   }
 
   function walk(far) {
@@ -389,83 +445,76 @@ flow {
     }
   }
 
-  function ask(ids) {
-    pickList.innerHTML = ids.map((id, i) =>
-      `<li style="--i: ${i}"><button data-id="${id}"><span class="key">${i + 1}</span><span class="thumb"></span><span><b>${SLIDES[id].name}</b><em>${SLIDES[id].where}</em></span></button></li>`).join("");
-    for (const b of pickList.querySelectorAll("button")) {
-      put(b.querySelector(".thumb"), b.dataset.id);
-      b.onclick = () => { run++; choose(b.dataset.id); };
-    }
-    pick.inert = false;
-    pick.toggleAttribute("data-open", true);
-    phone.toggleAttribute("data-asking", true);
-    set("waiting", { title: "Which one?", timeout: PICK_MS });
-    buzz();
-    clearTimeout(pickTimer);
-    pickTimer = setTimeout(() => choose(null), PICK_MS * slow);
-  }
+  // Each run gets an id; starting another (a click, a key, the story) makes the old one's next beat throw and stop.
+  // A beat can also put something on the shared screen at the same moment.
+  const beats = id => async (state, words, ms, slide) => {
+    if (id !== run) throw 0;
+    set(state, words);
+    if (slide) present(slide);
+    await wait(ms);
+  };
 
-  function closePick() {
-    clearTimeout(pickTimer);
-    if (pick.contains(document.activeElement)) askButton.focus();
-    pick.removeAttribute("data-open");
-    phone.removeAttribute("data-asking");
-    pick.inert = true;
-  }
-
-  function choose(id) {
-    if (!pick.hasAttribute("data-open")) return;
-    closePick();
-    if (id) {
-      onScreen(id);
-      set("ready", { title: `${SLIDES[id].name} is up.` });
-    } else set("back", { heard: "" });
-  }
-  skip.onclick = () => { run++; choose(null); };
-
-  function show(state) {
+  function show(state, words = LIVE[state]) {
     run++;
-    closePick();
-    set(state, SAMPLES[state]);
+    if (words?.options) liveOptions = words.options;
+    set(state, words);
+    if (state === "ready") present("slide7");
+  }
+
+  // Clicking a row, on the bar or the phone, plays the rest: it opens, lands on screen, and hands back.
+  async function pickLive(i) {
+    const beat = beats(++run), chosen = liveOptions[i];
+    if (chosen) pdfName.textContent = chosen.name;
+    try {
+      await beat("picked", { pick: i, title: `Opening the ${["first", "second", "third"][i] ?? "chosen"} one…`, heard: "" }, 1100);
+      await beat("ready", { title: "It's on screen." }, 1600, chosen?.kind === "slides" ? "slide7" : "offer");
+      await beat("back", { heard: "" }, 1500);
+      await beat("idle", { heard: "" }, 0);
+    } catch {}
   }
 
   async function story() {
-    const id = ++run;
+    const id = ++run, beat = beats(id);
     const step = async (fn, ms) => { if (id !== run) throw 0; fn(); await wait(ms); };
-    const beat = (state, words, ms) => step(() => set(state, words), ms);
     const stream = async (state, text) => {
       const words = text.split(" ");
       for (let i = 1; i <= words.length; i++) await beat(state, { heard: words.slice(0, i).join(" ") }, 140);
     };
     try {
-      await step(() => { closePick(); walk(false); onScreen("cover"); }, 0);
-      await beat("idle", { heard: "" }, 500);
+      liveOptions = OFFERS;
+      pdfName.textContent = OFFERS[1].name;
+      walk(false);
+      await beat("idle", { heard: "", card: "07" }, 500, "slide6");
       await stream("idle", "okay so the next thing I want to show you is the market size");
       await beat("heard", { title: "I've got it." }, 1000);
-      await beat("working", { title: "Finding slide 7…" }, 2200);
-      await step(() => onScreen("market"), 0);
-      await beat("ready", { title: "Slide 7 is ready." }, 1700);
-      await beat("back", { heard: "" }, 1300);
-      await beat("hidden", {}, 1500);
-      await beat("idle", { heard: "" }, 400);
-      await beat("thinking", { heard: "show them how the warehouse robot picks" }, 1400);
-      await beat("tunneling", { title: "Step 1 · opening YouTube" }, 1500);
-      await beat("tunneling", { title: "Step 2 · clicking Search" }, 1500);
-      await step(() => onScreen("video"), 0);
-      await beat("ready", { title: "It's on screen." }, 1500);
-      await beat("back", { heard: "" }, 1300);
+      await beat("working", { title: "Finding slide 7…" }, 2000);
+      await beat("retrieving", { title: "I found slide 7." }, 1300);
+      await beat("ready", { title: "Slide 7 is ready." }, 1700, "slide7");
+      await beat("back", { heard: "" }, 1500);
       await beat("hidden", {}, 1200);
       await step(() => walk(true), 1500);
       await beat("hello", { title: "On your phone now." }, 1800);
       await beat("idle", { heard: "" }, 400);
-      await stream("idle", "and can you open the, um, thing from the offsite");
-      await beat("thinking", {}, 1100);
-      await step(() => ask(OFFSITE), 2200);
-      await step(() => { pickList.querySelector("button").dataset.picked = ""; }, 450);
-      await step(() => choose(OFFSITE[0]), 1800);
-      await beat("back", { heard: "" }, 1300);
+      await stream("idle", "and can you pull up the offer we sent them");
+      await beat("choosing", { options: OFFERS }, 2600);
+      await beat("picked", { pick: 1, title: "Opening the revised offer…", heard: "the second one" }, 1300);
+      await beat("ready", { title: "It's on screen." }, 1500, "offer");
+      await beat("back", { heard: "" }, 1500);
       await beat("hidden", {}, 1200);
-      await step(() => walk(false), 0);
+      await step(() => walk(false), 1500);
+      await beat("hello", {}, 1600);
+      await beat("idle", { heard: "" }, 600);
+      await beat("thinking", { heard: "show them how the warehouse robot picks" }, 1400);
+      await beat("tunneling", { title: "Step 1 · opening YouTube" }, 1500);
+      await beat("tunneling", { title: "Step 2 · clicking Search" }, 1500);
+      await beat("ready", { title: "It's on screen." }, 1500, "video");
+      await beat("back", { heard: "" }, 1300);
+      await beat("hidden", {}, 1500);
+      await beat("idle", { heard: "" }, 400);
+      await stream("idle", "and can you open the, um, thing from the offsite");
+      await beat("unsure", {}, 2000);
+      await beat("back", { heard: "" }, 1300);
+      await beat("hidden", {}, 0);
     } catch {}
   }
 
@@ -475,7 +524,7 @@ flow {
     Mole.speed = slow === 1 ? 1 : 0.2;
     slowButton.setAttribute("aria-pressed", slow > 1);
   }
-  const nextWall = () => (screen.dataset.wall = (+screen.dataset.wall + 1) % 4);
+  const nextWall = () => (screen.dataset.wall = (+screen.dataset.wall + 1) % 5);
 
   const button = (row, label, key, onclick) => {
     const b = Object.assign(document.createElement("button"), { onclick });
@@ -489,24 +538,22 @@ flow {
   const slowButton = button(controls, "Slow-mo", "S", toggleSlow);
   button(controls, "Wallpaper", "W", nextWall);
   const walkButton = button(pocketControls, "Walk away", "M", () => { run++; walk(phone.dataset.mic === "laptop"); });
-  const askButton = button(pocketControls, "Ask which one", "A", () => { run++; ask(OFFSITE); });
+  button(pocketControls, "Ask which one", "A", () => show("choosing", CHOICES[0].words));
 
   addEventListener("keydown", e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const open = pick.hasAttribute("data-open"), choice = pickList.querySelectorAll("button")[e.key - 1];
-    if (open && choice) { run++; choose(choice.dataset.id); }
-    else if (open && e.key === "Escape") { run++; choose(null); }
-    else if (KEYS[e.key]) show(KEYS[e.key]);
+    if (e.target.closest?.(".mole-opt")) return; // keys on a focused option row belong to that row
+    if (KEYS[e.key]) show(KEYS[e.key]);
     else if (e.key === " ") { e.preventDefault(); story(); }
     else if (e.key === "s") toggleSlow();
     else if (e.key === "w") nextWall();
     else if (e.key === "m") walkButton.click();
-    else if (e.key === "a") askButton.click();
+    else if (e.key === "a") show("choosing", CHOICES[0].words);
   });
 
   // The loop strip: a cursor sweeps the cells, and each cell keeps what the agent answered at that tick.
   for (let i = 0; i < 48; i++) ticks.append(document.createElement("i"));
-  const ACTED = new Set(["heard", "working", "tunneling", "ready"]), ASKED = new Set(["waiting", "unsure"]);
+  const ACTED = new Set(["heard", "working", "retrieving", "tunneling", "ready", "picked"]), ASKED = new Set(["choosing", "waiting", "unsure"]);
   let tick = 0;
   (function loop() {
     const state = live.el.dataset.state, cell = ticks.children[tick++ % 48];
@@ -516,7 +563,6 @@ flow {
     setTimeout(loop, 500 * slow);
   })();
 
-  set("idle", { heard: "" });
-  onScreen("cover");
+  present("slide6");
   story();
 </script>

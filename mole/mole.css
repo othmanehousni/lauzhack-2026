@@ -4,20 +4,23 @@
   --paper: #f2ede4;
   --ink: #1f1c1a;
   --ember: #f2531c;
+  --ember-deep: #c4430b; /* the tie's folds */
+  --ember-light: #f78742; /* the tie's knot */
   --lens: #f3ebd5;
+  --stack: #fdf8ec; /* the pile of slides */
   --sage: #8dae93;
+  --plum: #65496e;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --slow: 1;
 }
 
+/* The bar is a column: the options panel (usually collapsed) sits above the row with the mole and its words, and since
+   the bar is anchored at its bottom edge, opening the panel grows it upward. */
 .mole-bar {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
   width: 340px;
-  height: 76px;
   box-sizing: border-box;
-  padding: 0 22px 0 10px;
   border-radius: 24px;
   background: var(--paper);
   color: var(--ink);
@@ -34,17 +37,108 @@
   transition-delay: calc(180ms * var(--slow));
   pointer-events: none;
 }
+.mole-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 76px;
+  box-sizing: border-box;
+  padding: 0 22px 0 10px;
+}
+
+/* -- the options ----------------------------------------------------------------------------------------------- */
+
+.mole-opts {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows calc(320ms * var(--slow)) var(--ease-out);
+}
+.mole-opts-in {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 10px;
+  opacity: 0;
+  transition: opacity calc(140ms * var(--slow)) var(--ease-out);
+}
+.mole-bar[data-open] .mole-opts { grid-template-rows: 1fr; }
+.mole-bar[data-open] .mole-opts-in { opacity: 1; transition-duration: calc(220ms * var(--slow)); transition-delay: calc(90ms * var(--slow)); }
+
+.mole-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 10px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgb(31 28 26 / .5);
+  white-space: nowrap;
+}
+.mole-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 8px;
+  list-style: none;
+  border-bottom: 1px solid rgb(31 28 26 / .08);
+}
+.mole-opt {
+  display: grid;
+  grid-template-columns: 20px 16px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  height: 36px;
+  padding: 0 12px 0 8px;
+  border-radius: 14px; /* the bar's 24px corner minus the panel's 10px inset, so the curves stay concentric */
+  font-size: 14px;
+  transition: background-color calc(150ms * var(--slow)) ease, opacity calc(200ms * var(--slow)) var(--ease-out);
+}
+.mole-opt[role=button] { cursor: pointer; }
+.mole-opt[role=button]:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.mole-opt[data-on] { background: rgb(31 28 26 / .06); }
+.mole-bar[data-state=picked] .mole-opt:not([data-on]) { opacity: .35; }
+
+.mole-key {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgb(31 28 26 / .06);
+  font: 600 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  transition: background-color calc(150ms * var(--slow)) ease, color calc(150ms * var(--slow)) ease;
+}
+.mole-key b { font: inherit; }
+.mole-key svg { display: none; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.mole-opt[data-on] .mole-key { background: var(--ink); color: var(--paper); }
+.mole-bar[data-state=picked] .mole-opt[data-on] .mole-key b { display: none; }
+.mole-bar[data-state=picked] .mole-opt[data-on] .mole-key svg { display: block; }
+
+.mole-glyph { width: 16px; height: 16px; overflow: visible; }
+.mole-glyph path, .mole-glyph rect { fill: var(--lens); stroke: var(--ink); stroke-width: 1.1; stroke-linejoin: round; }
+.mole-glyph .g-line { fill: none; stroke-linecap: round; opacity: .45; }
+
+.mole-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mole-meta { font-size: 12px; color: rgb(31 28 26 / .5); white-space: nowrap; }
+
+@media (hover: hover) and (pointer: fine) {
+  .mole-opt[role=button]:hover:not([data-on]) { background: rgb(31 28 26 / .04); }
+}
 
 /* -- the puppet ------------------------------------------------------------------------------------------------ */
 
-.mole-fig { flex: none; align-self: flex-end; width: 64px; height: 62px; margin-bottom: 9px; overflow: hidden; }
+.mole-fig { flex: none; align-self: flex-end; width: 83px; height: 62px; margin-bottom: 9px; overflow: hidden; }
 .mole-fig .m-ink { fill: var(--ink); }
 .m-tie { fill: var(--ember); }
-.m-lens { fill: var(--lens); stroke: var(--ink); stroke-width: 1.1; }
-.m-bridge { stroke: var(--lens); stroke-width: 1.8; stroke-linecap: round; }
+.m-fold { fill: var(--ember-deep); }
+.m-knot { fill: var(--ember-light); }
+.m-lens { fill: var(--lens); stroke: var(--ink); stroke-width: 1.4; }
+.m-bridge { stroke: var(--lens); stroke-width: 2.8; stroke-linecap: round; }
 .m-ground { stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
-.m-card rect { fill: var(--lens); stroke: var(--ink); stroke-width: 1.5; }
-.m-card path { fill: none; stroke: var(--ink); stroke-width: 1.3; stroke-linecap: round; opacity: .45; }
+.m-paper { fill: var(--lens); stroke: var(--ink); stroke-width: 1.3; }
+.m-bar { fill: var(--ember); }
+.m-num { font: 700 15.5px/1 -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif; letter-spacing: -0.02em; fill: var(--ink); text-anchor: middle; }
+.m-stack rect { fill: var(--stack); stroke: var(--ink); stroke-width: 1.2; }
+.m-scent path { fill: none; stroke: var(--ember); stroke-width: 2; stroke-linecap: round; }
 
 /* -- the words ------------------------------------------------------------------------------------------------- */
 
@@ -62,7 +156,10 @@
 }
 [data-state=idle] .mole-dot, [data-state=back] .mole-dot { opacity: 0; transform: scale(.4); }
 [data-state=unsure] .mole-dot, [data-state=failed] .mole-dot { background: var(--ember); }
-[data-state=working] .mole-dot, [data-state=thinking] .mole-dot, [data-state=tunneling] .mole-dot { animation: mole-pulse calc(1s * var(--slow)) ease-in-out infinite; }
+/* Asking you, not driving: plum instead of sage, and still. */
+[data-state=choosing] .mole-dot { background: var(--plum); }
+[data-state=working] .mole-dot, [data-state=retrieving] .mole-dot, [data-state=thinking] .mole-dot, [data-state=tunneling] .mole-dot,
+[data-state=picked] .mole-dot { animation: mole-pulse calc(1s * var(--slow)) ease-in-out infinite; }
 @keyframes mole-pulse { 50% { opacity: .35; } }
 
 .mole-words {
@@ -95,4 +192,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mole-bar, .mole-words, .mole-dot { transition-property: opacity !important; }
+  .mole-opts { transition: none; }
 }
