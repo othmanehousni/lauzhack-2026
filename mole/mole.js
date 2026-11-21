@@ -12,7 +12,6 @@
     back: "Back to you.",
   };
   const HEARD_MAX = 44; // a live transcript keeps its newest words
-  const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
 
   // Mole-space units: the body's base sits at (0, 0) on the ground line and the snout points to +x. The SVG viewport
@@ -174,6 +173,9 @@
     root.setAttribute("role", "status");
     root.innerHTML = `${FIGURE}<div class="mole-text"><i class="mole-dot"></i><div class="mole-words"><div class="mole-title"></div><div class="mole-heard"></div></div></div>`;
     const title = root.querySelector(".mole-title"), heard = root.querySelector(".mole-heard");
+    const words = root.querySelector(".mole-words");
+    words.toggleAttribute("data-one-line", true);
+    const ease = getComputedStyle(document.documentElement).getPropertyValue("--ease-out").trim() || "ease-out";
     const slow = () => parseFloat(getComputedStyle(root).getPropertyValue("--slow")) || 1;
 
     const rig = createRig(1);
@@ -215,14 +217,15 @@
       if (title.lastElementChild?.textContent === text) return;
       const next = Object.assign(document.createElement("span"), { textContent: text });
       if (!animate) return title.replaceChildren(next);
-      const shift = reduce.matches ? 0 : 6, timing = { easing: EASE_OUT, fill: "forwards" };
+      const shift = reduce.matches ? 0 : 6, timing = { easing: ease, fill: "forwards" };
+      const blur = reduce.matches ? 0 : 2;
       for (const old of [...title.children]) {
-        old.animate([{ opacity: 0, transform: `translateY(${-shift}px)` }], { ...timing, duration: 160 * slow() })
+        old.animate([{ opacity: 0, transform: `translateY(${-shift}px)`, filter: `blur(${blur}px)` }], { ...timing, duration: 160 * slow() })
           .finished.then(() => old.remove(), () => {});
       }
       title.append(next);
       next.animate(
-        [{ opacity: 0, transform: `translateY(${shift}px)` }, { opacity: 1, transform: "none" }],
+        [{ opacity: 0, transform: `translateY(${shift}px)`, filter: `blur(${blur}px)` }, { opacity: 1, transform: "none", filter: "blur(0px)" }],
         { ...timing, duration: 220 * slow(), delay: 40 * slow() },
       );
     }
@@ -239,7 +242,10 @@
         wake();
       }
       if (t !== undefined) swap(t, prev !== "hidden" && state !== "hidden");
-      if (h !== undefined) heard.textContent = h.length > HEARD_MAX ? `…${h.slice(1 - HEARD_MAX).trimStart()}` : h;
+      if (h !== undefined) {
+        words.toggleAttribute("data-one-line", !h);
+        if (h) heard.textContent = h.length > HEARD_MAX ? `…${h.slice(1 - HEARD_MAX).trimStart()}` : h;
+      }
     }
 
     draw();

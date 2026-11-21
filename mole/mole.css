@@ -65,12 +65,20 @@
 [data-state=working] .mole-dot { animation: mole-pulse calc(1s * var(--slow)) ease-in-out infinite; }
 @keyframes mole-pulse { 50% { opacity: .35; } }
 
-.mole-words { padding-left: 16px; transition: transform calc(260ms * var(--slow)) var(--ease-out); }
-[data-state=idle] .mole-words, [data-state=back] .mole-words { transform: translateX(-16px); }
+.mole-words {
+  --wx: 0px;
+  --wy: 0px;
+  padding-left: 16px;
+  transform: translate(var(--wx), var(--wy));
+  transition: transform calc(260ms * var(--slow)) var(--ease-out);
+}
+[data-state=idle] .mole-words, [data-state=back] .mole-words { --wx: -16px; }
+.mole-words[data-one-line] { --wy: 8.5px; }
 
 .mole-title { display: grid; }
 .mole-title > span { grid-area: 1 / 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mole-heard {
+  height: 16px;
   margin-top: 1px;
   font-size: 12.5px;
   line-height: 16px;
@@ -78,12 +86,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity calc(200ms * var(--slow)) var(--ease-out);
 }
-.mole-heard:empty { display: none; }
+.mole-words[data-one-line] .mole-heard { opacity: 0; }
 .mole-heard::before { content: "\201C"; }
 .mole-heard::after { content: "\201D"; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mole-bar, .mole-bar * { animation: none !important; }
   .mole-bar, .mole-words { transition-property: opacity !important; }
 }
