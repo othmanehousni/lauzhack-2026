@@ -61,8 +61,8 @@ NGRAMS, BUCKETS = 0.5, 2 ** 12  # the hashed words' weight next to the embedding
 STEPS, LR, L2 = 400, 0.1, 1e-5  # training: full-batch Adam steps, step size, weight penalty (5-fold CV on intents.py)
 PARTIAL = 0.9  # how likely a kind of request must be to act before the sentence ends
 FALLBACK_LOW = 0.25  # an unsure sentence at least this likely to be a request goes to the decision model
-JUMP, MARGIN = 0.02, 0.1  # following the talk: each slide skipped costs JUMP, and the new slide must beat the one on air by MARGIN
-RETURN_BONUS = 0.1  # "back to the slides" lands on the last one shown unless the sentence is clearly about another
+JUMP, MARGIN = 0.02, 0.1  # following the talk, each slide skipped costs JUMP and the new slide must beat the one on air by
+# MARGIN; going back to the slides, a slide the sentence names must beat the last one shown by MARGIN
 NAMES = 0.04  # how much saying a slide's title or its deck's name counts, next to the meaning of the sentence
 HERE_BONUS = 0.03  # a slide named by its topic is looked for in the deck on screen first
 SUGGEST = 0.02  # following the talk: a slide ahead that beats the one on air by this much, but not by MARGIN, is suggested
@@ -520,9 +520,11 @@ class Brain:
                     return Decision(v.last, why="back to the slides")
                 s = cat.by_id.get(f"{here.doc} p{here.page + (1 if group == 'next' else -1)}")
                 return Decision(Action("slide", s.id) if s else None, why=group)
-            case "return":
-                bonus = np.array([RETURN_BONUS if s == here else 0.0 for s in cat.slides])
-                return Decision(Action("slide", cat.slides[int(np.argmax(sims + bonus))].id), why="back to the slides")
+            case "return":  # the last slide shown, unless the sentence names another clearly better
+                named = sims - cat.slide_empty
+                i = int(np.argmax(named))
+                s = cat.slides[i] if named[i] > named[cat.slides.index(here)] + MARGIN else here
+                return Decision(Action("slide", s.id), why="back to the slides")
             case "open" if (url := domain(said)):
                 return Decision(Action("url", url), why="address")
             case "open" if (a := cat.place(said)):

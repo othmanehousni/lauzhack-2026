@@ -112,9 +112,11 @@ class Stage:
     # -- plumbing ---------------------------------------------------------------------------------------------------
 
     def http(self, path: str, method: str = "GET") -> Any:
+        """DevTools' HTTP endpoints: JSON, except /json/close and /json/activate, which answer in plain text."""
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}{path}", method=method)
-        with urllib.request.urlopen(req, timeout=5) as r:
-            return json.load(r)
+        with urllib.request.urlopen(req, timeout=15) as r:  # the VM can take seconds when it is busy
+            body = r.read()
+        return json.loads(body) if body[:1] in (b"{", b"[") else body.decode()
 
     def shell(self, cmd: list[str]) -> None:
         if self.sandbox:
@@ -175,9 +177,9 @@ class Stage:
         pages = [t for t in self.http("/json/list") if t["type"] == "page"]
         stage = next((t for t in pages if t["url"].split("#")[0] == PAGE), None)
         self.home = stage["id"] if stage else self.http(f"/json/new?{PAGE}", "PUT")["id"]
-        for t in pages:
-            if t["id"] != self.home and t["url"].startswith(("http", "file")):
-                self.tabs.setdefault(t["url"], t["id"])
+        for t in pages:  # tabs left from an earlier run only slow the VM down
+            if t["id"] != self.home:
+                self.http(f"/json/close/{t['id']}")
         deadline = time.monotonic() + 10
         while self.run(self.home, "typeof show") != "function":  # a tab opened just now has not run stage.html yet
             if time.monotonic() > deadline:
@@ -190,7 +192,7 @@ class Stage:
             self.shell(["open", "-a", "Google Chrome"])
             self.covered = False
         if tab != self.front:
-            urllib.request.urlopen(f"http://127.0.0.1:{self.port}/json/activate/{tab}", timeout=5).read()
+            self.http(f"/json/activate/{tab}")
             self.front = tab
 
     # -- what the presenter asks for ---------------------------------------------------------------------------------
