@@ -650,6 +650,10 @@ INTENTS: dict[str, list[str]] = {
         "Then back to the deck, please.",
     ],
     "open": [
+        'Let me pull up how much we spent on ads.',
+        "I'll pull up what the survey said about pricing.",
+        'Let me bring up where our users are coming from.',
+        "Let's pull up how many tickets we closed last month.",
         'Switch to Slack.',
         'switch to notes for a 2nd.',
         'Can you switch over to Figma?',
