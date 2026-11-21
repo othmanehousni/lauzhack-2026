@@ -242,11 +242,13 @@ class Stage:
         self.covered = True
 
     def close(self) -> None:
-        """Close the tab on screen and go back to the stage; on the stage itself, show the desktop picture."""
+        """Close the app or tab on screen and go back to the stage; on the stage itself, show the desktop picture."""
         if self.dry:
             print("   close")
             return
-        if self.front and self.front != self.home:
+        if self.covered:  # an app is in front: bringing Chrome back shows the stage
+            self.bring(self.home)
+        elif self.front and self.front != self.home:
             self.http(f"/json/close/{self.front}")
             self.tabs = {u: t for u, t in self.tabs.items() if t != self.front}
             self.sockets.pop(self.front, None)

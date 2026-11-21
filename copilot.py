@@ -80,6 +80,7 @@ class Files:
     def __init__(self):
         self.places = [a for f in vm.FOLDERS for a in ("-onlyin", str(Path.home() / f))]
         self.names: list[tuple[str, str]] = []
+        self.ready = threading.Event()
         threading.Thread(target=self.load, daemon=True).start()
 
     @staticmethod
@@ -95,6 +96,21 @@ class Files:
 
     def load(self) -> None:
         self.names = [(p.rsplit("/", 1)[-1].lower(), p) for p in self.spotlight(" || ".join(f'kMDItemContentTypeTree == "{k}"' for k in self.KINDS))]
+        self.ready.set()
+
+    def newest(self, n: int = 1500) -> list[str]:
+        """The n most recently changed files, for brain.py to search by meaning."""
+        self.ready.wait(60)
+        # ponytail: newest by mtime only; a presenter's older file is still found by name through the vision model
+        times = {p: t for _, p in self.names if (t := self.mtime(p))}
+        return sorted(times, key=times.__getitem__, reverse=True)[:n]
+
+    @staticmethod
+    def mtime(path: str) -> float:
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            return 0.0
 
     def find(self, query: str) -> str | None:
         """Newest file whose name holds every word of the query."""
@@ -254,11 +270,13 @@ def act(brain: Brain, screen: Screen, inbox: queue.Queue) -> None:
             if (kind == "final" or inbox.empty()) and (said, end) != seen:
                 seen = (said, end)
                 t = time.perf_counter()
-                a, why = brain.decide(said, end)
-                line = f'{MARKS[kind]} "{said}"  [text {(heard - stopped) * 1e3:.0f}ms, decision {(time.perf_counter() - t) * 1e3:.0f}ms] {why}'
-                if a:
-                    brain.moved(screen.do(a, brain.history))
-                    line += f"  -> {a}, {(time.perf_counter() - stopped) * 1e3:.0f}ms after you stopped"
+                d = brain.decide(said, end)
+                line = f'{MARKS[kind]} "{said}"  [text {(heard - stopped) * 1e3:.0f}ms, decision {(time.perf_counter() - t) * 1e3:.0f}ms] {d.why}'
+                if d.do:
+                    brain.moved(screen.do(d.do, brain.history))
+                    line += f"  -> {d.do}, {(time.perf_counter() - stopped) * 1e3:.0f}ms after you stopped"
+                elif d.offer:
+                    line += "  ? " + " | ".join(brain.describe(a) for a in d.offer)
                 elif not end:
                     line = ""
         except Exception as e:
@@ -277,7 +295,7 @@ def run_live(args) -> None:
         serve(args.router)
     screen = Screen(args.sandbox, args.library, args.dry, args.vision)
     screen.up()
-    catalog, intents = Catalog(args.library, screen.apps), Intents(INTENTS)
+    catalog, intents = Catalog(args.library, screen.apps, screen.files.newest()), Intents(INTENTS)
     Brain(catalog, intents, fallback=False).decide("Hi everyone, can you all hear me?", end=True)  # warm-up: loads the embedding model
     brain = Brain(catalog, intents, args.threshold, args.any_language, args.fallback)
     inbox: queue.Queue = queue.Queue()

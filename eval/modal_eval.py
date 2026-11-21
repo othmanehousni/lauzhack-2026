@@ -4,6 +4,7 @@ build and the embeddings in Ollama, as on the Mac; the decks are the fixtures. M
   export MODAL_PROFILE=$(~/Desktop/lemodb-proto/switch.sh) MODAL_IMAGE_BUILDER_VERSION=2025.06
   modal run eval/modal_eval.py                                  every eval script, as compare.sh would
   modal run eval/modal_eval.py --args "--threshold 0.6 eval eval/web.jsonl --step 0"
+  modal run eval/modal_eval.py --vectors /tmp/vectors.npz      every text the evals embed, for eval/tune.py
 """
 from pathlib import Path
 
@@ -24,9 +25,8 @@ image = (
 app = modal.App("copilot-eval", image=image)
 
 
-@app.function(gpu="L4", timeout=1800, volumes={"/cache": cache})
-def run(argv: list[str]) -> None:
-    import os
+def up() -> None:
+    """Start Ollama and write the fixture decks to /tmp/library."""
     import subprocess
     import time
     import urllib.request
@@ -41,12 +41,37 @@ def run(argv: list[str]) -> None:
         except OSError:
             time.sleep(0.5)
     subprocess.run(["python", "fixtures/make_decks.py", "/tmp/library"], cwd="/repo", check=True, stdout=subprocess.DEVNULL)
+
+
+@app.function(gpu="L4", timeout=1800, volumes={"/cache": cache})
+def run(argv: list[str]) -> None:
+    import os
+    import subprocess
+
+    up()
     env = os.environ | {"PATH": f"/app:{os.environ['PATH']}", "LD_LIBRARY_PATH": "/app"}
     if subprocess.run(["python", "copilot.py", "--library", "/tmp/library", *argv], cwd="/repo", env=env).returncode:
         subprocess.run("tail -n 30 /tmp/d1-server-*.log /tmp/ollama.log", shell=True)
     cache.commit()
 
 
+@app.function(gpu="L4", timeout=1800, volumes={"/cache": cache})
+def vectors_of_evals() -> bytes:
+    import subprocess
+
+    up()
+    scripts = " ".join(sorted(f"eval/{p.name}" for p in Path("/repo/eval").glob("*.jsonl")))
+    subprocess.run(f"python eval/tune.py texts /tmp/library {scripts} > /tmp/texts.json", shell=True, cwd="/repo", check=True)
+    subprocess.run(["python", "-c", "import json, numpy as np, brain; t = json.load(open('/tmp/texts.json')); "
+                    "v = np.concatenate([brain.embed(t[i:i + 256]) for i in range(0, len(t), 256)]); "
+                    "np.savez_compressed('/cache/vectors.npz', texts=np.array(t), vecs=v); print(len(t), 'texts')"], cwd="/repo", check=True)
+    cache.commit()
+    return Path("/cache/vectors.npz").read_bytes()
+
+
 @app.local_entrypoint()
-def main(args: str = "eval " + " ".join(sorted(str(p.relative_to(REPO)) for p in (REPO / "eval").glob("*.jsonl")))):
-    run.remote(args.split())
+def main(args: str = "eval " + " ".join(sorted(str(p.relative_to(REPO)) for p in (REPO / "eval").glob("*.jsonl"))), vectors: str = ""):
+    if vectors:
+        Path(vectors).write_bytes(vectors_of_evals.remote())
+    else:
+        run.remote(args.split())
