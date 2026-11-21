@@ -1,5 +1,6 @@
 // The Mole. Mole.create(el) turns el into an overlay bar and returns { set(state, { title, heard }) }.
-// set() only flips data-state and swaps the words; mole.css owns every pose. A classic script, so it loads from file://.
+// set() flips data-state, swaps the words and retargets the spring rig that draws the puppet. A classic script, so it
+// loads from file://; it touches the DOM only inside create(), so check.mjs can run the rig in node.
 (() => {
   const TITLES = {
     hidden: "",
@@ -13,28 +14,6 @@
   const HEARD_MAX = 44; // a live transcript keeps its newest words
   const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
-
-  // A damped spring (Apple's bounce and perceived duration) sampled into a CSS linear() curve, run until it settles.
-  function spring(bounce, perceived) {
-    const w = (2 * Math.PI) / perceived, z = 1 - bounce, wd = w * Math.sqrt(1 - z * z);
-    const settle = Math.log(1000) / (z * w);
-    const points = Array.from({ length: 61 }, (_, i) => {
-      const t = (settle * i) / 60;
-      return +(1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + ((z * w) / wd) * Math.sin(wd * t))).toFixed(4);
-    });
-    return { easing: `linear(${points.join(", ")})`, ms: Math.round(settle * 1000) };
-  }
-  const s = spring(0.3, 0.5);
-  document.documentElement.style.setProperty("--spring", s.easing);
-  document.documentElement.style.setProperty("--spring-dur", `${s.ms}ms`);
-
-  const DIRT = [
-    { dx: 10, dy: -20, t: 0.62, d: 0, r: 2 },
-    { dx: 17, dy: -13, t: 0.55, d: 0.18, r: 1.6 },
-    { dx: 5, dy: -26, t: 0.7, d: 0.3, r: 1.8 },
-    { dx: 22, dy: -9, t: 0.5, d: 0.42, r: 1.5 },
-    { dx: 13, dy: -17, t: 0.6, d: 0.1, r: 2.2 },
-  ];
 
   // Mole-space units: the body's base sits at (0, 0) on the ground line and the snout points to +x. The SVG viewport
   // ends just under the ground line, so whatever sinks below it is out of sight.
@@ -57,11 +36,137 @@
       <path d="M-9 -4.5H5M-9 0H9M-9 4H2"/>
     </g></g>
   </g></g>
-  <g class="m-dirt" transform="translate(44 0)">
-    ${DIRT.map(p => `<g class="m-fx" style="--dx:${p.dx}px;--dy:${p.dy}px;--t:${p.t}s;--d:${p.d}s"><circle class="m-fy m-ink" r="${p.r}"/></g>`).join("")}
-  </g>
+  <g class="m-dirt"></g>
   <line class="m-ground" x1="-44" y1="0" x2="66" y2="0"/>
 </svg>`;
+
+  const SVG = "http://www.w3.org/2000/svg";
+  const DT = 1 / 240;
+  const SPECKS = 12;
+  const GRAVITY = 300;
+
+  const mulberry32 = a => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  // Apple's (duration, bounce) spring with mass 1: k is stiffness, c damping.
+  const springOf = (duration, bounce) => ({ k: (2 * Math.PI / duration) ** 2, c: (4 * Math.PI * (1 - bounce)) / duration });
+
+  const BODY = springOf(0.5, 0.2), GLASSES = springOf(0.35, 0.1), ENVELOPE = springOf(0.4, 0);
+  const SPRINGS = {
+    x: BODY, y: BODY, rot: BODY,
+    head: springOf(0.6, 0.25), // softer than the body, so the head trails it on every move
+    specsX: GLASSES, specsY: GLASSES,
+    card: springOf(0.45, 0.2),
+    breathe: ENVELOPE, dig: ENVELOPE, sniff: ENVELOPE, // critically damped, so loops fade in and out instead of snapping
+  };
+  const ENVELOPES = ["breathe", "dig", "sniff"];
+
+  const POSES = {
+    hidden:  { x: -4,  y: 118, rot: 12, head: 30, specsX: 0,  specsY: 0,  card: 0 },
+    idle:    { x: -30, y: 62,  rot: 28, head: -9, specsX: 0,  specsY: 0,  card: 0 },
+    heard:   { x: 0,   y: 0,   rot: 0,  head: -4, specsX: 0,  specsY: 0,  card: 0 },
+    working: { x: -22, y: 40,  rot: 30, head: 52, specsX: 0,  specsY: 0,  card: 0 },
+    ready:   { x: -4,  y: 2,   rot: -3, head: -8, specsX: 0,  specsY: 0,  card: 1 },
+    unsure:  { x: -4,  y: 20,  rot: 4,  head: 12, specsX: 10, specsY: -4, card: 0 },
+    back:    { x: -20, y: 50,  rot: 24, head: 38, specsX: 0,  specsY: 0,  card: 0 },
+  };
+  const LOOPS = { heard: ["breathe"], ready: ["breathe"], working: ["dig"], idle: ["sniff"] };
+  const KICKS = { unsure: { head: -140 }, back: { head: 90 } }; // added to the channel's velocity (deg/s) on entering the state
+
+  const bump = p => 0.5 - 0.5 * Math.cos(2 * Math.PI * p);
+  const rotate = ([x, y], deg) => {
+    const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+    return [x * c - y * s, x * s + y * c];
+  };
+
+  function createRig(seed) {
+    const random = mulberry32(seed), uniform = (a, b) => a + (b - a) * random();
+    const ch = Object.fromEntries(Object.entries(SPRINGS).map(([name, s]) => {
+      const x = POSES.hidden[name] ?? 0;
+      return [name, { x, v: 0, target: x, ...s }];
+    }));
+    const specks = Array.from({ length: SPECKS }, () => ({ x: 0, y: 0, vx: 0, vy: 0, r: 0 }));
+    let t = 0, acc = 0, pending = null, nextSpeck = 0, nextSniff = null, sniffStart = -Infinity;
+
+    function flush() {
+      if (!pending || t < pending.at) return;
+      const { state, reduce } = pending, pose = POSES[state], loops = LOOPS[state] || [];
+      pending = null;
+      for (const [name, s] of Object.entries(ch)) {
+        s.target = name in pose ? pose[name] : !reduce && loops.includes(name) ? 1 : 0;
+        if (reduce) { s.x = s.target; s.v = 0; }
+      }
+      if (reduce) for (const p of specks) p.r = 0;
+      else for (const [name, dv] of Object.entries(KICKS[state] || {})) ch[name].v += dv;
+    }
+
+    const snout = point => {
+      const [hx, hy] = rotate(point, ch.head.x), [x, y] = rotate([8 + hx, -86 + hy], ch.rot.x);
+      return [ch.x.x + x, ch.y.x + y];
+    };
+
+    function emit(p) {
+      const [tx, ty] = snout([44, -17.5]), [bx, by] = snout([14.8, -2.6]);
+      // A buried tip throws dirt from where the snout breaks the ground line.
+      const x = ty >= 0 && by < 0 ? bx + ((tx - bx) * -by) / (ty - by) : tx;
+      const a = (uniform(-80, -40) * Math.PI) / 180, speed = uniform(70, 105);
+      Object.assign(p, { x, y: 0, vx: speed * Math.cos(a), vy: speed * Math.sin(a), r: uniform(1.4, 2.2) });
+    }
+
+    function tick() {
+      flush();
+      for (const s of Object.values(ch)) {
+        s.v += (s.k * (s.target - s.x) - s.c * s.v) * DT;
+        s.x += s.v * DT;
+      }
+      if (ch.sniff.x > 0.01) {
+        if (nextSniff === null) nextSniff = t + uniform(1.8, 4.2);
+        else if (t >= nextSniff) { sniffStart = t; nextSniff = t + uniform(1.8, 4.2); }
+      } else nextSniff = null;
+      if (ch.dig.x > 0.5 && t >= nextSpeck) {
+        nextSpeck = t + 0.11 + uniform(-0.03, 0.03);
+        const free = specks.find(p => !p.r);
+        if (free) emit(free);
+      }
+      for (const p of specks) {
+        if (!p.r) continue;
+        p.vy += GRAVITY * DT;
+        p.x += p.vx * DT;
+        p.y += p.vy * DT;
+        if (p.y > 2 && p.vy > 0) p.r = 0;
+      }
+      t += DT;
+    }
+
+    return {
+      set(state, { reduce = false, delay = 0 } = {}) {
+        pending = { state, reduce, at: t + delay };
+        flush();
+      },
+      // Fixed sub-steps keep the springs stable and the check deterministic at any frame rate; the remainder carries over.
+      step(dt) {
+        acc += Math.min(0.1, Math.max(0, dt));
+        for (; acc >= DT; acc -= DT) tick();
+      },
+      pose() {
+        const E = name => ch[name].x;
+        const dig = E("dig") * bump(t / 0.5), breathe = E("breathe") * bump(t / 3.2);
+        const u = t - sniffStart, sniffAngle = u >= 0 && u < 0.672 ? -4 * Math.sin(Math.PI * ((u % 0.336) / 0.336)) ** 2 : 0;
+        const sy0 = 1 + Math.min(0.08, Math.max(-0.06, -ch.y.v / 6000)); // rising (negative v) stretches, landing squashes
+        return {
+          body: { x: ch.x.x, y: ch.y.x, rot: ch.rot.x },
+          life: { x: 1.5 * dig, y: 3 * dig, rot: 4 * dig, sx: (1 / Math.sqrt(sy0)) * (1 + 0.012 * breathe), sy: sy0 * (1 + 0.025 * breathe) },
+          head: ch.head.x,
+          nose: 10 * E("dig") * bump((t - 0.08) / 0.5) + E("sniff") * sniffAngle,
+          specs: { x: ch.specsX.x, y: ch.specsY.x },
+          card: ch.card.x,
+          specks: specks.map(({ x, y, r }) => ({ x, y, r })),
+        };
+      },
+      get asleep() {
+        return !pending && specks.every(p => !p.r) && ENVELOPES.every(n => ch[n].target === 0) &&
+          Object.values(ch).every(s => Math.abs(s.target - s.x) < 0.01 && Math.abs(s.v) < 0.01);
+      },
+    };
+  }
 
   function create(root) {
     root.classList.add("mole-bar");
@@ -70,6 +175,41 @@
     root.innerHTML = `${FIGURE}<div class="mole-text"><i class="mole-dot"></i><div class="mole-words"><div class="mole-title"></div><div class="mole-heard"></div></div></div>`;
     const title = root.querySelector(".mole-title"), heard = root.querySelector(".mole-heard");
     const slow = () => parseFloat(getComputedStyle(root).getPropertyValue("--slow")) || 1;
+
+    const rig = createRig(1);
+    const g = Object.fromEntries(["body", "life", "head", "nose", "specs", "card", "dirt"].map(n => [n, root.querySelector(`.m-${n}`)]));
+    const inks = Array.from({ length: SPECKS }, () => {
+      const ink = g.dirt.appendChild(document.createElementNS(SVG, "circle"));
+      ink.setAttribute("class", "m-ink");
+      ink.setAttribute("r", "0");
+      return ink;
+    });
+    const f = n => n.toFixed(3);
+
+    function draw() {
+      const { body, life, head, nose, specs, card: c, specks } = rig.pose();
+      g.body.setAttribute("transform", `translate(${f(body.x)} ${f(body.y)}) rotate(${f(body.rot)})`);
+      g.life.setAttribute("transform", `translate(${f(life.x)} ${f(life.y)}) rotate(${f(life.rot)}) scale(${f(life.sx)} ${f(life.sy)})`);
+      g.head.setAttribute("transform", `rotate(${f(head)})`);
+      g.nose.setAttribute("transform", `rotate(${f(nose)})`);
+      g.specs.setAttribute("transform", `translate(${f(specs.x)} ${f(specs.y)})`);
+      g.card.setAttribute("transform", `translate(${f(-8 + 8 * c)} ${f(24 - 24 * c)}) rotate(${f(-24 + 24 * c)}) scale(${f(0.9 + 0.1 * c)})`);
+      g.card.setAttribute("opacity", f(Math.min(1, Math.max(0, c))));
+      specks.forEach((s, i) => {
+        inks[i].setAttribute("cx", f(s.x));
+        inks[i].setAttribute("cy", f(s.y));
+        inks[i].setAttribute("r", f(s.r));
+      });
+    }
+
+    let raf = 0, last = 0;
+    const frame = now => {
+      rig.step((Math.min(100, now - last) / 1000) * window.Mole.speed);
+      last = now;
+      draw();
+      raf = rig.asleep ? 0 : requestAnimationFrame(frame);
+    };
+    const wake = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } };
 
     function swap(text, animate) {
       if (title.lastElementChild?.textContent === text) return;
@@ -95,13 +235,16 @@
         root.dataset.state = state;
         t ??= TITLES[state] || undefined;
         if (prev === "hidden") h ??= "";
+        rig.set(state, { reduce: reduce.matches, delay: prev === "hidden" ? 0.09 : 0 });
+        wake();
       }
       if (t !== undefined) swap(t, prev !== "hidden" && state !== "hidden");
       if (h !== undefined) heard.textContent = h.length > HEARD_MAX ? `…${h.slice(1 - HEARD_MAX).trimStart()}` : h;
     }
 
+    draw();
     return { el: root, set };
   }
 
-  window.Mole = { create, states: Object.keys(TITLES) };
+  window.Mole = { create, createRig, states: Object.keys(TITLES), speed: 1 };
 })();

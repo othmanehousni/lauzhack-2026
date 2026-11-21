@@ -95,6 +95,7 @@
   function toggleSlow() {
     slow = slow === 1 ? 5 : 1;
     document.documentElement.style.setProperty("--slow", slow);
+    Mole.speed = slow === 1 ? 1 : 0.2;
     slowButton.setAttribute("aria-pressed", slow > 1);
   }
 

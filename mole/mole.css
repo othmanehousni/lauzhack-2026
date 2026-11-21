@@ -1,4 +1,5 @@
-/* The Mole: a paper cut-out puppet in the overlay bar. Every pose and loop is keyed off data-state; mole.js only flips it. */
+/* The Mole: a paper cut-out puppet in the overlay bar. mole.js moves the puppet through SVG transform attributes, which
+   any CSS transform on its groups would override, so this file only colours it. */
 :root {
   --paper: #f2ede4;
   --ink: #1f1c1a;
@@ -45,69 +46,6 @@
 .m-card rect { fill: var(--lens); stroke: var(--ink); stroke-width: 1.5; }
 .m-card path { fill: none; stroke: var(--ink); stroke-width: 1.3; stroke-linecap: round; opacity: .45; }
 
-.m-body, .m-head, .m-specs, .m-card {
-  transition: transform calc(var(--spring-dur) * var(--slow)) var(--spring), opacity calc(150ms * var(--slow)) var(--ease-out);
-}
-.m-head { transition-delay: calc(40ms * var(--slow)); }
-.mole-bar[data-from=hidden] .m-body { transition-delay: calc(90ms * var(--slow)); }
-.mole-bar[data-from=hidden] .m-head { transition-delay: calc(130ms * var(--slow)); }
-
-/* Poses. .m-body turns about the base of the body on the ground line, .m-head about the middle of the head. Every
-   pose lists the same transform functions so transitions interpolate each one rather than a matrix. */
-.m-body { transform: translate(-4px, 118px) rotate(12deg); }
-.m-head { transform: rotate(30deg); }
-.m-specs { transform: translate(0, 0); }
-.m-card { transform: translate(-8px, 24px) rotate(-24deg) scale(.9); opacity: 0; }
-
-[data-state=idle] .m-body { transform: translate(-30px, 62px) rotate(28deg); }
-[data-state=idle] .m-head { transform: rotate(-9deg); }
-
-[data-state=heard] .m-body { transform: translate(0, 0) rotate(0); }
-[data-state=heard] .m-head { transform: rotate(-4deg); }
-
-[data-state=working] .m-body { transform: translate(-22px, 40px) rotate(30deg); }
-[data-state=working] .m-head { transform: rotate(52deg); }
-
-[data-state=ready] .m-body { transform: translate(-4px, 2px) rotate(-3deg); }
-[data-state=ready] .m-head { transform: rotate(-8deg); }
-[data-state=ready] .m-card { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
-
-[data-state=unsure] .m-body { transform: translate(-4px, 20px) rotate(4deg); }
-[data-state=unsure] .m-head { transform: rotate(12deg); }
-[data-state=unsure] .m-specs { transform: translate(10px, -4px); }
-
-[data-state=back] .m-body { transform: translate(-20px, 50px) rotate(24deg); }
-[data-state=back] .m-head { transform: rotate(38deg); }
-
-/* Loops run on inner groups, so they ride on top of whatever pose transition is in flight. */
-[data-state=heard] .m-life, [data-state=ready] .m-life { animation: mole-breathe calc(3.2s * var(--slow)) ease-in-out infinite; }
-[data-state=idle] .m-nose { animation: mole-sniff calc(2.8s * var(--slow)) ease-in-out infinite; }
-[data-state=working] .m-life { animation: mole-dig calc(.5s * var(--slow)) ease-in-out infinite; }
-[data-state=working] .m-nose { animation: mole-nod calc(.5s * var(--slow)) ease-in-out calc(.08s * var(--slow)) infinite; }
-[data-state=unsure] .m-nose { animation: mole-huh calc(.6s * var(--slow)) var(--ease-out) calc(.15s * var(--slow)); }
-
-@keyframes mole-breathe { 50% { transform: scale(1.012, 1.025); } }
-@keyframes mole-sniff {
-  0%, 64%, 76%, 88%, 100% { transform: rotate(0); }
-  70%, 82% { transform: rotate(-4deg); }
-}
-@keyframes mole-dig { 50% { transform: translate(1.5px, 3px) rotate(4deg); } }
-@keyframes mole-nod { 50% { transform: rotate(10deg); } }
-@keyframes mole-huh { 30% { transform: rotate(-9deg); } 65% { transform: rotate(3deg); } }
-
-/* Dirt from the dig: x drifts linearly while y rises and falls like a thrown speck. */
-.m-dirt { opacity: 0; transition: opacity calc(150ms * var(--slow)) var(--ease-out); }
-[data-state=working] .m-dirt { opacity: 1; transition-delay: calc(250ms * var(--slow)); }
-[data-state=working] .m-fx { animation: mole-fx calc(var(--t) * var(--slow)) linear calc(var(--d) * var(--slow)) infinite backwards; }
-[data-state=working] .m-fy { animation: mole-fy calc(var(--t) * var(--slow)) calc(var(--d) * var(--slow)) infinite backwards; }
-.m-fy { transform: translateY(4px); }
-@keyframes mole-fx { from { transform: translateX(0); } to { transform: translateX(var(--dx)); } }
-@keyframes mole-fy {
-  0% { transform: translateY(4px); animation-timing-function: cubic-bezier(0.5, 1, 0.89, 1); }
-  45% { transform: translateY(var(--dy)); animation-timing-function: cubic-bezier(0.11, 0, 0.5, 0); }
-  100% { transform: translateY(4px); }
-}
-
 /* -- the words ------------------------------------------------------------------------------------------------- */
 
 .mole-text { position: relative; flex: 1; min-width: 0; }
@@ -147,6 +85,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mole-bar, .mole-bar * { animation: none !important; }
-  .mole-bar, .m-body, .m-head, .m-specs, .m-card, .mole-words { transition-property: opacity !important; }
-  .m-dirt { display: none; }
+  .mole-bar, .mole-words { transition-property: opacity !important; }
 }
