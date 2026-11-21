@@ -19,7 +19,7 @@ import time
 import urllib.parse
 import urllib.request
 import zlib
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from difflib import SequenceMatcher
@@ -60,8 +60,9 @@ NGRAMS, BUCKETS = 0.5, 2 ** 12  # the hashed words' weight next to the embedding
 STEPS, LR, L2 = 400, 0.1, 1e-5  # training: full-batch Adam steps, step size, weight penalty (5-fold CV on intents.py)
 PARTIAL = 0.9  # how likely a kind of request must be to act before the sentence ends
 FALLBACK_LOW = 0.25  # an unsure sentence at least this likely to be a request goes to the decision model
-JUMP, MARGIN = 0.02, 0.05  # following the talk: each slide skipped costs JUMP, and the new slide must beat the one on air by MARGIN
+JUMP, MARGIN = 0.02, 0.1  # following the talk: each slide skipped costs JUMP, and the new slide must beat the one on air by MARGIN
 RETURN_BONUS = 0.1  # "back to the slides" lands on the last one shown unless the sentence is clearly about another
+NAMES = 0.04  # how much saying a slide's title or its deck's name counts, next to the meaning of the sentence
 HERE_BONUS = 0.03  # a slide named by its topic is looked for in the deck on screen first
 SUGGEST = 0.02  # following the talk: a slide ahead that beats the one on air by this much, but not by MARGIN, is suggested
 FILE_MIN, CLOSE = 0.35, 0.02  # how close a file must be to the request, and how close to the best one to be offered with it
@@ -140,6 +141,11 @@ def english(text: str) -> bool:
 def tokens(text: str) -> list[str]:
     """Lowercase alphanumeric words."""
     return "".join(c if c.isalnum() else " " for c in text.lower()).split()
+
+
+def stems(text: str) -> set[str]:
+    """The words cut to five letters, so "financials" matches "finance" and "margins" "margin"."""
+    return {w[:5] for w in tokens(text) if len(w) > 2}
 
 
 def grams(text: str) -> np.ndarray:
@@ -268,6 +274,10 @@ class Catalog:
         # it is to a request, and a deck as a whole by its name, standing for its first slide ("the company slides").
         self.slide_vecs = remember([f"title: {s.title} | text: {s.text}" for s in self.slides])
         self.covers = [i for i, s in enumerate(self.slides) if s.page == 1]
+        # Each slide is also named by its title and its deck's name, word by word, rare words counting most
+        names = [stems(f"{s.title} {s.doc.replace('_', ' ')}") for s in self.slides]
+        idf = {t: np.log(len(names) / n) for t, n in Counter(t for name in names for t in name).items()}
+        self.names = [{t: idf[t] for t in name} for name in names]
         self.deck_vecs = remember([f"title: {self.slides[i].doc.replace('_', ' ')} | text: "
                                    + "; ".join(s.title for s in self.slides if s.doc == self.slides[i].doc) for i in self.covers])
         self.files = list(files)
@@ -279,10 +289,12 @@ class Catalog:
         self.sites = {n: Action("url", url) for name, url in SITES.items() for n in name.removesuffix(")").split(" (") if len(n) >= 3}
         self.places = self.sites | {app: Action("app", app) for app in apps if len(app) >= 3}  # an app takes a shared name
 
-    def sims(self, query: np.ndarray, here: str | None = None) -> np.ndarray:
-        """How close each slide is to a request naming it: a deck's first slide also stands for the deck as a whole, and
-        slides of the deck `here` (the one on screen) are preferred."""
-        s = self.slide_vecs @ query
+    def sims(self, query: np.ndarray, said: str = "", here: str | None = None) -> np.ndarray:
+        """How close each slide is to a request naming it: by meaning, and by how much of its title and its deck's name
+        the sentence says. A deck's first slide also stands for the deck as a whole, and slides of the deck `here` (the
+        one on screen) are preferred."""
+        w = stems(said)
+        s = self.slide_vecs @ query + NAMES * np.array([sum(v for t, v in n.items() if t in w) / (sum(n.values()) or 1) for n in self.names])
         s[self.covers] = np.maximum(s[self.covers], self.deck_vecs @ query)
         return s + np.array([HERE_BONUS if x.doc == here else 0.0 for x in self.slides])
 
@@ -456,7 +468,7 @@ class Brain:
         if end:
             self.unfinished = said if best == "unfinished" else ""
         v, g = self.start, r.groups
-        look = (self.catalog.sims(query, self.catalog.by_id[v.last.target].doc if v.last else None), control, query,
+        look = (self.catalog.sims(query, said, self.catalog.by_id[v.last.target].doc if v.last else None), control, query,
                 (g.get("open", 0) - g.get("slide", 0)) / (g.get("open", 0) + g.get("slide", 0) + 1e-9))
         if p >= gate:
             d = self.resolve(best, said, *look) if end or not waits else Decision(why="waits for the end")
