@@ -52,8 +52,8 @@
         <circle class="m-lens" cx="19" cy="-12" r="4.4"/>
       </g>
     </g></g></g>
-    <g transform="translate(36 -44) rotate(-7)"><g class="m-card">
-      <rect x="-14" y="-10" width="28" height="20" rx="1.5"/>
+    <g transform="translate(37 -54) rotate(-7)"><g class="m-card">
+      <rect x="-15" y="-11" width="30" height="22" rx="1.5"/>
       <path d="M-9 -4.5H5M-9 0H9M-9 4H2"/>
     </g></g>
   </g></g>

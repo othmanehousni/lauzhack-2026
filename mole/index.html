@@ -1,0 +1,121 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>The Mole</title>
+<link rel="stylesheet" href="mole.css">
+<style>
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.45 -apple-system, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 1180px; margin: 0 auto; padding: 48px 40px 64px; display: grid; grid-template-columns: 1.35fr 1fr; gap: 0 64px; align-items: start; }
+  h1 { font: 600 68px/1 ui-serif, "New York", Georgia, serif; letter-spacing: -0.035em; margin: 0 0 10px; }
+  p { margin: 0 0 28px; max-width: 46ch; color: rgb(31 28 26 / .65); text-wrap: pretty; }
+
+  .screen { position: relative; aspect-ratio: 16 / 10; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px rgb(31 28 26 / .1); transition: background .3s ease; }
+  .screen[data-wall="0"] { background: radial-gradient(120% 90% at 20% 10%, #f7d7b9, #e48a5c 45%, #6d3a4f); }
+  .screen[data-wall="1"] { background: radial-gradient(120% 90% at 70% 0%, #3a4a72, #151a2c 60%, #0a0b10); }
+  .screen[data-wall="2"] { background: #fff; }
+  .screen[data-wall="2"]::before { content: "Market size"; position: absolute; left: 8%; top: 12%; font: 600 34px/1 -apple-system, system-ui; color: #1a1a1a; }
+  .screen .mole-bar { position: absolute; left: 50%; bottom: 22px; translate: -50% 0; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  button { font: 500 13px/1 -apple-system, system-ui; color: var(--ink); background: transparent; border: 1px solid rgb(31 28 26 / .18); border-radius: 8px; height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+  button[aria-pressed=true] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  @media (hover: hover) and (pointer: fine) { button:hover:not([aria-pressed=true]) { background: rgb(31 28 26 / .06); } }
+  button:active { scale: .97; }
+  kbd { font: 500 11px/1 ui-monospace, monospace; opacity: .55; }
+
+  .sheet { display: grid; gap: 18px; padding-top: 8px; }
+  .sheet figure { margin: 0; display: grid; gap: 8px; justify-items: start; }
+  .sheet figcaption { font-size: 12px; color: rgb(31 28 26 / .55); }
+</style>
+
+<main>
+  <div>
+    <h1>The Mole.</h1>
+    <p>Pops out of the overlay bar while the copilot works, says what it understood, and dives back when you have the screen again.</p>
+    <div class="screen" data-wall="0"><div id="live"></div></div>
+    <div class="controls" id="controls"></div>
+  </div>
+  <div class="sheet" id="sheet"></div>
+</main>
+
+<script src="mole.js"></script>
+<script>
+  const LINE = "so let's look at the market size";
+  const SAMPLES = {
+    idle: { heard: "" },
+    heard: { title: "I've got it.", heard: LINE },
+    working: { title: "Finding slide 7…", heard: LINE },
+    ready: { title: "Slide 7 is ready.", heard: LINE },
+    unsure: { heard: "open the, um, thing from the offsite" },
+    back: { heard: "" },
+  };
+  const KEYS = ["hidden", ...Object.keys(SAMPLES)];
+
+  for (const [state, words] of Object.entries(SAMPLES)) {
+    const fig = document.createElement("figure");
+    const bar = Mole.create(document.createElement("div"));
+    bar.set(state, words);
+    fig.append(bar.el, Object.assign(document.createElement("figcaption"), { textContent: `${KEYS.indexOf(state)}  ${state}` }));
+    sheet.append(fig);
+  }
+
+  const live = Mole.create(document.querySelector("#live"));
+  const screen = document.querySelector(".screen");
+  let run = 0, slow = 1;
+  const wait = ms => new Promise(r => setTimeout(r, ms * slow));
+
+  function show(state) {
+    run++;
+    live.set(state, SAMPLES[state]);
+  }
+
+  async function story() {
+    const id = ++run;
+    const beat = async (state, words, ms) => { if (id !== run) throw 0; live.set(state, words); await wait(ms); };
+    const stream = async (state, text) => {
+      const words = text.split(" ");
+      for (let i = 1; i <= words.length; i++) await beat(state, { heard: words.slice(0, i).join(" ") }, 140);
+    };
+    try {
+      await beat("idle", { heard: "" }, 500);
+      await stream("idle", "okay so the next thing I want to show you is the market size");
+      await beat("heard", { title: "I've got it." }, 1000);
+      await beat("working", { title: "Finding slide 7…" }, 2200);
+      await beat("ready", { title: "Slide 7 is ready." }, 1700);
+      await beat("back", { heard: "" }, 1300);
+      await beat("hidden", {}, 1500);
+      await beat("idle", { heard: "" }, 400);
+      await stream("idle", "and can you open the, um, thing from the offsite");
+      await beat("unsure", {}, 2000);
+      await beat("back", { heard: "" }, 1300);
+      await beat("hidden", {}, 0);
+    } catch {}
+  }
+
+  function toggleSlow() {
+    slow = slow === 1 ? 5 : 1;
+    document.documentElement.style.setProperty("--slow", slow);
+    slowButton.setAttribute("aria-pressed", slow > 1);
+  }
+
+  const button = (label, key, onclick) => {
+    const b = Object.assign(document.createElement("button"), { onclick });
+    b.append(label, Object.assign(document.createElement("kbd"), { textContent: key }));
+    controls.append(b);
+    return b;
+  };
+  KEYS.forEach((state, i) => button(state, i, () => show(state)));
+  button("Play story", "space", story);
+  const slowButton = button("Slow-mo", "S", toggleSlow);
+  button("Wallpaper", "W", () => (screen.dataset.wall = (+screen.dataset.wall + 1) % 3));
+
+  addEventListener("keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (KEYS[e.key]) show(KEYS[e.key]);
+    else if (e.key === " ") { e.preventDefault(); story(); }
+    else if (e.key === "s") toggleSlow();
+    else if (e.key === "w") screen.dataset.wall = (+screen.dataset.wall + 1) % 3;
+  });
+
+  story();
+</script>
