@@ -1,6 +1,6 @@
 # LauzHack 2026
 
-A minimal Kotlin Multiplatform app for Android and desktop. Both targets show the same blank white Compose screen.
+A minimal Kotlin Multiplatform app for Android and desktop. Android opens a blank white screen. Desktop opens The Mole floater, based on `mole/index.html`.
 
 ## Setup
 
@@ -30,7 +30,9 @@ From the repository root:
 mise run desktop
 ```
 
-This opens a desktop window. Close it to stop the app.
+This opens a borderless, always-on-top floater near the bottom center of the screen. Drag the bar to move it. Right-click it, or use its system tray/menu bar icon, to reset its position or quit.
+
+The floater displays the reference's idle state only. It has no microphone, recording, or copilot behavior.
 
 ## Android
 
@@ -71,8 +73,8 @@ Outputs:
 
 ## Code
 
-- `composeApp/src/commonMain/kotlin/ch/lauzhack/app/App.kt` is the shared blank UI.
-- `composeApp/src/desktopMain` contains the desktop entry point.
+- `composeApp/src/commonMain/kotlin/ch/lauzhack/app/App.kt` contains the blank screen used by Android.
+- `composeApp/src/desktopMain` contains the desktop entry point, floater, and vector artwork.
 - `androidApp` contains the Android launcher and application module.
 - `gradle/libs.versions.toml` pins dependencies and Android build versions.
 - `mise.toml` declares tools, SDK packages, and setup, run, and build tasks.
