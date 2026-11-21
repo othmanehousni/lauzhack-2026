@@ -67,8 +67,10 @@ JUMP, MARGIN = 0.02, 0.1  # following the talk, each slide skipped costs JUMP an
 NAMES = 0.04  # how much saying a slide's title or its deck's name counts, next to the meaning of the sentence
 HERE_BONUS = 0.03  # a slide named by its topic is looked for in the deck on screen first
 SUGGEST = 0.02  # following the talk: a slide ahead that beats the one on air by this much, but not by MARGIN, is suggested
-FILE_MIN, CLOSE = 0.05, 0.02  # how much a request must fit a document better than a request naming nothing does, and how
-# close to the best file another must be to be offered with it
+# How much a request must fit a slide, or a file, better than a request naming nothing does. Among 1500 files, the best fit
+# of a request naming none reaches 0.08 by chance; a file asked for fits by 0.09 to 0.18. CLOSE: how close to the best
+# file another must be to be offered with it.
+NAMED_MIN, FILE_MIN, CLOSE = 0.05, 0.09, 0.02
 LEAN = 0.05  # how much the classifier's slide-or-file reading weighs against how well a slide or a file fits the words
 FUZZY = 0.85  # how close a run of words must be to a website or app name
 WEB = {"website", "site", "page", "dot"}  # these make a name both a website and an app mean the website
@@ -571,9 +573,9 @@ class Brain:
         d = self.find(query)
         if (d.do or d.offer) and float(self.catalog.fits(query).max()) + LEAN * lean > named:
             return d
-        if named < FILE_MIN and group == "open":
+        if named < NAMED_MIN and group == "open":
             return Decision(Action("ask", said), why="for the vision model")
-        if named < FILE_MIN:  # "show the slides": the last one shown, or the first deck
+        if named < NAMED_MIN:  # "show the slides": the last one shown, or the first deck
             v = self.start
             return Decision(Action("slide", v.last.target if v.last else self.catalog.slides[0].id), why="the slides, none named")
         return Decision(Action("slide", self.catalog.slides[i].id), why="closest slide")
