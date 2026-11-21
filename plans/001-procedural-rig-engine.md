@@ -1,6 +1,6 @@
 # 001 — Drive the mole with a procedural spring rig instead of CSS transitions and keyframes
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 5e9ee76
 - **Severity**: HIGH
 - **Category**: Interruptibility (also Physicality & origin)
