@@ -1,0 +1,27 @@
+{"say": "Hi everyone, um, can you all hear me okay? Great, thanks for making the time.", "want": [null]}
+{"say": "So let's start with the Q3 financials, I'll put that deck up.", "want": ["Acme_Q3_2026_Financials p1"]}
+{"say": "This is the same review we took to the board in October, so a few of you will have seen it already.", "want": ["Acme_Q3_2026_Financials p1"]}
+{"say": "Revenue came in at fourteen point two million, which is, uh, twenty-two percent up on last quarter.", "want": ["Acme_Q3_2026_Financials p2"]}
+{"say": "And the bit I really like is that ninety-one percent of it is recurring.", "want": ["Acme_Q3_2026_Financials p2"]}
+{"say": "Gross margin went from fifty-four to sixty-one percent, and that's almost entirely the cheaper gripper hardware.", "want": ["Acme_Q3_2026_Financials p3"]}
+{"say": "That has a knock-on effect on our runway too, but hold that thought, we'll get there.", "want": ["Acme_Q3_2026_Financials p3"]}
+{"say": "Okay, can we move to the next slide?", "want": ["Acme_Q3_2026_Financials p4"]}
+{"say": "R and D is the big one at six point one million, then sales and marketing at four point three.", "want": ["Acme_Q3_2026_Financials p4"]}
+{"say": "So with, so with thirty-eight million in the bank and a burn of about one point seven a month, we've got roughly twenty-two months.", "want": ["Acme_Q3_2026_Financials p5"]}
+{"say": "Someone in the chat is asking if I can pull up our bank account to show the balance, I'd rather not do that live, sorry.", "want": ["Acme_Q3_2026_Financials p5"]}
+{"say": "I'm going to skip over churn for now and go straight to hiring.", "want": ["Acme_Q3_2026_Financials p7"]}
+{"say": "We want thirty more engineers in by the end of Q4, and we're opening a sales office in Munich.", "want": ["Acme_Q3_2026_Financials p7"]}
+{"say": "And honestly that's only affordable because of the margin jump I showed you a minute ago.", "want": ["Acme_Q3_2026_Financials p7"]}
+{"say": "Actually, sorry, could you flip back one? I do want to say something about churn.", "want": ["Acme_Q3_2026_Financials p6"]}
+{"say": "Logo churn is two point four percent annualised, and both of the customers we lost went off and built it in house.", "want": ["Acme_Q3_2026_Financials p6"]}
+{"say": "For Q4 we're guiding sixteen to seventeen million, and we're aiming to break even by Q3 next year.", "want": ["Acme_Q3_2026_Financials p8"]}
+{"say": "Right, let me switch over to the product roadmap deck now.", "want": ["Acme_Product_Roadmap p1"]}
+{"say": "First up, gripper v3, which can finally cope with the soft stuff, bags, pouches, that kind of thing.", "want": ["Acme_Product_Roadmap p2"]}
+{"say": "I know a lot of you are waiting on the cold-storage robot, I'm saving that one for the very end.", "want": ["Acme_Product_Roadmap p2"]}
+{"say": "Let's, uh, go to slide four.", "want": ["Acme_Product_Roadmap p4"]}
+{"say": "The scheduler plans picks across up to two hundred robots at once and cuts travel distance by eighteen percent.", "want": ["Acme_Product_Roadmap p4"]}
+{"say": "Okay, on to the next one.", "want": ["Acme_Product_Roadmap p5"]}
+{"say": "We've built connectors for SAP EWM, Manhattan and Blue Yonder, and there's an open REST API if you run your own WMS.", "want": ["Acme_Product_Roadmap p5"]}
+{"say": "So, as promised, the cold-storage robot, can you take us back to slide three?", "want": ["Acme_Product_Roadmap p3"]}
+{"say": "It runs at minus twenty-five degrees, and we're piloting it with a frozen-food grocer right now.", "want": ["Acme_Product_Roadmap p3"]}
+{"say": "And that's everything from me, thank you all so much, happy to take questions.", "want": ["Acme_Product_Roadmap p3"]}

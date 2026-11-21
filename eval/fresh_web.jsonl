@@ -1,0 +1,28 @@
+{"say": "Hey, morning everyone, just give me a sec, I'm getting my screen sorted.", "want": [null]}
+{"say": "Okay, let's kick off with the Acme company overview.", "want": ["Acme_Company_Overview_2026 p1"]}
+{"say": "Before I get into it though, could you bring up YouTube for me?", "want": ["url https://www.youtube.com"]}
+{"say": "And search for, um, Acme robotics trade fair.", "want": ["ask"]}
+{"say": "Yeah, that first result there, click on it.", "want": ["ask"]}
+{"say": "Can we make it full screen so the people at the back can see?", "want": ["control full screen"]}
+{"say": "Hang on, pause it there for a sec.", "want": ["control pause the video"]}
+{"say": "Look at the arm here, see how it grabs the soft pouch on the first try?", "want": ["keep"]}
+{"say": "Okay, let it run.", "want": ["control play the video"]}
+{"say": "Right, that's enough of that, close it and let's get back to the deck.", "want": ["Acme_Company_Overview_2026 p1"]}
+{"say": "So, the problem. Labour is about fifty-five percent of fulfilment cost, and nobody can hire enough pickers.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "There was a really good Hacker News thread about exactly this a few weeks back.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "Actually, you know what, let's pull it up, it's worth a look.", "want": ["url https://news.ycombinator.com", "ask"]}
+{"say": "Could you scroll down a bit? The good comments are further down.", "want": ["control scroll down"]}
+{"say": "And zoom in, it's tiny on my end.", "want": ["control zoom in"]}
+{"say": "Pardon, deux secondes, je ferme la fenêtre, il fait trop froid ici.", "want": ["keep"]}
+{"say": "Okay, you can close this tab now.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "What we built is a mobile robot with a suction gripper that drops straight into the shelving you already have.", "want": ["Acme_Company_Overview_2026 p3"]}
+{"say": "If you want the background on how that kind of gripper works, let me open, uh,", "want": ["Acme_Company_Overview_2026 p3"]}
+{"say": "The Wikipedia page.", "want": ["ask", "url https://en.wikipedia.org"]}
+{"say": "Click on the link that says suction cup.", "want": ["ask"]}
+{"say": "Nope, wrong article, hit back.", "want": ["control go back a page"]}
+{"say": "Let me grab the calculator, I want to do the pricing maths live.", "want": ["app Calculator"]}
+{"say": "Hmm, actually I'll just do it in my head, close that and skip ahead to pricing.", "want": ["Acme_Company_Overview_2026 p6"]}
+{"say": "Oh, and our grasping model is public, can you go to hugging face dot co?", "want": ["url https://huggingface.co", "ask"]}
+{"say": "Okay, that's the web stuff done, back to the presentation.", "want": ["Acme_Company_Overview_2026 p6"]}
+{"say": "On the team side, Lina, our CEO, came from Amazon Robotics, and Marc, our CTO, did his PhD on grasping at ETH.", "want": ["Acme_Company_Overview_2026 p9"]}
+{"say": "We found most of the other eighty-odd people on LinkedIn, funnily enough, and yeah, that's it from me, thanks everyone.", "want": ["Acme_Company_Overview_2026 p9"]}
