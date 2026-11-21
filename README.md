@@ -1,12 +1,12 @@
 # Meeting copilot
 
-The copilot follows a presenter in a video call and changes the shared screen for them. It turns speech, silent lip reading or typed lines into sentences. A local router then decides for each sentence whether to keep the screen, show a slide from your decks, or put something else on screen. What the audience sees is a stage: Chrome in kiosk mode, driven over its DevTools protocol (`stage.py`). Slides are rendered to images once and swap in about 10 to 50 ms. Websites and files open in tabs of their own in about 0.2 s. Scrolling, zooming, play, pause, full screen and clicking a link run as JavaScript in the tab on screen. Anything harder goes to a screen agent. The shared screen is a macOS sandbox VM shown in a host window titled "Copilot screen". Nothing acts on your own desktop, and every model runs locally.
+The copilot follows a presenter in a video call and changes the shared screen for them. It turns speech, silent lip reading or typed lines into sentences. While each sentence is still being spoken, a local decision model chooses whether to keep the screen, show a slide from your decks, open a website or an app, act on the page on screen, or ask a vision model for something else. What the audience sees is a stage: Chrome in kiosk mode, driven over its DevTools protocol (`stage.py`). Slides are rendered to images once and swap in about 10 to 50 ms. Websites and files open in tabs of their own in about 0.2 s. Scrolling, zooming, play, pause, full screen and clicking a link run as JavaScript in the tab on screen. Anything harder goes to a screen agent. The shared screen is a macOS sandbox VM shown in a host window titled "Copilot screen". Nothing acts on your own desktop, and every model runs locally.
 
 ## Setup
 
 1. Install the Python environment: `uv sync`.
-2. Pull the Ollama models: `ollama pull embeddinggemma` and `ollama pull qwen3.5:4b-q4_K_M`. If you pass an Ollama tag to `--router`, pull that tag too.
-3. Install llama.cpp for the default d1 router: `brew install llama.cpp`. Download the model once with `llama-server -hf LiquidAI/d1-2B-GGUF:Q8_0`, then stop it with Ctrl-C. The copilot starts its own server offline from that cache.
+2. Pull the Ollama models: `ollama pull embeddinggemma` and `ollama pull qwen3.5:4b-q4_K_M`.
+3. Install llama.cpp for the d1 decision model: `brew install llama.cpp`. Download the model once with `llama-server -hf LiquidAI/d1-2B-GGUF:Q8_0`, then stop it with Ctrl-C. The copilot starts its own server offline from that cache.
 4. Put your PDF decks in `library/`. For sample decks, run `uv run --group dev fixtures/make_decks.py library`.
 5. For lip reading, convert the weights once: `uv run --with torch lipread/convert.py`. The checkpoints are for non-commercial research use only.
 6. Allow your terminal to use the microphone and the camera in System Settings > Privacy & Security.
@@ -40,8 +40,9 @@ Before the VM is set up, add `--host` to drive this Mac directly, for example `u
 How a sentence reaches the screen:
 
 1. The microphone transcribes while you speak (Parakeet's streaming mode), so the words are ready when you stop.
-2. Plain requests act as soon as their words are heard, mid-sentence included, with no model. `commands.py` reads them in about 0.05 ms: "open YouTube", "go on it", "go back to the problem", "let's talk about the market size", "pull up the roadmap", "switch to Notes", "search robot grippers on YouTube", "show me the warehouse photo", "close the slides", "back to the slides", "next slide", "scroll down", "pause the video". It knows your slide titles and decks, the apps in the VM, about 40 well-known websites, spoken domains such as "lauzhack dot com", and your files. "Open up, um…" waits 8 s for the target in your next words.
-3. Only when no request was heard does the d1 router run, once at your first short pause (0.3 s) and again at the end (0.6 s) if you said more. It catches implicit moves, such as starting to talk about the next slide's topic.
+2. Every new transcript of the sentence goes to the decision model (`brain.py`), so a request acts as soon as its words are heard, mid-sentence included. The model is Liquid's d1 in llama-server: it reads the moment and returns a probability for each option in one forward pass, with no generated text to parse.
+3. The options are built for the moment. Embeddings pick the slides closest in meaning to what you said, joined by every deck's cover and the slides around the one on air, plus "next slide" and "previous slide". They also pick the three websites (about 40 bookmarks) or apps in the VM closest to your words. When a website or file is on screen, its controls are options too: scrolling, zooming, play, pause, full screen, back. Then come closing what is on screen, keeping the screen, and something else. The state the model reads holds what is on screen, the last slide shown, your two previous sentences and what was already done during this one, so "go on it", "back to the slides" and "next one" resolve from context.
+4. The screen changes when a change is at least `--threshold` (default 0.7) likely. Something else, such as a search, a file, a website without a bookmark or a link to click, waits for the end of the sentence and goes to the vision model, which answers with a URL, a file name to find with Spotlight, a control, or a job for the screen agent.
 
 The log marks live transcripts `~`, pauses `…` and ends of utterances `>`. Every "after you stopped" time counts from your last voiced sound.
 
@@ -53,19 +54,21 @@ In the call, share the window titled "Copilot screen".
 
 ## Evaluate
 
-- `uv run copilot.py eval eval/talk.jsonl` scores the router on a scripted talk. Add `--tts` to speak each line with `say` and transcribe it back.
-- `sh eval/compare.sh d1 qwen3.5:2b-q4_K_M` compares routers on every script.
+- `uv run copilot.py eval eval/*.jsonl` replays scripted talks through the same `Brain` the live copilot runs, feeding each line two words at a time as the microphone would (`--step`), and scores what is on screen after each line. Add `--tts` to speak each line with `say` and transcribe it back instead.
+- `modal run eval/modal_eval.py` runs the same eval on a Modal GPU, so no model loads on the Mac.
+- `sh eval/compare.sh LiquidAI/d1-2B-GGUF:Q8_0 h2oai/h2o-lightning-4b-gguf:Q4_K_M` compares decision models on every script. Any model that llama-server answers `/v1/systemone` for works.
+- `web_holdout.jsonl` and `talk_holdout.jsonl` are held out: the option descriptions were not tuned on them.
 - `uv run --group eval lipread/lipread.py eval VIDEO...` measures the lip-reading word error rate against the audio track.
 - `uv run lipread/lipread.py gate lipread/cache/B1_norman.npz` scores the lip-motion gate from cached tracking, without a model.
 
 ## Known limits
 
 - The lip-reading word error rate of this live setup is not measured yet.
-- The d1 router's "other" choice is new and unmeasured. `eval/talk_other.jsonl` is an 8-line check of it. The vision model then turns the sentence into a URL, a file name to find with Spotlight in your mounted folders, or a job for the screen agent.
 - The VM sees your folders read-only, so it cannot save into them, including Safari downloads.
-- `commands.py` only knows the names it is given. A website it does not know, or "our website", goes through the router and the vision model, which take a second or more.
+- The decision model only offers the bookmarked websites (`SITES` in `brain.py`) and the apps in the VM. Any other website, or "our website", goes to the vision model, which takes a second or more.
+- The decision model runs on every new transcript while you speak, so the GPU is busy during speech. Its latency next to Parakeet on this Mac is not measured yet.
 - The voice gate compares loudness, not voices. Someone as close to the microphone as you gets through. Telling voices apart needs a speaker-embedding model.
 - File lookups use a Spotlight list of the images, videos, PDFs, presentations, spreadsheets and documents in your three folders, built in the background in about 13 s. A lookup then takes about 40 ms. Before the list is ready, and for files newer than it, Spotlight answers in about 0.8 s.
-- The router's prompt cache is off for d1 in llama-server, so each call reads the whole prompt again (about 0.5 s for 650 tokens on this Mac). A second check per slide switch is now off by default; `VERIFY=1` turns it back on.
+- The decision model's prompt cache is off in llama-server, so each call reads the whole prompt again (about 0.5 s for 650 tokens on this Mac).
 - The VM uses 4 CPUs and the RAM set in its config.json, 8 GB by default and 4 GB here.
 - The lip-motion gate assumes steady face tracking. A noisy webcam image can open it while your lips are still.

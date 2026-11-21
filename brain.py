@@ -17,7 +17,7 @@ import time
 import urllib.parse
 import urllib.request
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -45,11 +45,15 @@ SITES = {
     "Twitch": "https://www.twitch.tv", "Medium": "https://medium.com", "Apple": "https://www.apple.com", "Vercel": "https://vercel.com",
     "LauzHack": "https://lauzhack.com", "EPFL": "https://www.epfl.ch", "OpenAI": "https://openai.com", "Anthropic": "https://www.anthropic.com",
 }
-QUESTION = "The presenter is sharing a screen in a live call. What should the shared screen do as the presenter says the NEW SENTENCE?"
+QUESTION = ("The presenter is sharing a screen in a live call. What should the shared screen show right after the NEW SENTENCE? "
+            "Change it only for what the presenter wants the audience to see now, not for what they will show later, showed "
+            "before, or only mention.")
 KEEP = ("Keep the screen as it is: the new sentence fits what is on screen, is small talk, or names something without asking "
-        "to see it now (a plan for later, something said or meant earlier, a passing mention, a request still unfinished)")
-OTHER = ("Something not listed: a search on the web or on a site, a website, file, picture or video that is not listed, or a "
-         "link or button to click on the page on screen")
+        "to see it now (a plan for later, something said or meant earlier, a passing mention)")
+OTHER = "Show a file, a picture, or a website that has no option here"
+SEARCH = "Search the web or a website for something"
+PAGE = "Act on the page or video on screen: scroll, zoom, play, pause, full screen, back or forward"
+PARTIAL = 0.9  # how likely a change must be to act before the sentence ends
 # A transcript reads as another language when more of its words are common words of French, German, Spanish or Italian
 # than of English, so side talk in those languages does nothing while short English commands with few common words pass.
 ENGLISH = set("""the a an and or but so to of in on at for with is are was were be been it it's this that these those i i'm
@@ -110,114 +114,137 @@ class Catalog:
                 self.slides.append(Slide(pdf.stem, n, lines[0] if lines else f"page {n}", " ".join(lines)))
         self.by_id = {s.id: s for s in self.slides}
         self.places = {f"{name} website": Action("url", url) for name, url in SITES.items()} | {f"{app} app": Action("app", app) for app in apps}
+        n, m = len(self.slides), len(self.places)
         vecs = embed([f"title: {s.doc.replace('_', ' ')} | text: {s.text}" for s in self.slides]
-                     + [f"title: {name} | text: {name}, {a.target}" for name, a in self.places.items()])
-        self.slide_vecs, self.place_vecs = vecs[:len(self.slides)], vecs[len(self.slides):]
+                     + [f"title: {name} | text: {name}, {a.target}" for name, a in self.places.items()]
+                     + [f"title: none | text: {c}" for c in CONTROLS])
+        self.slide_vecs, self.place_vecs, self.control_vecs = vecs[:n], vecs[n:n + m], vecs[n + m:]
 
-    def near(self, query: str, around: list[Slide], slides: int = 6, places: int = 3) -> tuple[list[Slide], list[str]]:
-        """The slides and places closest in meaning to the query, with every deck's cover and the slides `around`."""
-        q = embed([f"task: search result | query: {query}"])[0]
-        keep = {self.slides[i].id for i in np.argsort(-(self.slide_vecs @ q))[:slides]}
+    def near(self, context: str, said: str, around: list[Slide], slides: int = 6, places: int = 3) -> tuple[list[Slide], list[str], str]:
+        """For what was said in context: the closest slides, with every deck's cover and the slides `around`; the closest
+        places; and the control of the page on screen the sentence itself is closest to."""
+        near, own = embed([f"task: search result | query: {context}", f"task: search result | query: {said}"])
+        keep = {self.slides[i].id for i in np.argsort(-(self.slide_vecs @ near))[:slides]}
         keep |= {s.id for s in self.slides if s.page == 1} | {s.id for s in around}
         names = list(self.places)
-        return [s for s in self.slides if s.id in keep], [names[i] for i in np.argsort(-(self.place_vecs @ q))[:places]]
+        return ([s for s in self.slides if s.id in keep], [names[i] for i in np.argsort(-(self.place_vecs @ near))[:places]],
+                list(CONTROLS)[int(np.argmax(self.control_vecs @ own))])
 
 
-class Brain:
-    """What the audience sees and what the presenter has said. decide() turns the words of the sentence being spoken
-    into at most one new action; moved() records what the screen shows after it; heard() ends the sentence."""
-
-    def __init__(self, catalog: Catalog, threshold: float = 0.7, any_language: bool = False):
-        self.catalog, self.threshold, self.any_language = catalog, threshold, any_language
-        self.stage: Action | None = None  # what the stage tab shows, a slide or a picture; None is the desktop picture
-        self.front: Action | None = None  # a tab or an app in front of the stage
-        self.last: Slide | None = None  # the last slide shown, where the talk is in its deck
-        self.history: list[str] = []  # earlier sentences
-        self.done: list[Action] = []  # decided during the sentence being spoken
+@dataclass(frozen=True)
+class View:
+    """What the audience sees."""
+    stage: Action | None = None  # what the stage tab shows, a slide or a picture; None is the desktop picture
+    front: Action | None = None  # a tab or an app in front of the stage
+    last: Action | None = None  # the last slide shown, where the talk is in its deck
 
     @property
     def onair(self) -> Action | None:
         return self.front or self.stage
+
+    def after(self, a: Action) -> "View":
+        if a.kind == "slide":
+            return View(a, None, a)
+        if a.kind == "file" and Path(a.target).suffix.lower() in ON_STAGE:
+            return View(a, None, self.last)
+        if a.kind == "close":
+            return replace(self, front=None) if self.front else replace(self, stage=None)
+        return self if a.kind == "control" else replace(self, front=a)
+
+
+class Brain:
+    """What the audience sees and what the presenter has said. decide() turns the words of the sentence being spoken
+    into at most one new action; moved() records what the screen shows after it; heard() ends the sentence.
+
+    Every decision during a sentence is made from the screen as it was when the sentence began, so a later transcript
+    refines an earlier decision instead of repeating it ("next slide" then "next slide please" is one step). A partial
+    transcript acts only when it is very likely and the previous one chose the same."""
+
+    def __init__(self, catalog: Catalog, threshold: float = 0.7, any_language: bool = False):
+        self.catalog, self.threshold, self.any_language = catalog, threshold, any_language
+        self.view = self.start = View()  # the screen now, and when the sentence began
+        self.guess: Action | None = None  # the previous partial transcript's choice
+        self.done: list[Action] = []  # acted on during this sentence
+        self.history: list[str] = []  # earlier sentences
+
+    @property
+    def onair(self) -> Action | None:
+        return self.view.onair
 
     def describe(self, a: Action | None) -> str:
         if a is None:
             return "nothing, the desktop picture"
         if a.kind == "slide":
             return f'slide [{a.target}] "{self.catalog.by_id[a.target].title}"'
-        what = {"url": "the website", "app": "the app", "file": "the file", "control": "the control",
-                "close": "closed what was on screen", "ask": "what the presenter asked for:"}[a.kind]
-        return f"{what} {a.target}".rstrip()
+        return f"{ {'url': 'the website', 'app': 'the app', 'file': 'the file', 'ask': 'what the presenter asked for:'}[a.kind]} {a.target}"
 
     def decide(self, said: str, end: bool) -> tuple[Action | None, str]:
-        """The action the sentence so far calls for, if any, and why. `end` means the presenter paused or finished:
+        """The action the sentence so far calls for, if any, and why. `end` means the presenter paused or finished;
         requests for the vision model wait for it, since it needs the whole request."""
         if not (self.any_language or english(said)):
             return None, "not English"
         said = said[-300:]  # the decision model's time grows with the prompt; the end of a long sentence is what matters
-        cat, onair, last = self.catalog, self.onair, self.last
+        cat, v = self.catalog, self.start
+        onair, last = v.onair, v.last and cat.by_id[v.last.target]
         around = [s for d in (-1, 0, 1, 2) if last and (s := cat.by_id.get(f"{last.doc} p{last.page + d}"))]
-        slides, places = cat.near(" ".join([*self.history[-1:], said]), around)
+        slides, places, control = cat.near(" ".join([*self.history[-1:], said]), said, around)
+
+        # The decision model matches the words of the options, so each option says what sets it apart.
+        def slide(s: Slide) -> str:
+            step = s.page - last.page if last and s.doc == last.doc else None
+            title = f"first slide of the {s.doc.replace('_', ' ')} deck, {s.title}" if s.page == 1 else s.title
+            if last and onair != v.last:
+                return f"back to the slides, {title}" if step == 0 else title
+            return {1: f"next slide, {title}", -1: f"previous slide, {title}"}.get(step, title)
 
         options: dict[str, tuple[str, Action | None]] = {"keep": (KEEP, None)}
-        options |= {s.id: (s.title, Action("slide", s.id)) for s in slides}
-        if last and onair == Action("slide", last.id):
-            for label, step in (("next slide", 1), ("previous slide", -1)):
-                if s := cat.by_id.get(f"{last.doc} p{last.page + step}"):
-                    options[label] = (f"[{s.id}] {s.title}", Action("slide", s.id))
-        options |= {name: (cat.places[name].target, cat.places[name]) for name in places}
+        options |= {s.id: (slide(s), Action("slide", s.id)) for s in slides}
+        options |= {name: (f"the {name}'s home page, {a.target}" if a.kind == "url" else f"switch to the {name}", a)
+                    for name in places for a in [cat.places[name]] if a != onair}
         if onair and onair.kind not in ("slide", "app"):
-            options |= {c: ("on the page or video on screen", Action("control", c)) for c in CONTROLS}
+            options["the page"] = (PAGE, Action("control", control))
         if onair and onair.kind != "app":
-            options["close"] = (f"Close {self.describe(onair)}", Action("close"))
+            options["close"] = ("Close the tab on screen" if v.front else "Stop showing the slides: show the desktop picture", Action("close"))
+        options["search"] = (SEARCH, Action("ask", said))
         options["other"] = (OTHER, Action("ask", said))
 
         lines = ["SLIDES:", *(f"[{s.id}] {s.text[:200]}" for s in slides), "", f"ON SCREEN: {self.describe(onair)}"]
-        if last and onair != Action("slide", last.id):
-            lines.append(f"LAST SLIDE SHOWN: {self.describe(Action('slide', last.id))}")
+        if last and onair != v.last:
+            lines.append(f"LAST SLIDE SHOWN: {self.describe(v.last)}")
         lines += ["", "EARLIER SPEECH:", *([h[-160:] for h in self.history[-2:]] or ["(start of talk)"]), "", f"NEW SENTENCE: {said}"]
-        if self.done:
-            lines.append("ALREADY DONE DURING THIS SENTENCE: " + "; ".join(map(self.describe, self.done)))
-        answer = ask_d1({"state": "\n".join(lines), "questions": {"screen": {
-            "type": "choice", "instructions": QUESTION, "criteria": {label: d for label, (d, _) in options.items()}}}})["screen"]
+        r = ask_d1({"state": "\n".join(lines), "questions": {"screen": {
+            "type": "choice", "instructions": QUESTION, "criteria": {label: d for label, (d, _) in options.items()}}}})
 
-        # Options that lead to the same action share its probability; showing what is on screen already is keeping it.
-        keep, p = 0.0, defaultdict(float)
-        for label, prob in answer["probabilities"].items():
-            a = options[label][1]
-            if a is None or a == onair:
-                keep += prob
-            else:
-                p[a] += prob
-        best = max(p, key=lambda a: p[a])
-        why = f"P(keep) {keep:.2f}, {best} {p[best]:.2f}"
-        if 1 - keep < self.threshold or best in self.done or best.kind == "ask" and (not end or any(a.kind == "ask" for a in self.done)):
+        # Options that lead to the same action share its probability, and showing what is on screen is keeping it.
+        probs, p = r["answers"]["screen"]["probabilities"], defaultdict(float)
+        for label, prob in probs.items():
+            p[None if options[label][1] == onair else options[label][1]] += prob
+        change, best = 1 - p.pop(None, 0.0), max(p, key=lambda a: p[a])
+        top = sorted(probs, key=lambda label: -probs[label])[:3]
+        why = f"P(change) {change:.2f}: " + ", ".join(f"{label} {probs[label]:.2f}" for label in top) + f"; {r.get('usage', {}).get('input_tokens')} tokens"
+        choice = best if change >= (self.threshold if end else max(self.threshold, PARTIAL)) else None
+        if not end:
+            choice, self.guess = choice if choice == self.guess else None, choice
+        if not choice or choice in self.done or choice == self.view.onair or choice.kind == "ask" and (not end or any(a.kind == "ask" for a in self.done)):
             return None, why
-        self.done.append(best)
-        return best, why
+        self.done.append(choice)
+        return choice, why
 
     def moved(self, a: Action) -> None:
         """Record what the screen shows after doing `a`, as the screen reports it."""
-        if a.kind == "slide" or a.kind == "file" and Path(a.target).suffix.lower() in ON_STAGE:
-            self.stage, self.front = a, None
-            self.last = self.catalog.by_id[a.target] if a.kind == "slide" else self.last
-        elif a.kind == "close" and self.front:
-            self.front = None
-        elif a.kind == "close":
-            self.stage = None
-        elif a.kind != "control":
-            self.front = a
+        self.view = self.view.after(a)
 
     def heard(self, said: str) -> None:
         """The sentence is over."""
         if self.any_language or english(said):
             self.history.append(said)
-        self.done.clear()
+        self.start, self.guess, self.done = self.view, None, []
 
 
 def ask_d1(body: dict) -> dict:
     req = urllib.request.Request(f"{D1}/v1/systemone", json.dumps(body).encode(), {"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=120) as r:
-        return json.load(r)["answers"]
+        return json.load(r)
 
 
 def healthy() -> bool:
@@ -264,7 +291,7 @@ def evaluate(scripts: list[Path], library: Path, threshold: float, step: int = 2
         print(f"\n{script}")
         for i, line in enumerate((json.loads(l) for l in script.read_text().splitlines() if l.strip()), 1):
             said, want = hear(line["say"]), line["want"]
-            before, taken, why, words = brain.onair, [], "", said.split()
+            before, taken, trace, words = brain.onair, [], [], said.split()
             for n in [*(range(step, len(words), step) if step else []), len(words)]:
                 t = time.perf_counter()
                 a, why = brain.decide(" ".join(words[:n]), end=n == len(words))
@@ -272,6 +299,8 @@ def evaluate(scripts: list[Path], library: Path, threshold: float, step: int = 2
                 if a:
                     brain.moved(a)
                     taken.append(a)
+                    trace.append(f'"{" ".join(words[:n])}" -> {a} ({why})')
+            trace.append(f"end: {why}")
             brain.heard(said)
             shows = lambda onair: any(onair is None if w is None else w in catalog.by_id and onair == Action("slide", w) for w in want)
             did = any(w and w not in catalog.by_id and w != "keep" and w in (a.kind, str(a)) for w in want for a in taken)
@@ -285,7 +314,7 @@ def evaluate(scripts: list[Path], library: Path, threshold: float, step: int = 2
             counts[verdict] += 1
             print(f"{'ok ' if verdict == 'ok' else 'BAD'} {i:2} {'; '.join(map(str, taken)) or '-':48.48} | {said[:72]}")
             if verdict != "ok":
-                print(f"       {verdict}: want {want}, on screen {brain.describe(brain.onair)}; last decision {why}")
+                print(f"       {verdict}: want {want}, on screen {brain.describe(brain.onair)}" + "".join(f"\n         {t}" for t in trace))
         print(summary(script.stem, counts))
         for k, v in counts.items():
             totals[k] += v
