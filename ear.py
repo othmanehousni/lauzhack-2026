@@ -8,6 +8,7 @@ import json
 import queue
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -40,20 +41,32 @@ def built() -> Path:
     return exe
 
 
-def hear(names: list[str]):
+def hear(names: list[str], files: list[Path] = (), lines: list[str] = ()):
     """Speech to text with Apple's on-device SpeechTranscriber (hear.swift), listening for `names` (apps, websites,
     slide titles) in particular. It runs on the Neural Engine outside this process, so it neither loads a model here nor
-    competes with the embedding model for the GPU."""
-    p = subprocess.Popen([str(built())], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+    competes with the embedding model for the GPU. With `files`, it hears those instead of the microphone, and prints
+    each of `lines` as its file starts."""
+    p = subprocess.Popen([str(built()), *map(str, files)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
     p.stdin.write("".join(f"{n.strip()}\n" for n in names if n.strip()) + "\n")
     p.stdin.close()
     for line in p.stdout:
         e = json.loads(line)
         if "note" in e:
-            print(e["note"])
+            n = e["note"].removeprefix("playing ")
+            print(f"\n▶ {lines[int(n)]}" if n.isdigit() and lines else e["note"])
         else:
             yield e["text"], time.perf_counter() - e["ago"], e["kind"]
-    sys.exit(f"hear.swift stopped with code {p.wait()}")
+    if code := p.wait():
+        sys.exit(f"hear.swift stopped with code {code}")
+
+
+def spoken(script: Path, names: list[str]):
+    """A script, one sentence per line or an eval .jsonl, spoken by macOS `say` and heard as from the microphone."""
+    lines = [json.loads(l)["say"] if script.suffix == ".jsonl" else l for l in script.read_text().splitlines() if l.strip()]
+    folder = Path(tempfile.mkdtemp())
+    for n, line in enumerate(lines):
+        subprocess.run(["say", "-o", str(folder / f"{n}.aiff"), line], check=True)
+    yield from hear(names, [folder / f"{n}.aiff" for n in range(len(lines))], lines)
 
 
 class Ear:
@@ -152,6 +165,7 @@ def lips(args):
 INPUTS = {  # each gets the parsed arguments and the names the presenter may say
     "mic": lambda args, names: hear(names),
     "parakeet": lambda args, names: Ear().microphone(args.focus),
+    "say": lambda args, names: spoken(args.script, names),
     "lips": lambda args, names: lips(args),
     "keys": lambda args, names: keys(args),
 }

@@ -353,8 +353,9 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
     live = sub.add_parser("live")
     live.add_argument("--input", choices=INPUTS, default="mic", help="microphone (Apple's on-device speech recognizer), the "
-                      "microphone through Parakeet on MLX, silent lip reading from the webcam, or typed lines")
+                      "microphone through Parakeet on MLX, a --script spoken by `say`, silent lip reading, or typed lines")
     live.add_argument("--dry", action="store_true", help="print VM commands instead of running them")
+    live.add_argument("--script", type=Path, help="with --input say: what to say, one sentence per line or an eval .jsonl")
     live.add_argument("--camera", type=int, default=0, help="webcam index for --input lips")
     live.add_argument("--preview", action="store_true", help="with --input lips, show the mouth crop and the lip-motion level")
     live.add_argument("--sensitivity", type=float, help="with --input lips, how far lip motion must rise above still-lip jitter")
