@@ -511,8 +511,9 @@ class Brain:
         why = ", ".join(f"{label} {probs[label]:.2f}" for label in sorted(probs, key=probs.__getitem__, reverse=True)[:3])
         why += f"; {best} {p:.2f}{' (clause)' if r is not readings[0] else ''}: {d.why}"
         do = d.do
-        if not end:
-            do, self.guess = do if do == self.guess else None, do
+        if not end:  # the transcriber still revises live words, most of all an address it spelled and no place known
+            sure = do == self.guess and (do is None or do.kind != "url" or do in self.catalog.places.values())
+            do, self.guess = do if sure else None, do
         if not do or do in self.done or do == self.view.onair or do.kind == "ask" and (not end or any(a.kind == "ask" for a in self.done)):
             do = None
         else:
