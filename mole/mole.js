@@ -173,8 +173,8 @@
     root.setAttribute("role", "status");
     root.innerHTML = `${FIGURE}<div class="mole-text"><i class="mole-dot"></i><div class="mole-words"><div class="mole-title"></div><div class="mole-heard"></div></div></div>`;
     const title = root.querySelector(".mole-title"), heard = root.querySelector(".mole-heard");
-    const words = root.querySelector(".mole-words");
-    words.toggleAttribute("data-one-line", true);
+    const text = root.querySelector(".mole-text");
+    text.toggleAttribute("data-one-line", true);
     const ease = getComputedStyle(document.documentElement).getPropertyValue("--ease-out").trim() || "ease-out";
     const slow = () => parseFloat(getComputedStyle(root).getPropertyValue("--slow")) || 1;
 
@@ -226,7 +226,7 @@
       title.append(next);
       next.animate(
         [{ opacity: 0, transform: `translateY(${shift}px)`, filter: `blur(${blur}px)` }, { opacity: 1, transform: "none", filter: "blur(0px)" }],
-        { ...timing, duration: 220 * slow(), delay: 40 * slow() },
+        { ...timing, fill: "both", duration: 220 * slow(), delay: 40 * slow() },
       );
     }
 
@@ -243,7 +243,7 @@
       }
       if (t !== undefined) swap(t, prev !== "hidden" && state !== "hidden");
       if (h !== undefined) {
-        words.toggleAttribute("data-one-line", !h);
+        text.toggleAttribute("data-one-line", !h);
         if (h) heard.textContent = h.length > HEARD_MAX ? `…${h.slice(1 - HEARD_MAX).trimStart()}` : h;
       }
     }

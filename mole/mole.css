@@ -58,7 +58,7 @@
   border-radius: 2px;
   background: var(--sage);
   transition: opacity calc(160ms * var(--slow)) var(--ease-out), transform calc(220ms * var(--slow)) var(--ease-out),
-    background-color calc(200ms * var(--slow)) ease;
+    background-color calc(200ms * var(--slow)) ease, translate calc(260ms * var(--slow)) var(--ease-out);
 }
 [data-state=idle] .mole-dot, [data-state=back] .mole-dot { opacity: 0; transform: scale(.4); }
 [data-state=unsure] .mole-dot { background: var(--ember); }
@@ -73,7 +73,8 @@
   transition: transform calc(260ms * var(--slow)) var(--ease-out);
 }
 [data-state=idle] .mole-words, [data-state=back] .mole-words { --wx: -16px; }
-.mole-words[data-one-line] { --wy: 8.5px; }
+.mole-text[data-one-line] .mole-words { --wy: 8.5px; }
+.mole-text[data-one-line] .mole-dot { translate: 0 8.5px; }
 
 .mole-title { display: grid; }
 .mole-title > span { grid-area: 1 / 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -88,10 +89,10 @@
   text-overflow: ellipsis;
   transition: opacity calc(200ms * var(--slow)) var(--ease-out);
 }
-.mole-words[data-one-line] .mole-heard { opacity: 0; }
+.mole-text[data-one-line] .mole-heard { opacity: 0; }
 .mole-heard::before { content: "\201C"; }
 .mole-heard::after { content: "\201D"; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mole-bar, .mole-words { transition-property: opacity !important; }
+  .mole-bar, .mole-words, .mole-dot { transition-property: opacity !important; }
 }
