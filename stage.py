@@ -178,6 +178,11 @@ class Stage:
         for t in pages:
             if t["id"] != self.home and t["url"].startswith(("http", "file")):
                 self.tabs.setdefault(t["url"], t["id"])
+        deadline = time.monotonic() + 10
+        while self.run(self.home, "typeof show") != "function":  # a tab opened just now has not run stage.html yet
+            if time.monotonic() > deadline:
+                raise RuntimeError(f"the stage page did not load: {PAGE}")
+            time.sleep(0.1)
         self.bring(self.home)
 
     def bring(self, tab: str) -> None:
