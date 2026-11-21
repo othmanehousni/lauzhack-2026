@@ -52,9 +52,9 @@ SITES = {
     "LauzHack": "https://lauzhack.com", "EPFL": "https://www.epfl.ch", "OpenAI": "https://openai.com", "Anthropic": "https://www.anthropic.com",
 }
 # The classifier's labels. A label's group, its first word, is the kind of request.
-LABELS = ["aside", "talk", "unfinished", "pick", "slide", "next", "previous", "return", "open", "search", "click", "close",
+LABELS = ["aside", "talk", "unfinished", "later", "pick", "slide", "next", "previous", "return", "open", "search", "click", "close",
           *(f"control {c}" for c in CONTROLS)]
-QUIET = {"aside", "unfinished"}  # never change the screen
+QUIET = {"aside", "unfinished", "later"}  # never change the screen; "later" also cancels a request before it
 SHOWN = {"slide", "url", "app", "file"}  # kinds of action worth suggesting: they put something in front of the audience
 NGRAMS, BUCKETS = 0.5, 2 ** 12  # the hashed words' weight next to the embedding, and how many buckets they hash into
 STEPS, LR, L2 = 400, 0.1, 1e-5  # training: full-batch Adam steps, step size, weight penalty (5-fold CV on intents.py)
@@ -63,10 +63,10 @@ FALLBACK_LOW = 0.25  # an unsure sentence at least this likely to be a request g
 JUMP, MARGIN = 0.02, 0.05  # following the talk: each slide skipped costs JUMP, and the new slide must beat the one on air by MARGIN
 RETURN_BONUS = 0.1  # "back to the slides" lands on the last one shown unless the sentence is clearly about another
 HERE_BONUS = 0.03  # a slide named by its topic is looked for in the deck on screen first
-OWN = 0.5  # a request's own clause counts this much more than the rest of the sentence when looking up what it names
 SUGGEST = 0.02  # following the talk: a slide ahead that beats the one on air by this much, but not by MARGIN, is suggested
 FILE_MIN, CLOSE = 0.35, 0.02  # how close a file must be to the request, and how close to the best one to be offered with it
-FILE_EDGE = 0.0  # "open X" shows a slide instead of a file when the slide fits X better by this much
+HUB = 1.0  # how much a file that is close to every other document (a bare "Screenshot.png") is marked down
+LEAN = 0.05  # how much the classifier's slide-or-file reading weighs against how well a slide or a file fits the words
 FUZZY = 0.85  # how close a run of words must be to a website or app name
 WEB = {"website", "site", "page", "dot"}  # these make a name both a website and an app mean the website
 NAMED = WEB | {"app", "application"}  # next to these, a name that is also a plain word (Notes, Photos) is a name
@@ -143,10 +143,12 @@ def tokens(text: str) -> list[str]:
 
 
 def grams(text: str) -> np.ndarray:
-    """The sentence's words and word pairs, hashed, so the classifier also reads the exact words the embedding blurs."""
+    """The sentence's words and word pairs, and its first and last words as such, hashed, so the classifier also reads
+    the exact words the embedding blurs and where they stand ("can you pull up, um" ends on a filler)."""
     w = tokens(text)
     v = np.zeros(BUCKETS, np.float32)
-    v[[zlib.crc32(g.encode()) % BUCKETS for g in w + [f"{a} {b}" for a, b in zip(w, w[1:])]]] = 1
+    ends = [f"^{w[0]}", f"{w[-1]}$", f"{' '.join(w[-2:])}$"] if w else []
+    v[[zlib.crc32(g.encode()) % BUCKETS for g in w + [f"{a} {b}" for a, b in zip(w, w[1:])] + ends]] = 1
     n = np.linalg.norm(v)
     return v * (NGRAMS / n) if n else v
 
@@ -179,18 +181,16 @@ def clauses(said: str) -> list[str]:
     return [" ".join(p) for p in parts if p]
 
 
-def clause_texts(text: str) -> tuple[list[str], list[str]]:
-    """The clauses a sentence is also read by, and each one's text to the end of the sentence."""
+def readings(text: str) -> list[str]:
+    """The texts a sentence is read by: itself, then each of its clauses if it has more than one."""
     parts = clauses(text)
-    heads = parts if len(parts) > 1 else []
-    return heads, [" ".join(parts[k:]) for k in range(len(heads))]
+    return [text, *parts] if len(parts) > 1 else [text]
 
 
 def prompts(text: str) -> list[str]:
-    """What Brain.read embeds for a sentence: the whole and each clause to classify, the whole and each clause's tail
-    to look things up with."""
-    heads, tails = clause_texts(text)
-    return [CLASSIFY.format(t) for t in [text, *heads]] + [QUERY.format(t) for t in [text, *tails]]
+    """What Brain.read embeds for a sentence: each reading to classify, and the whole sentence to look things up with,
+    since what a request names may sit in another clause ("it's called YouTube, maybe you can go on it")."""
+    return [CLASSIFY.format(t) for t in readings(text)] + [QUERY.format(text)]
 
 
 def slide_number(said: str) -> int | None:
@@ -264,13 +264,17 @@ class Catalog:
                 lines = [l.strip() for l in (page.extract_text() or "").splitlines() if l.strip()]
                 self.slides.append(Slide(pdf.stem, n, lines[0] if lines else f"page {n}", " ".join(lines)))
         self.by_id = {s.id: s for s in self.slides}
-        self.slide_vecs = remember([f"title: {s.doc.replace('_', ' ')} | text: {s.text}" for s in self.slides])
-        # a deck named as a whole ("the company slides") is its first slide
+        # Each document says what it is: a slide by its own title, so its content and not its deck's name decides how close
+        # it is to a request, and a deck as a whole by its name, standing for its first slide ("the company slides").
+        self.slide_vecs = remember([f"title: {s.title} | text: {s.text}" for s in self.slides])
         self.covers = [i for i, s in enumerate(self.slides) if s.page == 1]
         self.deck_vecs = remember([f"title: {self.slides[i].doc.replace('_', ' ')} | text: "
                                    + "; ".join(s.title for s in self.slides if s.doc == self.slides[i].doc) for i in self.covers])
         self.files = list(files)
         self.file_vecs = remember([file_doc(f) for f in self.files]) if self.files else self.slide_vecs[:0]
+        # A file that says little is close to every request, so how close it is to the other documents counts against it
+        hub = (self.file_vecs @ np.vstack([self.slide_vecs, self.file_vecs]).T).mean(1)
+        self.file_hub = HUB * (hub - hub.mean())
         # "X (Twitter)" is named X and Twitter; names under three letters match too much
         self.sites = {n: Action("url", url) for name, url in SITES.items() for n in name.removesuffix(")").split(" (") if len(n) >= 3}
         self.places = self.sites | {app: Action("app", app) for app in apps if len(app) >= 3}  # an app takes a shared name
@@ -281,6 +285,10 @@ class Catalog:
         s = self.slide_vecs @ query
         s[self.covers] = np.maximum(s[self.covers], self.deck_vecs @ query)
         return s + np.array([HERE_BONUS if x.doc == here else 0.0 for x in self.slides])
+
+    def fits(self, query: np.ndarray) -> np.ndarray:
+        """How close each file is to a request describing it."""
+        return self.file_vecs @ query - self.file_hub
 
     def vec(self, a: Action) -> np.ndarray | None:
         """The vector of a slide or file, to compare it with what the presenter says."""
@@ -343,7 +351,6 @@ class Reading:
     the slides. The problem we solve is...")."""
     probs: dict[str, float]  # the classifier's labels
     groups: dict[str, float]  # the kinds of request that can apply to the screen as the sentence began, renormalized
-    query: np.ndarray  # what to look things up with: the clause to the end of the sentence, and the whole sentence
 
     @property
     def best(self) -> str:
@@ -395,38 +402,39 @@ class Brain:
                  "close": "close what is on screen", "ask": "what the presenter asked for:"}
         return f"{kinds[a.kind]} {a.target}".rstrip()
 
-    def read(self, text: str) -> list[Reading]:
-        """The sentence read as a whole, then by each of its clauses, in one call to the embedding model."""
-        heads, tails = clause_texts(text)
-        vecs = embed(prompts(text))
-        cls, queries = vecs[:1 + len(heads)], vecs[1 + len(heads):]
+    def read(self, text: str) -> tuple[list[Reading], np.ndarray]:
+        """The sentence read as a whole, then by each of its clauses, and its vector to look things up with, in one call
+        to the embedding model."""
+        texts = readings(text)
+        *cls, query = embed(prompts(text))
         v = self.start
         on, shown = v.onair, v.last is not None
         possible = {"next": shown, "previous": shown, "return": shown and on != v.last, "pick": bool(self.offer),
                     "control": on is not None and on.kind in ("url", "file", "ask"), "close": on is not None}
-        readings = []
-        for t, c, q in zip([text, *heads], cls, [queries[0], *(x + OWN * queries[0] for x in queries[1:])]):
+        out = []
+        for t, c in zip(texts, cls):
             probs, groups = self.intents(c, t), defaultdict(float)
             for label, prob in probs.items():
                 if possible.get(g := label.split()[0], True):
                     groups[g] += prob
             total = sum(groups.values())
-            readings.append(Reading(probs, {g: p / total for g, p in groups.items()}, q / np.linalg.norm(q)))
-        return readings
+            out.append(Reading(probs, {g: p / total for g, p in groups.items()}))
+        return out, query
 
     def choose(self, readings: list[Reading], gate: float) -> Reading:
-        """The reading to act on. The last clause that is sure of what it is decides: a request ("... maybe you can go
-        on it") is acted on; a remark ("..., but we're short on time") keeps the screen when the whole sentence reads
-        as one too, and otherwise leaves the say to an earlier clause that is a sure request ("can you switch to Notes,
-        I wrote the numbers there"). With no sure clause, the sentence is read as a whole."""
-        whole, sure = readings[0], [r for r in readings[1:] if r.best != "talk" and r.p >= gate]
-        if not sure:
+        """The reading to act on: the last clause that is surely a request, unless a clause after it puts it off ("...,
+        but we're short on time"). A remark after it does not ("let me open your contract, it's in there"), though a
+        sentence that is surely a remark as a whole outweighs a less sure request inside it that is not its last
+        clause. With no clause surely a request, the sentence is read as a whole."""
+        whole, parts = readings[0], readings[1:]
+        sure = [(i, r) for i, r in enumerate(parts) if r.best != "talk" and r.p >= gate]
+        asks = [(i, r) for i, r in sure if r.best not in QUIET]
+        if not asks:
             return whole
-        if sure[-1].best not in QUIET:
-            return sure[-1]
-        if whole.best in QUIET and whole.p >= gate:
-            return whole
-        return next((r for r in reversed(sure) if r.best not in QUIET), whole)
+        i, ask = asks[-1]
+        if later := next((r for j, r in sure if j > i and r.best == "later"), None):
+            return later
+        return ask if i == len(parts) - 1 or whole.best not in QUIET or ask.p >= whole.p else whole
 
     def decide(self, said: str, end: bool) -> Decision:
         """What the sentence so far calls for, and why. `end` means the presenter paused or finished; requests for the
@@ -435,20 +443,21 @@ class Brain:
             return Decision(why="not English")
         said = said[-300:]  # the end of a long sentence is what matters
         gate = self.threshold if end else max(self.threshold, PARTIAL)
-        r = self.choose(readings := self.read(said), gate)
+        readings, query = self.read(said)
+        r = self.choose(readings, gate)
         if self.pending and (r.best in QUIET | {"talk"} or r.p < self.threshold):
             # a request cut off before its object ("can you pull up, um") and the object said next are one request
-            joined = self.choose(more := self.read(f"{self.pending} {said}"), gate)
-            if joined.best not in QUIET | {"talk"}:
-                said, readings, r = f"{self.pending} {said}", more, joined
+            more, more_query = self.read(f"{self.pending} {said}")
+            if (joined := self.choose(more, gate)).best not in QUIET | {"talk"}:
+                said, readings, query, r = f"{self.pending} {said}", more, more_query, joined
         best, p, probs = r.best, r.p, r.probs
         control = max((l for l in probs if l.startswith("control ")), key=probs.__getitem__).removeprefix("control ")
         waits = best == "talk" or best == "slide" and tokens(said)[-1:] in (["slide"], ["page"], ["number"])  # a number may follow
         if end:
             self.unfinished = said if best == "unfinished" else ""
-        v = self.start
-        look = (self.catalog.sims(r.query, self.catalog.by_id[v.last.target].doc if v.last else None), control, r.query,
-                self.catalog.slide_vecs @ readings[0].query)
+        v, g = self.start, r.groups
+        look = (self.catalog.sims(query, self.catalog.by_id[v.last.target].doc if v.last else None), control, query,
+                (g.get("open", 0) - g.get("slide", 0)) / (g.get("open", 0) + g.get("slide", 0) + 1e-9))
         if p >= gate:
             d = self.resolve(best, said, *look) if end or not waits else Decision(why="waits for the end")
         elif end and p >= FALLBACK_LOW and best not in QUIET | {"talk"}:
@@ -468,21 +477,17 @@ class Brain:
             self.offered = d.offer
         return Decision(do, d.offer if end else (), why)
 
-    def resolve(self, group: str, said: str, sims: np.ndarray, control: str, query: np.ndarray, talk: np.ndarray) -> Decision:
-        """What a kind of request calls for, from the screen as the sentence began. `query` stands for the request's
-        clause to the end of the sentence and `sims` for how close each slide is to it as a request (Catalog.sims);
-        `talk` is how close each slide is to the whole sentence, which the talk is followed by."""
+    def resolve(self, group: str, said: str, sims: np.ndarray, control: str, query: np.ndarray, lean: float = 0.0) -> Decision:
+        """What a kind of request calls for, from the screen as the sentence began. `query` is the sentence's vector,
+        `sims` how close each slide is to it (Catalog.sims), and `lean` Brain.show's."""
         cat, v = self.catalog, self.start
         here = cat.by_id[v.last.target] if v.last else cat.slides[0]
         match group:
             case "talk":
-                return self.follow(talk)
+                return self.follow(sims)
             case "pick":
                 return self.pick(said, query)
-            case "slide":
-                n = slide_number(said)
-                if n is None:
-                    return Decision(Action("slide", cat.slides[int(np.argmax(sims))].id), why="closest slide")
+            case "slide" | "open" if (n := slide_number(said)) is not None:
                 deck = [s for s in cat.slides if s.doc == here.doc]
                 s = deck[n - 1] if 0 < n <= len(deck) else deck[-1] if n == -1 else None
                 return Decision(Action("slide", s.id) if s else None, why=f"slide number {n}")
@@ -498,13 +503,9 @@ class Brain:
                 return Decision(Action("url", url), why="address")
             case "open" if (a := cat.place(said)):
                 return Decision(a, why=f"place {a.target}")
-            case "open" if (d := self.find(query)).do or d.offer:
-                best = d.do or d.offer[0]
-                slide = int(np.argmax(sims))
-                if sims[slide] > float(cat.vec(best) @ query) + FILE_EDGE:  # "open the company overview" is the deck
-                    return Decision(Action("slide", cat.slides[slide].id), why="closest slide, over files")
-                return d
-            case "open" | "search" | "click":
+            case "slide" | "open":
+                return self.show(group, said, sims, query, lean)
+            case "search" | "click":
                 return Decision(Action("ask", said), why="for the vision model")
             case "control":
                 return Decision(Action("control", control), why="control")
@@ -512,11 +513,24 @@ class Brain:
                 return Decision(Action("close"), why="close")
         return Decision(why=group)
 
+    def show(self, group: str, said: str, sims: np.ndarray, query: np.ndarray, lean: float) -> Decision:
+        """A slide or a file, whichever fits the words better once the classifier's reading is counted: `lean` runs
+        from -1 (surely a slide) to 1 (surely something outside the deck). A request outside the deck that fits no file
+        goes to the vision model."""
+        slide = Action("slide", self.catalog.slides[int(np.argmax(sims))].id)
+        d = self.find(query)
+        if (best := d.do or next(iter(d.offer), None)) is not None:
+            if float(self.catalog.fits(query).max()) + LEAN * lean > float(sims.max()) - LEAN * lean:
+                return d
+        if group == "open" and float(sims.max()) - LEAN * lean < FILE_MIN:
+            return Decision(Action("ask", said), why="for the vision model")
+        return Decision(slide, why="closest slide")
+
     def find(self, query: np.ndarray) -> Decision:
         """The file the request describes, or the few that fit it about as well as the best, to choose from."""
         if not self.catalog.files:
             return Decision()
-        s = self.catalog.file_vecs @ query
+        s = self.catalog.fits(query)
         order = np.argsort(-s)[:3]
         if s[order[0]] < FILE_MIN:
             return Decision(why=f"no file, closest {s[order[0]]:.2f}")
@@ -538,13 +552,14 @@ class Brain:
         return Decision(offer[int(np.argmax(scores))], why="picked by description")
 
     def follow(self, sims: np.ndarray) -> Decision:
-        """While the slides are on air, the slide up to four pages ahead that the talk has moved on to: shown when it
-        clearly fits better than the one on air, suggested when it fits a little better."""
+        """While the slides are on air, the slide ahead in the deck that the talk has moved on to: shown when it clearly
+        fits better than the one on air, each slide skipped counting against it, and suggested when it fits a little
+        better."""
         v, slides = self.start, self.catalog.slides
         if not v.last or v.onair != v.last:
             return Decision(why="talk, slides not on air")
         i = slides.index(self.catalog.by_id[v.last.target])
-        ahead = [(sims[i + k] - JUMP * (k - 1), k) for k in range(1, 5) if i + k < len(slides) and slides[i + k].doc == slides[i].doc]
+        ahead = [(sims[i + k] - JUMP * (k - 1), k) for k in range(1, len(slides) - i) if slides[i + k].doc == slides[i].doc]
         score, k = max(ahead, default=(-1.0, 0))
         if score > sims[i] + MARGIN:
             return Decision(Action("slide", slides[i + k].id), why=f"follow +{k}")
@@ -552,14 +567,14 @@ class Brain:
             return Decision(offer=(Action("slide", slides[i + k].id),), why=f"suggest +{k}")
         return Decision(why="talk, stay")
 
-    def unsure(self, groups: dict[str, float], said: str, sims: np.ndarray, control: str, query: np.ndarray, talk: np.ndarray) -> Decision:
+    def unsure(self, groups: dict[str, float], said: str, sims: np.ndarray, control: str, query: np.ndarray, lean: float) -> Decision:
         """A sentence the classifier is unsure about. The decision model, when on, picks among the actions its three
         likeliest readings call for, or keeping the screen; otherwise, or when it keeps the screen, the likeliest one
         that shows something is suggested to the presenter."""
         v = self.start
         options: dict[str, tuple[str, Action]] = {}
         for g in sorted((g for g in groups if g not in QUIET), key=groups.__getitem__, reverse=True)[:3]:
-            d = self.resolve(g, said, sims, control, query, talk)
+            d = self.resolve(g, said, sims, control, query, lean)
             if (a := d.do or next(iter(d.offer), None)) and a != v.onair and str(a) not in options:
                 options[str(a)] = (f"{self.describe(a)}: {HINTS.get(g, g)}", a)
         if not options:
