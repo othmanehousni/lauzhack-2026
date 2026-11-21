@@ -1,12 +1,11 @@
 /* The Mole: a paper cut-out puppet in the overlay bar. mole.js moves the puppet through SVG transform attributes, which
    any CSS transform on its groups would override, so this file only colours it. */
 :root {
-  --paper: oklch(0.948 0.013 82.4);
-  --ink-lch: 0.229 0.006 56.1;
-  --ink: oklch(var(--ink-lch));
-  --ember: oklch(0.654 0.204 37.3);
-  --lens: oklch(0.941 0.03 90.3);
-  --sage: oklch(0.719 0.053 150.2);
+  --paper: #f2ede4;
+  --ink: #1f1c1a;
+  --ember: #f2531c;
+  --lens: #f3ebd5;
+  --sage: #8dae93;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --slow: 1;
 }
@@ -22,7 +21,7 @@
   border-radius: 24px;
   background: var(--paper);
   color: var(--ink);
-  box-shadow: 0 0 0 1px oklch(var(--ink-lch) / .1);
+  box-shadow: 0 0 0 1px rgb(31 28 26 / .1);
   font: 500 15px/20px -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
@@ -84,7 +83,7 @@
   margin-top: 1px;
   font-size: 12.5px;
   line-height: 16px;
-  color: oklch(var(--ink-lch) / .64);
+  color: rgb(31 28 26 / .55);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
