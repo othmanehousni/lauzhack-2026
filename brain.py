@@ -145,6 +145,20 @@ def tokens(text: str) -> list[str]:
     return "".join(c if c.isalnum() else " " for c in text.lower()).split()
 
 
+def sound(name: str) -> str:
+    """How a word sounds, roughly: letters that sound alike made one, every run of vowels one, h and w dropped, so a
+    name the transcriber does not know and spells by ear ("lozac", "loshack") sounds like the name meant ("LauzHack")."""
+    s = name.lower()
+    for a, b in (("ck", "k"), ("ph", "f"), ("x", "ks"), ("c", "k"), ("q", "k"), ("z", "s"), ("h", ""), ("w", "")):
+        s = s.replace(a, b)
+    out = ""
+    for c in s:
+        c = "a" if c in "aeiouy" else c
+        if not out.endswith(c):
+            out += c
+    return out
+
+
 def stems(text: str) -> set[str]:
     """The words cut to five letters, so "financials" matches "finance" and "margins" "margin"."""
     return {w[:5] for w in tokens(text) if len(w) > 2}
@@ -328,19 +342,25 @@ class Catalog:
         w = [x.lower() for x in raw]
         named = {i for i, x in enumerate(raw)
                  if i and (x[:1].isupper() or w[i - 1] in GOVERNS) or NAMED & set(w[max(i - 1, 0):i + 2])}
-        runs = {(n, "".join(w[i:i + n]), n > 1 or i in named) for n in (1, 2, 3) for i in range(len(w) - n + 1)}
+        # by ear, "laws hack" is LauzHack, but not when a short word ("a", "to") is part of it: "open a" is no OpenAI
+        runs = {(n, run := "".join(w[i:i + n]), n > 1 or i in named, sound(run) if min(map(len, w[i:i + n])) >= 3 else "")
+                for n in (1, 2, 3) for i in range(len(w) - n + 1)}
         close: dict[str, float] = {}
         for name in self.places:
             parts = tokens(name)
             plain = len(parts) == 1 and name[1:].islower()  # "Notes", not "GitHub"
             m = SequenceMatcher(None, "", squashed := "".join(parts))
-            for n, run, proper in runs:
+            heard = sound(squashed)
+            for n, run, proper, said_as in runs:
                 if plain and not proper:
                     continue
                 m.set_seq1(run)
                 # a run of more or fewer words than the name must spell it exactly, so "open a" is not OpenAI
-                fuzzy = n == len(parts) and m.real_quick_ratio() >= FUZZY and m.quick_ratio() >= FUZZY
-                if (r := m.ratio() if fuzzy else float(run == squashed)) >= FUZZY:
+                same = n == len(parts)
+                r = m.ratio() if same and m.real_quick_ratio() >= FUZZY and m.quick_ratio() >= FUZZY else float(run == squashed)
+                if not plain and r < FUZZY and len(heard) >= 5 and said_as == heard:  # spelled by ear (a name spelled like a word is spelled right)
+                    r = FUZZY
+                if r >= FUZZY:
                     close[name] = max(r, close.get(name, 0.0))
         if not close:
             return None
@@ -525,8 +545,9 @@ class Brain:
                 i = int(np.argmax(named))
                 s = cat.slides[i] if named[i] > named[cat.slides.index(here)] + MARGIN else here
                 return Decision(Action("slide", s.id), why="back to the slides")
-            case "open" if (url := domain(said)):
-                return Decision(Action("url", url), why="address")
+            case "open" if (url := domain(said)):  # "lozac dot com" is how the transcriber spells LauzHack's address
+                known = cat.place(urllib.parse.urlsplit(url).hostname.removeprefix("www.").split(".")[0])
+                return Decision(known if known and known.kind == "url" else Action("url", url), why="address")
             case "open" if (a := cat.place(said)):
                 return Decision(a, why=f"place {a.target}")
             case "slide" | "open":
