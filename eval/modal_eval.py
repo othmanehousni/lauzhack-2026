@@ -10,12 +10,13 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).parent.parent
+EMBED = "embeddinggemma-2:270m"  # brain.EMBED, not imported so this file runs without the copilot's dependencies
 cache = modal.Volume.from_name("copilot-eval-cache", create_if_missing=True)
 image = (
     modal.Image.from_registry("ghcr.io/ggml-org/llama.cpp:server-cuda", add_python="3.12")
     .entrypoint([])
     .apt_install("curl", "ca-certificates", "zstd")
-    .run_commands("curl -fsSL https://ollama.com/install.sh | sh", "(ollama serve > /dev/null 2>&1 &) && sleep 5 && ollama pull embeddinggemma")
+    .run_commands("curl -fsSL https://ollama.com/install.sh | sh", f"(ollama serve > /dev/null 2>&1 &) && sleep 5 && ollama pull {EMBED}")
     .pip_install("numpy", "pypdf", "websockets", "reportlab")
     .env({"HF_HOME": "/cache/hf", "LLAMA_CACHE": "/cache/llama", "D1_ONLINE": "1"})
     .add_local_dir(REPO, "/repo", ignore=["library", "lipread", ".venv", ".git", ".stage", "**/__pycache__", "uv.lock"])

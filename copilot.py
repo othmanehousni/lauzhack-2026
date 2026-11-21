@@ -22,8 +22,9 @@ import urllib.request
 from pathlib import Path
 
 import vm
-from brain import EMBED, OLLAMA, ROUTER, Action, Brain, Catalog, evaluate, healthy, ollama, serve
+from brain import EMBED, OLLAMA, ROUTER, Action, Brain, Catalog, Intents, evaluate, healthy, ollama, serve
 from ear import INPUTS, LIPREAD, Ear
+from intents import INTENTS
 from stage import CONTROLS, Stage, render, wallpaper
 from vm import agent_desktop
 
@@ -149,8 +150,8 @@ class Screen:
         return a
 
     def fetch(self, request: str, history: list[str]) -> Action:
-        """A request the decision model had no option for: the vision model turns it into a website, a file or a control
-        in one step; anything else goes to the screen agent."""
+        """A request brain.py found no target for: the vision model turns it into a website, a file or a control in one
+        step; anything else goes to the screen agent."""
         a = chat_json(self.vision, FETCH_SYSTEM, f"EARLIER: {' '.join(history[-3:])}\nREQUEST: {request}", FETCH_SCHEMA)
         kind, value = a["kind"], a["value"].strip()
         if kind == "file":
@@ -217,7 +218,7 @@ def preflight(args) -> None:
         problems += [f"Ollama model {tag} is missing: ollama pull {tag}" for tag in (EMBED, args.vision) if (tag if ":" in tag else f"{tag}:latest") not in pulled]
     except OSError:
         problems.append(f"Ollama is not answering at {OLLAMA}: open the Ollama app or run `ollama serve`")
-    if not shutil.which("llama-server") and not healthy():
+    if args.fallback and not shutil.which("llama-server") and not healthy():
         problems.append("the decision model needs llama-server: brew install llama.cpp")
     if not any(args.library.glob("*.pdf")):
         problems.append(f"no PDFs in {args.library}/: add your decks, or make sample ones with `uv run --group dev fixtures/make_decks.py {args.library}`")
@@ -243,7 +244,7 @@ MARKS = {"live": "~", "pause": "…", "final": ">"}
 
 def act(brain: Brain, screen: Screen, inbox: queue.Queue) -> None:
     """Acts on each transcript off the input thread, so listening never waits. Every transcript of the sentence being
-    spoken goes to the decision model, so an action fires as soon as its words are heard. A transcript is skipped when a
+    spoken goes to the brain, so an action fires as soon as its words are heard. A transcript is skipped when a
     newer one of the same sentence is already waiting."""
     seen = None
     while True:
@@ -272,12 +273,13 @@ def act(brain: Brain, screen: Screen, inbox: queue.Queue) -> None:
 
 def run_live(args) -> None:
     preflight(args)
-    serve(args.router)
+    if args.fallback:
+        serve(args.router)
     screen = Screen(args.sandbox, args.library, args.dry, args.vision)
     screen.up()
-    catalog = Catalog(args.library, screen.apps)
-    Brain(catalog).decide("Hi everyone, can you all hear me?", end=True)  # warm-up: loads the decision model
-    brain = Brain(catalog, args.threshold, args.any_language)
+    catalog, intents = Catalog(args.library, screen.apps), Intents(INTENTS)
+    Brain(catalog, intents, fallback=False).decide("Hi everyone, can you all hear me?", end=True)  # warm-up: loads the embedding model
+    brain = Brain(catalog, intents, args.threshold, args.any_language, args.fallback)
     inbox: queue.Queue = queue.Queue()
     threading.Thread(target=act, args=(brain, screen, inbox), daemon=True).start()
     for said, stopped, kind in INPUTS[args.input](args):
@@ -287,9 +289,11 @@ def run_live(args) -> None:
 
 
 def run_eval(args) -> None:
-    serve(args.router)
+    if args.fallback:
+        serve(args.router)
+    intents = Intents(INTENTS)
     if not args.tts:
-        return evaluate(args.scripts, args.library, args.threshold, args.step)
+        return evaluate(args.scripts, args.library, intents, args.threshold, args.step, fallback=args.fallback)
     ear = Ear()
 
     def hear(text: str) -> str:
@@ -297,7 +301,7 @@ def run_eval(args) -> None:
             subprocess.run(["say", "-o", f"{tmp}/say.aiff", text], check=True)
             return ear.file(f"{tmp}/say.aiff")
 
-    evaluate(args.scripts, args.library, args.threshold, 0, hear)
+    evaluate(args.scripts, args.library, intents, args.threshold, 0, hear, args.fallback)
 
 
 def main() -> None:
@@ -305,9 +309,11 @@ def main() -> None:
     p.add_argument("--library", type=Path, default=Path("library"))
     p.add_argument("--sandbox", default="base")
     p.add_argument("--host", action="store_true", help="drive this Mac instead of the sandbox VM: the stage is a Chrome window here, and the screen agent clicks and types here")
-    p.add_argument("--threshold", type=float, default=0.7, help="how likely a change of screen must be to act on it")
-    p.add_argument("--router", default=ROUTER, help="decision model GGUF for llama-server, started unless D1_HOST answers")
-    p.add_argument("--vision", default=VISION, help="Ollama model for requests that are not an option and for the screen agent")
+    p.add_argument("--threshold", type=float, default=0.5, help="how likely the likeliest kind of request must be to act on it; "
+                   "a less likely one goes to the decision model")
+    p.add_argument("--router", default=ROUTER, help="decision model GGUF for llama-server, asked when the intent classifier is "
+                   "unsure and started unless D1_HOST answers; none to go without it")
+    p.add_argument("--vision", default=VISION, help="Ollama model for requests brain.py finds no target for, and for the screen agent")
     sub = p.add_subparsers(dest="cmd", required=True)
     live = sub.add_parser("live")
     live.add_argument("--input", choices=INPUTS, default="mic", help="microphone, silent lip reading from the webcam, or typed lines")
@@ -327,6 +333,7 @@ def main() -> None:
     ag.add_argument("--no-vision", action="store_true")
     args = p.parse_args()
     args.sandbox = None if args.host else args.sandbox
+    args.fallback = args.router != "none"
     try:
         if args.cmd == "live":
             run_live(args)
