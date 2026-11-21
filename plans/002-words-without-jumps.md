@@ -1,6 +1,6 @@
 # 002 — Stop the words from jumping and mask the title crossfade
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 5e9ee76
 - **Severity**: MEDIUM
 - **Category**: Missed opportunities (a layout jump), Cohesion & tokens, Accessibility
