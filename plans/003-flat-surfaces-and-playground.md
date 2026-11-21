@@ -1,6 +1,6 @@
 # 003 — Flatten the bar and rebuild the playground as a clean poster
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 5e9ee76
 - **Severity**: MEDIUM (requested by the user: "make the background and cards flatter, make the overall website cleaner")
 - **Category**: Cohesion & tokens
