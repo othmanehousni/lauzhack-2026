@@ -2,3 +2,11 @@
 __pycache__/
 library/
 .stage/
+.gradle/
+.kotlin/
+**/build/
+.idea/
+*.iml
+.DS_Store
+local.properties
+.android/

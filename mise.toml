@@ -1,0 +1,67 @@
+[tools]
+java = "temurin-21"
+android-sdk = "23.0"
+
+# Mise sets JAVA_HOME and ANDROID_HOME for tasks.
+# The Gradle wrapper manages Gradle, Kotlin, Compose, and project dependencies.
+
+[vars]
+# Keep these aligned with gradle/libs.versions.toml.
+android_api = "36"
+android_build_tools = "36.0.0"
+android_avd = "lauzhack-2026"
+
+[env]
+ANDROID_AVD_HOME = "{{config_root}}/.android/avd"
+
+[hooks]
+postinstall = { task = "android:setup" }
+
+[tasks."android:setup"]
+description = "Accept SDK licenses and install the required Android SDK packages"
+raw = true
+run = [
+  "sdkmanager --licenses",
+  'sdkmanager "platform-tools" "platforms;android-{{vars.android_api}}" "build-tools;{{vars.android_build_tools}}"',
+]
+
+[tasks."android:emulator:setup"]
+description = "Install the optional emulator and create a project-local virtual device"
+depends = ["android:setup"]
+run = '''
+case "$(uname -m)" in
+    arm64|aarch64) image_arch=arm64-v8a ;;
+    *) image_arch=x86_64 ;;
+esac
+system_image="system-images;android-{{vars.android_api}};google_apis;$image_arch"
+sdkmanager "emulator" "$system_image"
+mkdir -p "$ANDROID_AVD_HOME"
+if [ ! -f "$ANDROID_AVD_HOME/{{vars.android_avd}}.ini" ]; then
+    printf 'no\n' | avdmanager create avd --name "{{vars.android_avd}}" --package "$system_image"
+fi
+'''
+
+[tasks."android:emulator"]
+description = "Start the project Android emulator"
+run = '"$ANDROID_HOME/emulator/emulator" -avd "{{vars.android_avd}}"'
+
+[tasks.android]
+description = "Build, install, and launch the app on a connected Android device or emulator"
+run = [
+  "./gradlew :androidApp:installDebug",
+  'adb shell am start -n ch.lauzhack.app/.MainActivity',
+]
+run_windows = [
+  "gradlew.bat :androidApp:installDebug",
+  'adb shell am start -n ch.lauzhack.app/.MainActivity',
+]
+
+[tasks.desktop]
+description = "Run the desktop app"
+run = "./gradlew :composeApp:run"
+run_windows = "gradlew.bat :composeApp:run"
+
+[tasks.build]
+description = "Build the desktop JAR and Android debug APK"
+run = "./gradlew :composeApp:desktopJar :androidApp:assembleDebug"
+run_windows = "gradlew.bat :composeApp:desktopJar :androidApp:assembleDebug"
