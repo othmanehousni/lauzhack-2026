@@ -10,6 +10,7 @@ import json
 import shlex
 import subprocess
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -152,7 +153,9 @@ class Stage:
         if self.dry:
             return
         if self.sandbox:
-            vm.guest(self.sandbox, "true")  # opens the kept SSH connection the tunnel rides on
+            # Also opens the kept SSH connection the tunnel rides on. A Chrome macOS reopened at login, without the
+            # DevTools port, would come forward instead of the stage.
+            vm.guest(self.sandbox, "for p in $(pgrep -x 'Google Chrome'); do ps -o command= -p $p | grep -q remote-debugging || kill $p; done; true")
             vm.forward(self.sandbox, self.port, GUEST_PORT)
         try:
             self.http("/json/version")
@@ -180,6 +183,7 @@ class Stage:
         for t in pages:  # tabs left from an earlier run only slow the VM down
             if t["id"] != self.home:
                 self.http(f"/json/close/{t['id']}")
+        self.tabs.clear()
         deadline = time.monotonic() + 10
         while self.run(self.home, "typeof show") != "function":  # a tab opened just now has not run stage.html yet
             if time.monotonic() > deadline:
@@ -191,9 +195,16 @@ class Stage:
         if self.covered:  # the screen agent or the OS opened another app over Chrome
             self.shell(["open", "-a", "Google Chrome"])
             self.covered = False
-        if tab != self.front:
+        if tab == self.front:
+            return
+        try:
             self.http(f"/json/activate/{tab}")
             self.front = tab
+        except urllib.error.HTTPError as e:  # closed behind the copilot's back, by hand or by the screen agent
+            if e.code != 404:
+                raise
+            self.tabs = {u: t for u, t in self.tabs.items() if t != tab}
+            self.up() if tab == self.home else self.bring(self.home)
 
     # -- what the presenter asks for ---------------------------------------------------------------------------------
 
@@ -226,9 +237,10 @@ class Stage:
         url = path.as_uri() if path else target
         if self.dry:
             print("   tab:", url)
-        elif url in self.tabs:
+            return "tab"
+        if url in self.tabs:
             self.bring(self.tabs[url])
-        else:
+        if self.tabs.get(url) != self.front:  # not open yet, or closed since
             self.bring(self.front or self.home)  # undoes `covered` before the new tab shows
             self.tabs[url] = self.front = self.http(f"/json/new?{urllib.parse.quote(url, safe=':/?&=#%+@,;~')}", "PUT")["id"]
             self.socket(self.front)  # now, so the first control on this tab does not wait for the handshake
@@ -256,7 +268,8 @@ class Stage:
         if self.covered:  # an app is in front: bringing Chrome back shows the stage
             self.bring(self.home)
         elif self.front and self.front != self.home:
-            self.http(f"/json/close/{self.front}")
+            with contextlib.suppress(urllib.error.HTTPError):  # 404: closed already
+                self.http(f"/json/close/{self.front}")
             self.tabs = {u: t for u, t in self.tabs.items() if t != self.front}
             self.sockets.pop(self.front, None)
             self.front = ""
