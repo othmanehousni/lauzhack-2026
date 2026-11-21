@@ -2,13 +2,16 @@
 //
 // Reads names to listen for (apps, websites, slide titles) on stdin, one per line, up to an empty line. Then prints one
 // JSON line each time the words of the utterance being spoken change: {"text", "kind": "live" | "final", "ago"}, where
-// "ago" is how many seconds ago the last voiced sound was. A pause of PAUSE seconds asks the analyzer to finalize what
-// was said, and the final text of the utterance follows as soon as it is ready.
+// "ago" is how many seconds ago the words last changed. When they have not changed for PAUSE seconds, the presenter has
+// paused: the analyzer finalizes what it heard and the final text of the utterance follows.
+//
+// With audio files as arguments, it hears those instead of the microphone, at the pace they would be spoken, each
+// followed by GAP seconds of silence, and prints {"note": "playing N"} as file N starts.
 import AVFoundation
 import Speech
 
-let PAUSE = 0.6  // seconds of quiet that end an utterance
-let WAIT = 0.8  // longest wait for the final text after a pause, before the latest tentative text stands for it
+let PAUSE = 0.6  // seconds without new words that end an utterance
+let GAP = 2.0  // silence after each audio file
 
 func emit(_ fields: [String: Any]) {
     let data = try! JSONSerialization.data(withJSONObject: fields)
@@ -20,53 +23,77 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
-/// How long the microphone has run and when it last heard a voice, in seconds of audio, written on the audio thread.
-final class Clock: @unchecked Sendable {
+/// Audio of any format, converted to the analyzer's and passed on, with a count of the seconds heard.
+final class Feed: @unchecked Sendable {
+    let format: AVAudioFormat, inputs: AsyncStream<AnalyzerInput>.Continuation
     private let lock = NSLock()
-    private var now = 0.0, voice = 0.0, floor = 0.003
+    private var heard = 0.0
+    private var converter: AVAudioConverter?
 
-    func add(_ buffer: AVAudioPCMBuffer) {
-        let n = Int(buffer.frameLength)
-        guard n > 0, let samples = buffer.floatChannelData?[0] else { return }
-        var sum: Float = 0
-        for i in 0..<n { sum += samples[i] * samples[i] }
-        let rms = Double((sum / Float(n)).squareRoot())
-        lock.lock()
-        defer { lock.unlock() }
-        now += Double(n) / buffer.format.sampleRate
-        if rms > max(3 * floor, 0.01) {
-            voice = now
-        } else {
-            floor = 0.995 * floor + 0.005 * rms  // the room's noise, learned while nobody speaks
-        }
+    init(_ format: AVAudioFormat, _ inputs: AsyncStream<AnalyzerInput>.Continuation) {
+        (self.format, self.inputs) = (format, inputs)
     }
 
-    var read: (now: Double, voice: Double) {
+    var now: Double {
         lock.lock()
         defer { lock.unlock() }
-        return (now, voice)
+        return heard
+    }
+
+    func push(_ buffer: AVAudioPCMBuffer) {
+        lock.lock()
+        heard += Double(buffer.frameLength) / buffer.format.sampleRate
+        lock.unlock()
+        if converter?.inputFormat != buffer.format { converter = AVAudioConverter(from: buffer.format, to: format) }
+        guard let converter else { fail("cannot convert \(buffer.format) to \(format)") }
+        let frames = AVAudioFrameCount(Double(buffer.frameLength) * format.sampleRate / buffer.format.sampleRate) + 1
+        guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return }
+        var given = false
+        var error: NSError?
+        converter.convert(to: out, error: &error) { _, status in
+            if given {
+                status.pointee = .noDataNow
+                return nil
+            }
+            given = true
+            status.pointee = .haveData
+            return buffer
+        }
+        if error == nil, out.frameLength > 0 { inputs.yield(AnalyzerInput(buffer: out)) }
+    }
+
+    /// Each file at the pace it would be spoken, then silence; stops the program after the last one.
+    func play(_ paths: [String]) async throws {
+        for (n, path) in paths.enumerated() {
+            let file = try AVAudioFile(forReading: URL(fileURLWithPath: path))
+            let step = AVAudioFrameCount(file.processingFormat.sampleRate / 10)
+            emit(["note": "playing \(n)"])
+            var left = file.length + AVAudioFramePosition(GAP * file.processingFormat.sampleRate)
+            while left > 0 {
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: step) else { return }
+                if file.framePosition < file.length {
+                    try file.read(into: buffer, frameCount: step)
+                } else {
+                    buffer.frameLength = step  // silence: a new buffer is zeroed
+                }
+                push(buffer)
+                left -= AVAudioFramePosition(buffer.frameLength)
+                try await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        exit(0)
     }
 }
 
+/// The utterance being spoken: its final text so far, the tentative text after it, and when either last changed.
 @MainActor
 final class Utterance {
-    var said = ""  // final text of the utterance so far
-    var tentative = ""  // the latest volatile text after it
-    var ending: Double? = nil  // audio time through which a pause asked for final text
-    var asked = 0.0  // when, in audio time
+    var said = "", tentative = "", changed = 0.0
 
-    func text() -> String { [said, tentative].filter { !$0.isEmpty }.joined(separator: " ") }
+    var text: String { [said, tentative].filter { !$0.isEmpty }.joined(separator: " ") }
 
-    func send(_ kind: String, _ clock: Clock) {
-        let t = clock.read
-        emit(["text": text(), "kind": kind, "ago": max(0, t.now - t.voice)])
-    }
-
-    func end(_ clock: Clock) {
-        if !text().isEmpty { send("final", clock) }
-        said = ""
-        tentative = ""
-        ending = nil
+    func send(_ kind: String, _ now: Double) {
+        if !text.isEmpty { emit(["text": text, "kind": kind, "ago": max(0, now - changed)]) }
     }
 }
 
@@ -76,16 +103,13 @@ struct Hear {
     static func main() async throws {
         var names: [String] = []
         while let line = readLine(), !line.isEmpty { names.append(line) }
-        if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
-            _ = await withCheckedContinuation { done in SFSpeechRecognizer.requestAuthorization { done.resume(returning: $0) } }
-        }
 
         guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: "en-US")) else {
             fail("this Mac has no English model for SpeechTranscriber")
         }
         let transcriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
-            emit(["note": "downloading Apple's English speech model (once)"])
+            emit(["note": "getting Apple's English speech model ready"])
             try await request.downloadAndInstall()
         }
         let analyzer = SpeechAnalyzer(modules: [transcriber])
@@ -99,62 +123,47 @@ struct Hear {
         }
         try await analyzer.prepareToAnalyze(in: format)
 
-        let (inputs, feed) = AsyncStream.makeStream(of: AnalyzerInput.self)
-        let clock = Clock()
-        let engine = AVAudioEngine()
-        let mic = engine.inputNode.outputFormat(forBus: 0)
-        guard let converter = AVAudioConverter(from: mic, to: format) else { fail("cannot convert \(mic) to \(format)") }
-        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: mic) { buffer, _ in
-            clock.add(buffer)
-            let frames = AVAudioFrameCount(Double(buffer.frameLength) * format.sampleRate / mic.sampleRate) + 1
-            guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return }
-            var given = false
-            var error: NSError?
-            converter.convert(to: out, error: &error) { _, status in
-                if given {
-                    status.pointee = .noDataNow
-                    return nil
-                }
-                given = true
-                status.pointee = .haveData
-                return buffer
-            }
-            if error == nil, out.frameLength > 0 { feed.yield(AnalyzerInput(buffer: out)) }
-        }
+        let (inputs, continuation) = AsyncStream.makeStream(of: AnalyzerInput.self)
+        let feed = Feed(format, continuation)
         try await analyzer.start(inputSequence: inputs)
-        engine.prepare()
-        try engine.start()
-        emit(["note": "listening... (ctrl-c to stop)"])
+        let files = Array(CommandLine.arguments.dropFirst())
+        let engine = AVAudioEngine()
+        if files.isEmpty {
+            let mic = engine.inputNode.outputFormat(forBus: 0)
+            engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: mic) { buffer, _ in feed.push(buffer) }
+            engine.prepare()
+            try engine.start()
+            emit(["note": "listening... (ctrl-c to stop)"])
+        } else {
+            Task.detached { try await feed.play(files) }
+        }
 
         let utterance = Utterance()
         Task { @MainActor in
             while true {
                 try await Task.sleep(for: .milliseconds(100))
-                let t = clock.read
-                if utterance.ending != nil {
-                    if t.now - utterance.asked > WAIT { utterance.end(clock) }
-                } else if !utterance.tentative.isEmpty, t.now - t.voice >= PAUSE {
-                    let through = t.voice + 0.25
-                    utterance.ending = through
-                    utterance.asked = t.now
-                    try? await analyzer.finalize(through: CMTime(seconds: through, preferredTimescale: 48_000))
+                guard !utterance.text.isEmpty, feed.now - utterance.changed >= PAUSE else { continue }
+                if !utterance.tentative.isEmpty {
+                    try? await analyzer.finalize(through: nil)  // everything heard so far
+                    try await Task.sleep(for: .milliseconds(50))  // for its final results to arrive
                 }
+                utterance.send("final", feed.now)
+                (utterance.said, utterance.tentative) = ("", "")
             }
         }
         for try await result in transcriber.results {
-            let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = String(String(result.text.characters).drop { $0.isWhitespace || $0.isPunctuation })
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             if result.isFinal {
                 utterance.said = [utterance.said, text].filter { !$0.isEmpty }.joined(separator: " ")
                 utterance.tentative = ""
-                if let through = utterance.ending, result.range.end.seconds >= through - 0.3 {
-                    utterance.end(clock)
-                } else if !utterance.said.isEmpty {
-                    utterance.send("live", clock)
-                }
             } else if text != utterance.tentative {
                 utterance.tentative = text
-                if !text.isEmpty { utterance.send("live", clock) }
+            } else {
+                continue
             }
+            utterance.changed = feed.now
+            utterance.send("live", feed.now)
         }
     }
 }
