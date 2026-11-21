@@ -41,7 +41,7 @@
     </g></g>
   </g></g>
   <g class="m-dirt"></g>
-  <ellipse class="m-ink m-mound" rx="13" ry="8"/>
+  <ellipse class="m-ink m-mound" rx="18" ry="11"/>
   <line class="m-ground" x1="-44" y1="0" x2="66" y2="0"/>
 </svg>`;
 
@@ -76,14 +76,14 @@
     ready:   { x: -4,  y: 2,   rot: -3, head: -8, specsX: 0,  specsY: 0,  card: 1 },
     unsure:  { x: -4,  y: 20,  rot: 4,  head: 12, specsX: 10, specsY: -4, card: 0 },
     back:    { x: -20, y: 50,  rot: 24, head: 38, specsX: 0,  specsY: 0,  card: 0 },
-    thinking:  { x: 0,  y: 8,   rot: -4, head: -20, specsX: 0, specsY: 0, card: 0 },
-    waiting:   { x: -6, y: 30,  rot: -8, head: -16, specsX: 0, specsY: 0, card: 0 },
+    thinking:  { x: 0,  y: 14,  rot: -8, head: -34, specsX: 0, specsY: 0, card: 0 },
+    waiting:   { x: -14, y: 36, rot: 12, head: 8, specsX: 0, specsY: 0, card: 0 },
     tunneling: { x: -4, y: 118, rot: 12, head: 30,  specsX: 0, specsY: 0, card: 0, mound: 1 }, // body underground, the mound travels instead
-    failed:    { x: 0,  y: 12,  rot: 2,  head: 6,   specsX: 0, specsY: 0, card: 0 },
+    failed:    { x: 0,  y: 14,  rot: 2,  head: 30,   specsX: 0, specsY: 0, card: 0 },
     hello:     { x: 0,  y: -4,  rot: 0,  head: -6,  specsX: 0, specsY: 0, card: 0 },
   };
   const LOOPS = { heard: ["breathe"], ready: ["breathe"], working: ["dig"], idle: ["sniff"], thinking: ["ponder"], tunneling: ["tunnel"] };
-  const KICKS = { unsure: { head: -140 }, back: { head: 90 }, hello: { specsY: -60 } }; // added to the channel's velocity (per second) on entering the state
+  const KICKS = { unsure: { head: -140 }, back: { head: 90 }, hello: { specsY: -180 } }; // added to the channel's velocity (per second) on entering the state
   const SPINS = { hello: { tie: 360 } }; // added to the channel's target on entering the state
 
   const bump = p => 0.5 - 0.5 * Math.cos(2 * Math.PI * p);
@@ -161,7 +161,7 @@
         nextSpeck = t + (digging ? 0.11 + uniform(-0.03, 0.03) : 0.2 + uniform(-0.05, 0.05));
         const free = specks.find(p => !p.r);
         if (free && digging) emit(free, digX(), uniform(-80, -40), uniform(70, 105));
-        else if (free) emit(free, moundX() + 10 * Math.sign(Math.cos((2 * Math.PI * t) / 2.6)), uniform(-110, -70), uniform(50, 75));
+        else if (free) emit(free, moundX() + 18 * Math.sign(Math.cos((2 * Math.PI * t) / 2.6)), uniform(-110, -70), uniform(70, 95));
       }
       for (const p of specks) {
         if (!p.r) continue;
@@ -199,7 +199,7 @@
           specs: { x: ch.specsX.x, y: ch.specsY.x },
           card: ch.card.x,
           tie: ch.tie.x,
-          mound: { x: moundX(), y: 8 * (1 - ch.mound.x) },
+          mound: { x: moundX(), y: 11 * (1 - ch.mound.x) },
           ground: ch.ground.x,
           specks: specks.map(({ x, y, r }) => ({ x, y, r })),
         };
@@ -244,7 +244,8 @@
       g.card.setAttribute("opacity", f(Math.min(1, Math.max(0, c))));
       g.tie.setAttribute("transform", `rotate(${f(tie)})`);
       g.mound.setAttribute("transform", `translate(${f(mound.x)} ${f(mound.y)})`);
-      g.ground.setAttribute("x2", f(-44 + 110 * ground));
+      // The countdown runs on the stretch of ground right of the mole; the part under it is always hidden.
+      g.ground.setAttribute("x2", f(30 + 36 * ground));
       specks.forEach((s, i) => {
         inks[i].setAttribute("cx", f(s.x));
         inks[i].setAttribute("cy", f(s.y));

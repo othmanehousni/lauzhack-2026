@@ -31,13 +31,13 @@ const POSES = {
   ready:   { x: -4,  y: 2,   rot: -3, head: -8, specsX: 0,  specsY: 0,  card: 1 },
   unsure:  { x: -4,  y: 20,  rot: 4,  head: 12, specsX: 10, specsY: -4, card: 0 },
   back:    { x: -20, y: 50,  rot: 24, head: 38, specsX: 0,  specsY: 0,  card: 0 },
-  thinking:  { x: 0,  y: 8,   rot: -4, head: -20, specsX: 0, specsY: 0, card: 0 },
-  waiting:   { x: -6, y: 30,  rot: -8, head: -16, specsX: 0, specsY: 0, card: 0 },
+  thinking:  { x: 0,  y: 14,  rot: -8, head: -34, specsX: 0, specsY: 0, card: 0 },
+  waiting:   { x: -14, y: 36, rot: 12, head: 8, specsX: 0, specsY: 0, card: 0 },
   tunneling: { x: -4, y: 118, rot: 12, head: 30,  specsX: 0, specsY: 0, card: 0, mound: 1 },
-  failed:    { x: 0,  y: 12,  rot: 2,  head: 6,   specsX: 0, specsY: 0, card: 0 },
+  failed:    { x: 0,  y: 14,  rot: 2,  head: 30,   specsX: 0, specsY: 0, card: 0 },
   hello:     { x: 0,  y: -4,  rot: 0,  head: -6,  specsX: 0, specsY: 0, card: 0 },
 };
-const channels = p => ({ x: p.body.x, y: p.body.y, rot: p.body.rot, head: p.head, specsX: p.specs.x, specsY: p.specs.y, card: p.card, mound: 1 - p.mound.y / 8 });
+const channels = p => ({ x: p.body.x, y: p.body.y, rot: p.body.rot, head: p.head, specsX: p.specs.x, specsY: p.specs.y, card: p.card, mound: 1 - p.mound.y / 11 });
 
 assert(states.length === Object.keys(POSES).length && states.every(s => s in POSES), "every state has a pose");
 
