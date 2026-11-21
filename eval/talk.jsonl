@@ -1,24 +1,24 @@
-{"say": "Hi everyone, thanks for joining. Can you all hear me okay?", "screen": [null]}
-{"say": "Great. Okay, now that I'm connected, let's open up the company slides.", "screen": [["Acme_Company_Overview_2026", 1]]}
-{"say": "So I'm Lina, CEO of Acme Robotics, and today I want to walk you through where we are.", "screen": [["Acme_Company_Overview_2026", 1]]}
-{"say": "Let's start with the problem we're solving.", "screen": [["Acme_Company_Overview_2026", 2]]}
-{"say": "Warehouses simply can't hire enough people to pick orders, and labour ends up being more than half of fulfilment cost.", "screen": [["Acme_Company_Overview_2026", 2]]}
-{"say": "So what did we build? A mobile robot with a suction gripper that drops right into your existing shelving.", "screen": [["Acme_Company_Overview_2026", 3]]}
-{"say": "It learns a new item from just five photos.", "screen": [["Acme_Company_Overview_2026", 3]]}
-{"say": "I'd love to show you the demo, but first let me give you some context on the market.", "screen": [["Acme_Company_Overview_2026", 5]]}
-{"say": "We see a forty-eight billion dollar market by 2030.", "screen": [["Acme_Company_Overview_2026", 5]]}
-{"say": "Actually, let's go back to the demo for a second.", "screen": [["Acme_Company_Overview_2026", 4]]}
-{"say": "This is our fleet dashboard, where you can see each robot handling mixed totes.", "screen": [["Acme_Company_Overview_2026", 4]]}
-{"say": "Okay, so how do we make money?", "screen": [["Acme_Company_Overview_2026", 6]]}
-{"say": "We charge nineteen hundred dollars per robot per month, with no upfront cost.", "screen": [["Acme_Company_Overview_2026", 6]]}
-{"say": "Our CFO will send the detailed Q3 financials after the call.", "screen": [["Acme_Company_Overview_2026", 6]]}
-{"say": "In terms of traction, we now have forty-two customers and over six hundred robots deployed.", "screen": [["Acme_Company_Overview_2026", 7]]}
-{"say": "Next slide please.", "screen": [["Acme_Company_Overview_2026", 8]]}
-{"say": "Our competitors only move goods around. They don't pick.", "screen": [["Acme_Company_Overview_2026", 8]]}
-{"say": "Someone asked about our burn rate, so let me pull up the Q3 financials quickly.", "screen": [["Acme_Q3_2026_Financials", 5], ["Acme_Q3_2026_Financials", 1]]}
-{"say": "We have thirty-eight million in the bank and twenty-two months of runway.", "screen": [["Acme_Q3_2026_Financials", 5]]}
-{"say": "Okay, back to the main deck. Let me introduce the team.", "screen": [["Acme_Company_Overview_2026", 9]]}
-{"say": "Marc, our CTO, did his PhD at ETH on robotic grasping.", "screen": [["Acme_Company_Overview_2026", 9]]}
-{"say": "And as I mentioned earlier, pricing is per robot, so it scales with you.", "screen": [["Acme_Company_Overview_2026", 9]]}
-{"say": "Finally, what's next for us. We're raising a forty million dollar Series B.", "screen": [["Acme_Company_Overview_2026", 10]]}
-{"say": "Thanks, I'm happy to take questions.", "screen": [["Acme_Company_Overview_2026", 10]]}
+{"say": "Hi everyone, thanks for joining. Can you all hear me okay?", "want": [null]}
+{"say": "Great. Okay, now that I'm connected, let's open up the company slides.", "want": ["Acme_Company_Overview_2026 p1"]}
+{"say": "So I'm Lina, CEO of Acme Robotics, and today I want to walk you through where we are.", "want": ["Acme_Company_Overview_2026 p1"]}
+{"say": "Let's start with the problem we're solving.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "Warehouses simply can't hire enough people to pick orders, and labour ends up being more than half of fulfilment cost.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "So what did we build? A mobile robot with a suction gripper that drops right into your existing shelving.", "want": ["Acme_Company_Overview_2026 p3"]}
+{"say": "It learns a new item from just five photos.", "want": ["Acme_Company_Overview_2026 p3"]}
+{"say": "I'd love to show you the demo, but first let me give you some context on the market.", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "We see a forty-eight billion dollar market by 2030.", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "Actually, let's go back to the demo for a second.", "want": ["Acme_Company_Overview_2026 p4"]}
+{"say": "This is our fleet dashboard, where you can see each robot handling mixed totes.", "want": ["Acme_Company_Overview_2026 p4"]}
+{"say": "Okay, so how do we make money?", "want": ["Acme_Company_Overview_2026 p6"]}
+{"say": "We charge nineteen hundred dollars per robot per month, with no upfront cost.", "want": ["Acme_Company_Overview_2026 p6"]}
+{"say": "Our CFO will send the detailed Q3 financials after the call.", "want": ["Acme_Company_Overview_2026 p6"]}
+{"say": "In terms of traction, we now have forty-two customers and over six hundred robots deployed.", "want": ["Acme_Company_Overview_2026 p7"]}
+{"say": "Next slide please.", "want": ["Acme_Company_Overview_2026 p8"]}
+{"say": "Our competitors only move goods around. They don't pick.", "want": ["Acme_Company_Overview_2026 p8"]}
+{"say": "Someone asked about our burn rate, so let me pull up the Q3 financials quickly.", "want": ["Acme_Q3_2026_Financials p5", "Acme_Q3_2026_Financials p1"]}
+{"say": "We have thirty-eight million in the bank and twenty-two months of runway.", "want": ["Acme_Q3_2026_Financials p5"]}
+{"say": "Okay, back to the main deck. Let me introduce the team.", "want": ["Acme_Company_Overview_2026 p9"]}
+{"say": "Marc, our CTO, did his PhD at ETH on robotic grasping.", "want": ["Acme_Company_Overview_2026 p9"]}
+{"say": "And as I mentioned earlier, pricing is per robot, so it scales with you.", "want": ["Acme_Company_Overview_2026 p9"]}
+{"say": "Finally, what's next for us. We're raising a forty million dollar Series B.", "want": ["Acme_Company_Overview_2026 p10"]}
+{"say": "Thanks, I'm happy to take questions.", "want": ["Acme_Company_Overview_2026 p10"]}

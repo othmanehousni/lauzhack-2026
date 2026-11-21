@@ -15,7 +15,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-import Quartz
 from websockets.sync.client import connect
 
 import vm
@@ -29,22 +28,23 @@ FLAGS = ["--no-first-run", "--no-default-browser-check", "--autoplay-policy=no-u
 ON_STAGE = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif", ".mp4", ".mov", ".m4v", ".webm"}
 IN_A_TAB = {".pdf", ".html", ".htm", ".txt", ".md", ".json", ".csv"}
 
-# Run in the tab on screen. `media` is its biggest playing-size video, the thing a presenter means by "the video".
+# Run in the tab on screen, keyed by what a presenter would say. `MEDIA_JS` is the biggest video on the page, the one a
+# presenter means by "the video". The decision model offers these by name, so the names are plain words.
 MEDIA_JS = "[...document.querySelectorAll('video')].sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0]"
 CONTROLS = {
-    "scroll_down": "scrollBy({top: innerHeight * 0.8, behavior: 'smooth'})",
-    "scroll_up": "scrollBy({top: -innerHeight * 0.8, behavior: 'smooth'})",
-    "top": "scrollTo({top: 0, behavior: 'smooth'})",
-    "bottom": "scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})",
-    "zoom_in": "document.body.style.zoom = (parseFloat(document.body.style.zoom) || 1) * 1.25",
-    "zoom_out": "document.body.style.zoom = (parseFloat(document.body.style.zoom) || 1) / 1.25",
-    "zoom_reset": "document.body.style.zoom = 1",
-    "back": "history.back()",
-    "forward": "history.forward()",
-    "play": f"{MEDIA_JS}?.play()",
-    "pause": f"{MEDIA_JS}?.pause()",
-    "fullscreen": f"({MEDIA_JS} || document.documentElement).requestFullscreen()",
-    "exit_fullscreen": "document.fullscreenElement && document.exitFullscreen()",
+    "scroll down": "scrollBy({top: innerHeight * 0.8, behavior: 'smooth'})",
+    "scroll up": "scrollBy({top: -innerHeight * 0.8, behavior: 'smooth'})",
+    "scroll to the top": "scrollTo({top: 0, behavior: 'smooth'})",
+    "scroll to the bottom": "scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})",
+    "zoom in": "document.body.style.zoom = (parseFloat(document.body.style.zoom) || 1) * 1.25",
+    "zoom out": "document.body.style.zoom = (parseFloat(document.body.style.zoom) || 1) / 1.25",
+    "reset the zoom": "document.body.style.zoom = 1",
+    "go back a page": "history.back()",
+    "go forward a page": "history.forward()",
+    "play the video": f"{MEDIA_JS}?.play()",
+    "pause the video": f"{MEDIA_JS}?.pause()",
+    "full screen": f"({MEDIA_JS} || document.documentElement).requestFullscreen()",
+    "exit full screen": "document.fullscreenElement && document.exitFullscreen()",
 }
 
 CLICK_JS = """(t => {
@@ -59,6 +59,7 @@ CLICK_JS = """(t => {
 
 def render(pdf: Path, width: int = 1920) -> list[Path]:
     """Every page of a PDF as a PNG under .stage/, drawn again only when the PDF changes."""
+    import Quartz  # macOS only; the rest of this file also loads on Linux, where brain.py is evaluated
     out = CACHE / pdf.stem
     pages = sorted(out.glob("*.png"), key=lambda p: int(p.stem))
     if pages and min(p.stat().st_mtime for p in pages) >= pdf.stat().st_mtime:
@@ -240,13 +241,12 @@ class Stage:
             subprocess.run(["open", "-a", name], check=False)
         self.covered = True
 
-    def close(self, what: str) -> None:
-        """"slides": the stage shows the desktop picture. "front": close the tab on screen, back to the stage; on the
-        stage itself, the same as "slides"."""
+    def close(self) -> None:
+        """Close the tab on screen and go back to the stage; on the stage itself, show the desktop picture."""
         if self.dry:
-            print("   close:", what)
+            print("   close")
             return
-        if what == "front" and self.front and self.front != self.home:
+        if self.front and self.front != self.home:
             self.http(f"/json/close/{self.front}")
             self.tabs = {u: t for u, t in self.tabs.items() if t != self.front}
             self.sockets.pop(self.front, None)
@@ -279,7 +279,7 @@ if __name__ == "__main__":
         t = time.perf_counter()
         stage.show(pages[n], [pages[n - 1], pages[min(n + 1, len(pages) - 1)]])
         print(f"slide {pages[n].parent.name} {n + 1}: {(time.perf_counter() - t) * 1e3:.0f}ms")
-    for target in ["https://en.wikipedia.org/wiki/Warehouse", "scroll_down", "zoom_in", str(first[2])]:
+    for target in ["https://en.wikipedia.org/wiki/Warehouse", "scroll down", "zoom in", str(first[2])]:
         t = time.perf_counter()
         stage.control(target) if target in CONTROLS else stage.open(target)
         print(f"{target[-40:]}: {(time.perf_counter() - t) * 1e3:.0f}ms")

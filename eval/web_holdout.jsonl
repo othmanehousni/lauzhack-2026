@@ -1,0 +1,18 @@
+{"say": "Alright, can everyone see my screen?", "want": [null]}
+{"say": "Let me bring up the product roadmap.", "want": ["Acme_Product_Roadmap p1"]}
+{"say": "Move to the next one.", "want": ["Acme_Product_Roadmap p2"]}
+{"say": "Actually, go back.", "want": ["Acme_Product_Roadmap p1"]}
+{"say": "Can you pull up Wikipedia?", "want": ["url https://en.wikipedia.org"]}
+{"say": "Scroll further down please.", "want": ["control scroll down"]}
+{"say": "Go to the top of the page.", "want": ["control scroll to the top"]}
+{"say": "Now look up cold storage robots on Google.", "want": ["ask"]}
+{"say": "We'll come back to the competitors next week.", "want": ["keep"]}
+{"say": "Okay, get rid of that window.", "want": ["close"]}
+{"say": "Let's jump to the fleet AI scheduler.", "want": ["Acme_Product_Roadmap p4"]}
+{"say": "Open the Calculator app real quick.", "want": ["app Calculator"]}
+{"say": "Okay, slides again.", "want": ["Acme_Product_Roadmap p4"]}
+{"say": "And the integrations, which is the part customers ask about most.", "want": ["Acme_Product_Roadmap p5"]}
+{"say": "I had planned to show you Hugging Face, maybe another time.", "want": ["Acme_Product_Roadmap p5"]}
+{"say": "Hmm, show us the timeline.", "want": ["Acme_Product_Roadmap p6"]}
+{"say": "Previous slide.", "want": ["Acme_Product_Roadmap p5"]}
+{"say": "Thanks, that's all for the roadmap.", "want": ["Acme_Product_Roadmap p5"]}

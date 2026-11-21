@@ -1,0 +1,25 @@
+{"say": "Hi everyone, give me one second to share my screen.", "want": [null]}
+{"say": "Okay, let's open the company overview.", "want": ["Acme_Company_Overview_2026 p1"]}
+{"say": "Next slide please.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "Okay, so wait, this just reminded me of another company. It's called YouTube. Maybe you can go on it.", "want": ["url https://www.youtube.com"]}
+{"say": "Scroll down a bit.", "want": ["control scroll down"]}
+{"say": "Search for robot grippers on YouTube.", "want": ["ask"]}
+{"say": "Pause the video.", "want": ["control pause the video"]}
+{"say": "Okay, close that tab.", "want": ["close"]}
+{"say": "So, the problem we solve is warehouse labour.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "Can you switch to Notes for a second, I wrote the numbers down there.", "want": ["app Notes"]}
+{"say": "Okay, back to the slides.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "Go back one slide.", "want": ["Acme_Company_Overview_2026 p1"]}
+{"say": "I'll show you the roadmap at the end.", "want": ["Acme_Company_Overview_2026 p1"]}
+{"say": "Let's look at the market size.", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "I wanted to show you our GitHub, but we're short on time.", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "Show me the warehouse photo.", "want": ["ask"]}
+{"say": "Okay, close that.", "want": ["close"]}
+{"say": "Go to lauzhack dot com.", "want": ["url https://lauzhack.com", "ask"]}
+{"say": "Mais il voulait pas te les acheter genre.", "want": ["keep"]}
+{"say": "Zoom in on that.", "want": ["control zoom in"]}
+{"say": "Let me open up, um.", "want": ["keep"]}
+{"say": "Uh, the GitHub website.", "want": ["url https://github.com"]}
+{"say": "Okay, back to the slides, the market size again.", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "Close the slides.", "want": [null]}
+{"say": "Thanks everyone.", "want": [null]}
