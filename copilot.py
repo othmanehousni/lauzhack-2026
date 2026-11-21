@@ -142,6 +142,7 @@ class Screen:
     def up(self) -> None:
         self.stage.up()
         self.stage.preload([png for pages in self.decks.values() for png in pages] + [wallpaper()])
+        self.stage.show(wallpaper())  # nothing shared yet: the desktop, as brain.View has it
         folders = "/Applications /System/Applications /System/Applications/Utilities"
         listing = vm.guest(self.sandbox, f"ls {folders}", check=False) if self.sandbox and not self.dry else \
             subprocess.run(f"ls {folders}", shell=True, capture_output=True, text=True).stdout
@@ -295,6 +296,14 @@ def run_live(args) -> None:
         serve(args.router)
     screen = Screen(args.sandbox, args.library, args.dry, args.vision)
     screen.up()
+    try:
+        listen(args, screen)
+    finally:
+        screen.stage.closing.close()  # its DevTools connections would keep this process alive after an error
+
+
+def listen(args, screen: "Screen") -> None:
+    print("reading the decks and your files (the first run embeds them, about a minute)...")
     catalog, intents = Catalog(args.library, screen.apps, screen.files.newest()), Intents(INTENTS)
     print(f"{len(catalog.slides)} slides in {args.library}, {len(catalog.files)} files from Spotlight, {len(catalog.places)} apps and websites")
     Brain(catalog, intents, fallback=False).decide("Hi everyone, can you all hear me?", end=True)  # warm-up: loads the embedding model
