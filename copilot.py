@@ -296,11 +296,12 @@ def run_live(args) -> None:
     screen = Screen(args.sandbox, args.library, args.dry, args.vision)
     screen.up()
     catalog, intents = Catalog(args.library, screen.apps, screen.files.newest()), Intents(INTENTS)
+    print(f"{len(catalog.slides)} slides in {args.library}, {len(catalog.files)} files from Spotlight, {len(catalog.places)} apps and websites")
     Brain(catalog, intents, fallback=False).decide("Hi everyone, can you all hear me?", end=True)  # warm-up: loads the embedding model
     brain = Brain(catalog, intents, args.threshold, args.any_language, args.fallback)
     inbox: queue.Queue = queue.Queue()
     threading.Thread(target=act, args=(brain, screen, inbox), daemon=True).start()
-    for said, stopped, kind in INPUTS[args.input](args):
+    for said, stopped, kind in INPUTS[args.input](args, catalog.vocabulary):
         if said:
             inbox.put((said, stopped, time.perf_counter(), kind))
     inbox.join()
@@ -334,12 +335,13 @@ def main() -> None:
     p.add_argument("--vision", default=VISION, help="Ollama model for requests brain.py finds no target for, and for the screen agent")
     sub = p.add_subparsers(dest="cmd", required=True)
     live = sub.add_parser("live")
-    live.add_argument("--input", choices=INPUTS, default="mic", help="microphone, silent lip reading from the webcam, or typed lines")
+    live.add_argument("--input", choices=INPUTS, default="mic", help="microphone (Apple's on-device speech recognizer), the "
+                      "microphone through Parakeet on MLX, silent lip reading from the webcam, or typed lines")
     live.add_argument("--dry", action="store_true", help="print VM commands instead of running them")
     live.add_argument("--camera", type=int, default=0, help="webcam index for --input lips")
     live.add_argument("--preview", action="store_true", help="with --input lips, show the mouth crop and the lip-motion level")
     live.add_argument("--sensitivity", type=float, help="with --input lips, how far lip motion must rise above still-lip jitter")
-    live.add_argument("--focus", type=float, default=0.3, help="with the mic, how loud a sound must be next to your recent speech "
+    live.add_argument("--focus", type=float, default=0.3, help="with --input parakeet, how loud a sound must be next to your recent speech "
                       "to count (0.3 ignores voices about 10 dB quieter than yours; lower it if your own words get cut)")
     live.add_argument("--any-language", action="store_true", help="act on every language, not only English")
     ev = sub.add_parser("eval")

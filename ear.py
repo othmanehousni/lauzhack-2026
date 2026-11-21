@@ -4,15 +4,56 @@ Each input yields (text, perf_counter time the presenter stopped, kind), stamped
 honest. kind is "live" (the words so far), "pause" (a short pause mid-sentence) or "final".
 """
 import collections
+import json
 import queue
+import subprocess
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
 
+from stage import CACHE
+
 STT = "mlx-community/parakeet-tdt-0.6b-v3"
 LIPREAD = Path(__file__).parent / "lipread"
+HEAR = Path(__file__).parent / "hear.swift"
+PLIST = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>local.copilot.hear</string>
+<key>NSMicrophoneUsageDescription</key><string>The copilot listens to what you say to change the shared screen.</string>
+<key>NSSpeechRecognitionUsageDescription</key><string>The copilot turns what you say into text on this Mac.</string>
+</dict></plist>
+"""
+
+
+def built() -> Path:
+    """hear.swift as a program, built again when the source changes. Its Info.plist names why it needs the microphone."""
+    exe = CACHE / "hear"
+    if not exe.exists() or exe.stat().st_mtime < HEAR.stat().st_mtime:
+        CACHE.mkdir(exist_ok=True)
+        (CACHE / "hear.plist").write_text(PLIST)
+        print("building hear.swift...")
+        subprocess.run(["swiftc", "-O", "-swift-version", "5", "-parse-as-library", str(HEAR), "-o", str(exe), "-Xlinker",
+                        "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", str(CACHE / "hear.plist")], check=True)
+    return exe
+
+
+def hear(names: list[str]):
+    """Speech to text with Apple's on-device SpeechTranscriber (hear.swift), listening for `names` (apps, websites,
+    slide titles) in particular. It runs on the Neural Engine outside this process, so it neither loads a model here nor
+    competes with the embedding model for the GPU."""
+    p = subprocess.Popen([str(built())], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+    p.stdin.write("".join(f"{n.strip()}\n" for n in names if n.strip()) + "\n")
+    p.stdin.close()
+    for line in p.stdout:
+        e = json.loads(line)
+        if "note" in e:
+            print(e["note"])
+        else:
+            yield e["text"], time.perf_counter() - e["ago"], e["kind"]
+    sys.exit(f"hear.swift stopped with code {p.wait()}")
 
 
 class Ear:
@@ -108,4 +149,14 @@ def lips(args):
         yield text, stopped, "final"
 
 
-INPUTS = {"mic": lambda args: Ear().microphone(args.focus), "lips": lips, "keys": keys}
+INPUTS = {  # each gets the parsed arguments and the names the presenter may say
+    "mic": lambda args, names: hear(names),
+    "parakeet": lambda args, names: Ear().microphone(args.focus),
+    "lips": lambda args, names: lips(args),
+    "keys": lambda args, names: keys(args),
+}
+
+
+if __name__ == "__main__":  # the speech recognizer alone: uv run ear.py
+    for text, _, kind in hear([]):
+        print(f"{'>' if kind == 'final' else '~'} {text}")

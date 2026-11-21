@@ -291,6 +291,11 @@ class Catalog:
         self.sites = {n: Action("url", url) for name, url in SITES.items() for n in name.removesuffix(")").split(" (") if len(n) >= 3}
         self.places = self.sites | {app: Action("app", app) for app in apps if len(app) >= 3}  # an app takes a shared name
 
+    @property
+    def vocabulary(self) -> list[str]:
+        """The names a presenter may say, for the speech recognizer to expect: websites, apps, decks and slide titles."""
+        return list(dict.fromkeys([*self.places, *(s.doc.replace("_", " ") for s in self.slides), *(s.title for s in self.slides)]))
+
     def sims(self, query: np.ndarray, said: str = "", here: str | None = None) -> np.ndarray:
         """How close each slide is to a request naming it: by meaning, and by how much of its title and its deck's name
         the sentence says. A deck's first slide also stands for the deck as a whole, and slides of the deck `here` (the
