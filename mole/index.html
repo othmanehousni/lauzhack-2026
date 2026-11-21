@@ -65,6 +65,11 @@
     ready: { title: "Slide 7 is ready.", heard: LINE },
     unsure: { heard: "open the, um, thing from the offsite" },
     back: { heard: "" },
+    thinking: { title: "Thinking…", heard: "show them how the warehouse robot picks" },
+    waiting: { title: "Open… what?", heard: "open up, um", timeout: 8000 },
+    tunneling: { title: "Step 2 · clicking Search", heard: "search robot grippers on youtube" },
+    failed: { title: "Couldn't find “roadmap”.", heard: "pull up the roadmap" },
+    hello: { title: "Hi. I'm listening.", heard: "" },
   };
   const KEYS = ["hidden", ...Object.keys(SAMPLES)];
 
@@ -103,6 +108,14 @@
       await beat("ready", { title: "Slide 7 is ready." }, 1700);
       await beat("back", { heard: "" }, 1300);
       await beat("hidden", {}, 1500);
+      await beat("hello", {}, 1600);
+      await beat("idle", { heard: "" }, 600);
+      await beat("thinking", { heard: "show them how the warehouse robot picks" }, 1400);
+      await beat("tunneling", { title: "Step 1 · opening YouTube" }, 1500);
+      await beat("tunneling", { title: "Step 2 · clicking Search" }, 1500);
+      await beat("ready", { title: "It's on screen." }, 1500);
+      await beat("back", { heard: "" }, 1300);
+      await beat("hidden", {}, 1500);
       await beat("idle", { heard: "" }, 400);
       await stream("idle", "and can you open the, um, thing from the offsite");
       await beat("unsure", {}, 2000);
@@ -120,11 +133,12 @@
 
   const button = (label, key, onclick) => {
     const b = Object.assign(document.createElement("button"), { onclick });
-    b.append(label, Object.assign(document.createElement("kbd"), { textContent: key }));
+    b.append(label);
+    if (key) b.append(Object.assign(document.createElement("kbd"), { textContent: key }));
     controls.append(b);
     return b;
   };
-  KEYS.forEach((state, i) => button(state, i, () => show(state)));
+  KEYS.forEach((state, i) => button(state, i < 10 ? `${i}` : "", () => show(state)));
   button("Play story", "space", story);
   const slowButton = button("Slow-mo", "S", toggleSlow);
   button("Wallpaper", "W", () => (screen.dataset.wall = (+screen.dataset.wall + 1) % 4));

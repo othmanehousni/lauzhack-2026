@@ -31,8 +31,13 @@ const POSES = {
   ready:   { x: -4,  y: 2,   rot: -3, head: -8, specsX: 0,  specsY: 0,  card: 1 },
   unsure:  { x: -4,  y: 20,  rot: 4,  head: 12, specsX: 10, specsY: -4, card: 0 },
   back:    { x: -20, y: 50,  rot: 24, head: 38, specsX: 0,  specsY: 0,  card: 0 },
+  thinking:  { x: 0,  y: 8,   rot: -4, head: -20, specsX: 0, specsY: 0, card: 0 },
+  waiting:   { x: -6, y: 30,  rot: -8, head: -16, specsX: 0, specsY: 0, card: 0 },
+  tunneling: { x: -4, y: 118, rot: 12, head: 30,  specsX: 0, specsY: 0, card: 0, mound: 1 },
+  failed:    { x: 0,  y: 12,  rot: 2,  head: 6,   specsX: 0, specsY: 0, card: 0 },
+  hello:     { x: 0,  y: -4,  rot: 0,  head: -6,  specsX: 0, specsY: 0, card: 0 },
 };
-const channels = p => ({ x: p.body.x, y: p.body.y, rot: p.body.rot, head: p.head, specsX: p.specs.x, specsY: p.specs.y, card: p.card });
+const channels = p => ({ x: p.body.x, y: p.body.y, rot: p.body.rot, head: p.head, specsX: p.specs.x, specsY: p.specs.y, card: p.card, mound: 1 - p.mound.y / 8 });
 
 assert(states.length === Object.keys(POSES).length && states.every(s => s in POSES), "every state has a pose");
 
@@ -53,7 +58,9 @@ for (const a of states) {
 
 {
   const random = mulberry32(7), rig = createRig(7);
-  const drawn = p => [p.body.x, p.body.y, p.body.rot, p.life.rot, p.head, p.nose, p.life.sx * 100, p.life.sy * 100, p.card * 100];
+  // The tie counts in percent of a turn: one hello spin alone reaches 5.7 degrees per sub-step, two stacked ones just over 6.
+  const drawn = p => [p.body.x, p.body.y, p.body.rot, p.life.rot, p.head, p.sway, p.nose, p.tie / 3.6, p.life.sx * 100, p.life.sy * 100, p.card * 100,
+    p.mound.x, p.mound.y, p.ground * 100, p.yaw * 100];
   let state = "hidden", before = drawn(rig.pose()), worst = 0;
   for (let i = 0; i < 200; i++) {
     const others = states.filter(s => s !== state);
@@ -83,17 +90,43 @@ for (const a of states) {
   assert(rig.pose().specks.some(s => s.r > 0), "dirt is still landing 0.15 s after leaving working");
 }
 
-{
+for (const state of ["ready", "thinking", "waiting", "tunneling", "failed", "hello"]) {
   const rig = createRig(1);
   rig.set("working");
   run(rig, 2);
-  rig.set("ready", { reduce: true });
+  rig.set(state, { reduce: true });
   rig.step(DT);
   const p = rig.pose(), got = channels(p);
-  for (const [name, want] of Object.entries(POSES.ready)) assert(got[name] === want, `reduced motion puts ${name} exactly on the ready pose (got ${got[name]})`);
+  for (const [name, want] of Object.entries(POSES[state])) assert(got[name] === want, `reduced motion puts ${name} exactly on the ${state} pose (got ${got[name]})`);
   const { life, nose } = p;
-  assert(life.x === 0 && life.y === 0 && life.rot === 0 && life.sx === 1 && life.sy === 1 && nose === 0, "reduced motion stops every loop");
-  assert(p.specks.every(s => s.r === 0), "reduced motion throws no dirt");
+  assert(life.x === 0 && life.y === 0 && life.rot === 0 && life.sx === 1 && life.sy === 1 && nose === 0, `reduced motion stops every loop in ${state}`);
+  assert(p.sway === 0 && p.yaw === 1 && p.tie === 0 && p.mound.x === 12, `reduced motion has no sway, shake, spin or mound travel in ${state}`);
+  assert(p.specks.every(s => s.r === 0), `reduced motion throws no dirt in ${state}`);
+}
+
+{
+  const rig = createRig(1);
+  rig.set("waiting", { timeout: 1000 });
+  run(rig, 1.2);
+  assert(rig.pose().ground < 0.05, `the waiting line is gone after its 1 s timeout (got ${rig.pose().ground})`);
+  rig.set("heard");
+  run(rig, 0.6);
+  assert(rig.pose().ground > 0.95, `the line is back within 0.6 s of leaving waiting (got ${rig.pose().ground})`);
+}
+
+{
+  const rig = createRig(1);
+  rig.set("waiting", { reduce: true, timeout: 1000 });
+  run(rig, 0.5);
+  assert(Math.abs(rig.pose().ground - 0.5) < 0.01 && !rig.asleep, `reduced motion still counts the waiting line down (got ${rig.pose().ground})`);
+}
+
+{
+  const rig = createRig(1);
+  rig.set("failed");
+  let least = 1;
+  run(rig, 1.3, () => (least = Math.min(least, rig.pose().yaw)));
+  assert(least < 0.9 && rig.pose().yaw === 1, `failed shakes its head once and ends exactly at full width (least ${least}, end ${rig.pose().yaw})`);
 }
 
 {

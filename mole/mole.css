@@ -61,8 +61,8 @@
     background-color calc(200ms * var(--slow)) ease, translate calc(260ms * var(--slow)) var(--ease-out);
 }
 [data-state=idle] .mole-dot, [data-state=back] .mole-dot { opacity: 0; transform: scale(.4); }
-[data-state=unsure] .mole-dot { background: var(--ember); }
-[data-state=working] .mole-dot { animation: mole-pulse calc(1s * var(--slow)) ease-in-out infinite; }
+[data-state=unsure] .mole-dot, [data-state=failed] .mole-dot { background: var(--ember); }
+[data-state=working] .mole-dot, [data-state=thinking] .mole-dot, [data-state=tunneling] .mole-dot { animation: mole-pulse calc(1s * var(--slow)) ease-in-out infinite; }
 @keyframes mole-pulse { 50% { opacity: .35; } }
 
 .mole-words {
