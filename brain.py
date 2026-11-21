@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import zlib
@@ -67,10 +68,10 @@ JUMP, MARGIN = 0.02, 0.1  # following the talk, each slide skipped costs JUMP an
 NAMES = 0.04  # how much saying a slide's title or its deck's name counts, next to the meaning of the sentence
 HERE_BONUS = 0.03  # a slide named by its topic is looked for in the deck on screen first
 SUGGEST = 0.02  # following the talk: a slide ahead that beats the one on air by this much, but not by MARGIN, is suggested
-# How much a request must fit a slide, or a file, better than a request naming nothing does. Among 1500 files, the best fit
-# of a request naming none reaches 0.08 by chance; a file asked for fits by 0.09 to 0.18. CLOSE: how close to the best
-# file another must be to be offered with it.
-NAMED_MIN, FILE_MIN, CLOSE = 0.05, 0.09, 0.02
+# How much a request must fit a slide or a file better than a request naming nothing does. The best slide of 50, or file
+# of 1500, reaches 0.08 by chance for a request that names none; one asked for fits by 0.09 to 0.3. CLOSE: how close to
+# the best file another must be to be offered with it.
+NAMED_MIN, CLOSE = 0.09, 0.02
 LEAN = 0.05  # how much the classifier's slide-or-file reading weighs against how well a slide or a file fits the words
 FUZZY = 0.85  # how close a run of words must be to a website or app name
 WEB = {"website", "site", "page", "dot"}  # these make a name both a website and an app mean the website
@@ -107,8 +108,11 @@ por para muy también lo gli e è che sono""".split())
 
 def ollama(path: str, body: dict) -> dict:
     req = urllib.request.Request(f"{OLLAMA}{path}", json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as r:
-        return json.load(r)
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            return json.load(r)
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Ollama stopped answering at {OLLAMA} ({e.reason}): open the Ollama app or run `ollama serve`") from e
 
 
 def embed(texts: list[str]) -> np.ndarray:
@@ -586,7 +590,7 @@ class Brain:
             return Decision()
         s = self.catalog.fits(query)
         order = np.argsort(-s)[:3]
-        if s[order[0]] < FILE_MIN:
+        if s[order[0]] < NAMED_MIN:
             return Decision(why=f"no file, closest {s[order[0]]:.2f}")
         near = tuple(Action("file", self.catalog.files[i]) for i in order if s[i] >= s[order[0]] - CLOSE)
         return Decision(near[0], why=f"file {s[order[0]]:.2f}") if len(near) == 1 else Decision(offer=near, why="which file?")

@@ -1,0 +1,26 @@
+{"say": "Hi everyone, thanks for joining, can you all see my screen?", "want": [null]}
+{"say": "Let's begin with the company overview.", "want": ["Acme_Company_Overview_2026 p1"]}
+{"say": "Next slide, please.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "Warehouses just can't hire enough people to pick orders anymore.", "want": ["Acme_Company_Overview_2026 p2"]}
+{"say": "So how did we actually solve it?", "want": ["Acme_Company_Overview_2026 p3"]}
+{"say": "Yes, that one.", "want": ["Acme_Company_Overview_2026 p3"]}
+{"say": "Jump to slide seven.", "want": ["Acme_Company_Overview_2026 p7"]}
+{"say": "Go back one.", "want": ["Acme_Company_Overview_2026 p6"]}
+{"say": "Let me show you how big the market is.", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "And let's look at the team.", "want": ["Acme_Company_Overview_2026 p9"]}
+{"say": "Can you pull up how much cash we have left?", "want": ["Acme_Q3_2026_Financials p5"]}
+{"say": "Back to the company slides, the competition.", "want": ["Acme_Company_Overview_2026 p8"]}
+{"say": "Can you open GitHub?", "want": ["url https://github.com"]}
+{"say": "Scroll down a bit.", "want": ["control scroll down"]}
+{"say": "Zoom in, it's hard to read.", "want": ["control zoom in"]}
+{"say": "Okay, back to the slides.", "want": ["Acme_Company_Overview_2026 p8"]}
+{"say": "Let's go to the LauzHack website.", "want": ["url https://lauzhack.com"]}
+{"say": "Close that.", "want": ["close"]}
+{"say": "Switch to Notes for a second.", "want": ["app Notes"]}
+{"say": "Close it.", "want": ["close"]}
+{"say": "Can you pull up, um", "want": ["keep"]}
+{"say": "the product roadmap.", "want": ["Acme_Product_Roadmap p1"]}
+{"say": "I wanted to show you the cold-storage robot, but we're short on time.", "want": ["keep"]}
+{"say": "Next slide please.", "want": ["Acme_Product_Roadmap p2"]}
+{"say": "Marc, I think you're on mute.", "want": ["keep"]}
+{"say": "Thanks everyone, that's all from me.", "want": ["keep"]}
