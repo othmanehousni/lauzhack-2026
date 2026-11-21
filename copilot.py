@@ -227,7 +227,7 @@ class Screen:
             if a["action"] in ("done", "fail"):
                 return a["action"] == "done"
             args = {"click": ["click", a["ref"] or ""], "type": ["set-value", a["ref"] or "", a["text"] or ""],
-                    "press": ["press", a["text"] or ""], "launch": ["launch", a["text"] or "", "--activate"]}[a["action"]]
+                    "press": ["press", a["text"] or ""], "launch": ["launch", a["text"] or a["ref"] or "", "--activate"]}[a["action"]]
             self.ad(*args)
             self.stage.covered = True
             log.append(f"{a['action']} {a.get('ref') or ''} {a.get('text') or ''}".strip())
