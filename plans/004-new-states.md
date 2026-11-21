@@ -1,6 +1,6 @@
 # 004 — Add five states the copilot already needs: thinking, waiting, tunneling, failed, hello
 
-- **Status**: TODO (proposal; the user may trim the list before execution)
+- **Status**: DONE. The feel check failed on the starting values, so these were retuned: `thinking` `{ x: 0, y: 14, rot: -8, head: -34 }`, `waiting` `{ x: -14, y: 36, rot: 12, head: 8 }`, `failed` `{ x: 0, y: 14, rot: 2, head: 30 }`, `KICKS.hello.specsY` -180, molehill `rx 18 ry 11` with specks at ±18 and speed 70–95, and the countdown drawn as `x2 = 30 + 36 · ground` so it runs on the visible stretch of ground.
 - **Commit**: 5e9ee76
 - **Severity**: LOW (additive)
 - **Category**: Missed opportunities

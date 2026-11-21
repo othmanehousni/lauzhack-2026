@@ -7,7 +7,7 @@ Animation and surface plans for the mole overlay bar in `mole/`. Written at comm
 | 001 | [Drive the mole with a procedural spring rig](001-procedural-rig-engine.md) | HIGH | DONE |
 | 002 | [Stop the words from jumping and mask the title crossfade](002-words-without-jumps.md) | MEDIUM | DONE |
 | 003 | [Flatten the bar and rebuild the playground as a clean poster](003-flat-surfaces-and-playground.md) | MEDIUM | DONE |
-| 004 | [Add five states: thinking, waiting, tunneling, failed, hello](004-new-states.md) | LOW | TODO (proposal) |
+| 004 | [Add five states: thinking, waiting, tunneling, failed, hello](004-new-states.md) | LOW | DONE |
 
 ## Order
 
