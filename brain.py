@@ -60,7 +60,7 @@ SHOWN = {"slide", "url", "app", "file"}  # kinds of action worth suggesting: the
 NGRAMS, BUCKETS = 0.5, 2 ** 12  # the hashed words' weight next to the embedding, and how many buckets they hash into
 STEPS, LR, L2 = 400, 0.1, 1e-5  # training: full-batch Adam steps, step size, weight penalty (5-fold CV on intents.py)
 PARTIAL = 0.9  # how likely a kind of request must be to act before the sentence ends
-ASK = 0.9  # the vision model and the screen agent take seconds and act on their own reading, so only this sure a request
+ASK = 0.95  # the vision model and the screen agent take seconds and act on their own reading, so only this sure a request
 FALLBACK_LOW = 0.25  # an unsure sentence at least this likely to be a request goes to the decision model
 JUMP, MARGIN = 0.02, 0.1  # following the talk, each slide skipped costs JUMP and the new slide must beat the one on air by
 # MARGIN; going back to the slides, a slide the sentence names must beat the last one shown by MARGIN
