@@ -1,0 +1,8 @@
+{"say": "Hi all, let's get started with the company slides.", "screen": [["Acme_Company_Overview_2026", 1]]}
+{"say": "Actually, let me pull up our website first so you can see the live fleet dashboard.", "screen": ["other"]}
+{"say": "Okay, back to the slides. The problem we solve is the cost of warehouse labour.", "screen": [["Acme_Company_Overview_2026", 2]]}
+{"say": "I'll send you a link to our website after the call.", "screen": [["Acme_Company_Overview_2026", 2]]}
+{"say": "Can you open GitHub and show our open-source gripper SDK?", "screen": ["other"]}
+{"say": "Let's look at the market size now.", "screen": [["Acme_Company_Overview_2026", 5]]}
+{"say": "Someone asked about videos of the robot on YouTube, I'll share those later.", "screen": [["Acme_Company_Overview_2026", 5]]}
+{"say": "Let me quickly search Google for the latest warehouse labour statistics.", "screen": ["other"]}

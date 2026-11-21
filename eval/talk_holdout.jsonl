@@ -1,0 +1,16 @@
+{"say": "Before we start, let me know if the audio drops.", "screen": [null]}
+{"say": "Today's agenda is the product roadmap for next year, so let me bring that up.", "screen": [["Acme_Product_Roadmap", 1]]}
+{"say": "The big one for the first quarter is gripper version three.", "screen": [["Acme_Product_Roadmap", 2]]}
+{"say": "It finally handles soft bags and pouches, and picks are thirty-five percent faster.", "screen": [["Acme_Product_Roadmap", 2]]}
+{"say": "Then there's the robot for freezers, which runs at minus twenty-five.", "screen": [["Acme_Product_Roadmap", 3]]}
+{"say": "We'll come back to the scheduler later, it deserves its own discussion.", "screen": [["Acme_Product_Roadmap", 3]]}
+{"say": "A lot of you asked how we plug into existing warehouse systems.", "screen": [["Acme_Product_Roadmap", 5]]}
+{"say": "We ship connectors for SAP, Manhattan and Blue Yonder, plus an open API.", "screen": [["Acme_Product_Roadmap", 5]]}
+{"say": "Okay, now the scheduler.", "screen": [["Acme_Product_Roadmap", 4]]}
+{"say": "It plans picks across two hundred robots and cuts travel by eighteen percent.", "screen": [["Acme_Product_Roadmap", 4]]}
+{"say": "Let's look at when all of this lands.", "screen": [["Acme_Product_Roadmap", 6]]}
+{"say": "Someone in the chat is asking about margins, let me jump to the finance deck.", "screen": [["Acme_Q3_2026_Financials", 3], ["Acme_Q3_2026_Financials", 1]]}
+{"say": "Margin is up to sixty-one percent thanks to the cheaper gripper.", "screen": [["Acme_Q3_2026_Financials", 3]]}
+{"say": "And I know the board cares about hiring, we're adding thirty engineers next quarter.", "screen": [["Acme_Q3_2026_Financials", 7]]}
+{"say": "I won't go through operating expenses today, you have them in the appendix.", "screen": [["Acme_Q3_2026_Financials", 7]]}
+{"say": "That's it from me, thanks.", "screen": [["Acme_Q3_2026_Financials", 7]]}
