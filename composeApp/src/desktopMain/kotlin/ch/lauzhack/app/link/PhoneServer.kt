@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleLine
+import ch.lauzhack.app.MoleState
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.connector
@@ -45,7 +46,7 @@ import org.jetbrains.skia.Image
  * now. [lead] says whose words to follow; it falls back to the laptop while no phone is connected.
  */
 class PhoneServer(
-    line: StateFlow<MoleLine>,
+    private val line: StateFlow<MoleLine>,
     screen: StateFlow<Link.Screen>,
     meeting: StateFlow<String>,
     private val laptopDb: StateFlow<Float>,
@@ -100,7 +101,8 @@ class PhoneServer(
                 if (frame !is Frame.Text) continue
                 when (val message = decode(frame.readText())) {
                     is Link.Words -> _words.emit(message.heard)
-                    is Link.Pick -> _picks.emit(message.index)
+                    // Anything on the Wi-Fi can connect, so a pick counts only for an option on offer now.
+                    is Link.Pick -> if (line.value.state == MoleState.Choosing && message.index in line.value.options.indices) _picks.emit(message.index)
                     is Link.Level -> {
                         if (message.speech) walk.update { it.next(laptopDb.value, message.db) }
                         _levels.emit(message)

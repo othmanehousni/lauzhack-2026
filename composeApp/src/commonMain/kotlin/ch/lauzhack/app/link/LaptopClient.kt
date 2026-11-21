@@ -93,7 +93,7 @@ class LaptopClient(
         } finally {
             session = null
             ws.cancel()
-            _state.update { it.copy(connected = false, line = MoleLine()) }
+            _state.update { it.copy(connected = false, line = MoleLine(), phoneLeads = false) }
         }
         return true
     }

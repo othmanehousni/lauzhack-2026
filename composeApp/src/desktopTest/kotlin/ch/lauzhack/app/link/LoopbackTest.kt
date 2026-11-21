@@ -53,6 +53,7 @@ class LoopbackTest {
                 val pick = async(start = CoroutineStart.UNDISPATCHED) { laptop.picks.first() }
                 val words = async(start = CoroutineStart.UNDISPATCHED) { laptop.words.first() }
                 phone.words(Heard("the second one", ended = true))
+                phone.pick(5) // not on offer: dropped
                 phone.pick(1)
                 assertEquals(1, pick.await())
                 assertEquals(Heard("the second one", ended = true), words.await())
