@@ -12,7 +12,7 @@ FIX="$HOME/Documents/Moliere rehearsal fixtures"
 SCEN=$1; OUT=$2; GAP=${3:-6}; shift 3 2>/dev/null
 [ -x "$APP" ] && [ -d "$LIB" ] || { echo "no app at $APP or no decks in $LIB"; exit 1; }
 mkdir -p "$OUT"; rm -f "$OUT"/*.png "$OUT/out.txt"
-while pgrep -f "Moliere.app/Contents/MacOS" >/dev/null; do sleep 5; done
+while pgrep -x Moliere >/dev/null; do sleep 5; done
 
 [ -e "$FIX" ] && [ ! -e "$FIX/.fixtures" ] && { echo "$FIX exists and is not ours"; exit 1; }
 mkdir -p "$FIX" && touch "$FIX/.fixtures"
@@ -26,7 +26,7 @@ for i in $(seq 1 20); do  # Spotlight may lag: the lines seen recently then fail
 done
 { basename -a "$LIB"/*.pdf; echo "$NAMES"; } | sed 's/\.pdf$//' > "$OUT/public.txt"  # names check.py may print
 
-while pgrep -f "Moliere.app/Contents/MacOS" >/dev/null; do sleep 5; done  # one may have started meanwhile
+while pgrep -x Moliere >/dev/null; do sleep 5; done  # one may have started meanwhile
 FIFO=$(mktemp -u /tmp/moliere-typed.XXXXXX); mkfifo "$FIFO"
 "$APP" --typed --library "$LIB" --no-history "$@" < "$FIFO" >> "$OUT/out.txt" 2>&1 &
 PID=$!
