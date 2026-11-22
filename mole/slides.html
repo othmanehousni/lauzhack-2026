@@ -242,10 +242,10 @@
         <figcaption>Architecture<span>All on the laptop · voice to screen in 1.5–1.8 s</span></figcaption>
         <div class="flow">
           <ol>
-            <li><b>Ear</b><span>Apple speech, on device</span></li>
+            <li><b>Ear</b><span>Speech to text, on device</span></li>
             <li><b>Retrieval</b><span>EmbeddingGemma, 8 candidates</span></li>
             <li class="ours"><b>Decider</b><span>Gemma 3 270M, fine-tuned by us</span></li>
-            <li><b>Shared screen</b><span>Chrome in a macOS VM</span></li>
+            <li><b>Shared screen</b><span>Browser in a VM</span></li>
           </ol>
           <p class="hold"><b>Bar + phone</b><span>announce · Stop · undo</span></p>
         </div>
@@ -256,11 +256,11 @@
           <dt>JetBrains</dt><dd>Kotlin&nbsp;Multiplatform&nbsp;· Ktor&nbsp;· Koog&nbsp;· Compose&nbsp;Multiplatform</dd>
           <dt>Models</dt><dd><span class="ours">Gemma&nbsp;3&nbsp;270M, ours</span>&nbsp;· EmbeddingGemma&nbsp;· LiteRT-LM</dd>
           <dt>Training</dt><dd>Python on Modal</dd>
-          <dt>Mac</dt><dd>Apple speech&nbsp;· Chrome&nbsp;· VM</dd>
+          <dt>Laptop</dt><dd>Speech to text&nbsp;· Browser&nbsp;· VM</dd>
         </dl>
       </figure>
     </div>
-    <aside class="notes"><p>Molière hears you with Apple’s on-device speech recognizer, EmbeddingGemma finds eight candidates, and our fine-tuned Gemma 3 270M decides what to show on the shared screen, Chrome in a macOS VM. All of it runs on the laptop: a command reaches the screen 1.5 to 1.8 seconds after you stop speaking. It is one Kotlin Multiplatform app, with Compose for the bar and the phone, Ktor for the link between them, and Koog with LiteRT-LM for the models. I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn’t disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn’t agree with the assistant.</p></aside>
+    <aside class="notes"><p>Molière hears you with on-device speech recognition, EmbeddingGemma finds eight candidates, and our fine-tuned Gemma 3 270M decides what to show on the shared screen, a browser in a VM. All of it runs on the laptop: a command reaches the screen 1.5 to 1.8 seconds after you stop speaking. It is one Kotlin Multiplatform app, with Compose for the bar and the phone, Ktor for the link between them, and Koog with LiteRT-LM for the models. I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn’t disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn’t agree with the assistant.</p></aside>
   </section>
 
   <section class="slide s-comp" data-section="Who are the competitors?">

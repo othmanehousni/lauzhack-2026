@@ -23,7 +23,7 @@ internal val OFFER = 10.seconds // how long an offer stays up when nobody takes 
 internal sealed interface Event {
     data object Sleep : Event                                       // no call: nothing to show
     data class Setup(val step: String) : Event                      // getting ready before the mole can listen
-    data class Hello(val title: String) : Event                     // it listens now: a call started, or the phone took the lead
+    data class Hello(val title: String) : Event                     // a call started and it listens now
     data class Words(val said: String) : Event                      // what the presenter is saying
     data class Thinking(val said: String) : Event                   // the agent is taking long over new words
     data object Answered : Event                                    // the agent answered
