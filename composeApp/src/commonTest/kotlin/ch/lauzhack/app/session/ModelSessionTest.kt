@@ -82,7 +82,7 @@ class ModelSessionTest {
         t.rig.say("no")
         assertEquals("Okay, not shown.", t.rig.until(MoleState.Back).title)
         val roadmap = "slide 3 of 4 \"Roadmap\" in Talk"
-        assertTrue(t.prompt("no").startsWith("screen: $roadmap\noffered: none\nshown: $roadmap\n"), "the announce is on screen as far as the agent knows")
+        assertTrue(t.prompt("no").startsWith("screen: $roadmap\nnext: slide 4 of 4 \"Costs\" in Talk\noffered: none\nshown: $roadmap\n"), "the announce is on screen as far as the agent knows")
         delay(5.seconds)
         assertEquals(emptyList(), t.rig.screen.calls)
     }
@@ -162,6 +162,6 @@ class ModelSessionTest {
         assertTrue(t.rig.decided("no not that") < next + UNDO.inWholeMilliseconds)
         assertEquals(listOf("show slide 2"), t.rig.screen.calls.map { it.second })
         val p = t.prompt("no not that")
-        assertTrue(p.startsWith("screen: slide 2 of 4 \"The problem\" in Talk\noffered: none\nshown: none\n"), p)
+        assertTrue(p.startsWith("screen: slide 2 of 4 \"The problem\" in Talk\nnext: slide 3 of 4 \"Roadmap\" in Talk\noffered: none\nshown: none\n"), p)
     }
 }

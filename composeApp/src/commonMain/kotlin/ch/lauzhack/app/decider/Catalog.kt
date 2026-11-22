@@ -6,7 +6,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 private const val QUERY = "task: search result | query: "
-const val K = 6                // candidates: r1 was trained on 6, the next contract has 8
+const val K = 8                // candidates
 private const val BONUS = 0.04 // for a slide of the deck on screen (tune/CONTRACT.md, Candidates)
 private const val OWN = 3      // places kept for the meeting's slides (rehearsal/rule.py)
 private const val LEAD = 0.08  // how far something seen lately must lead the eighth best of them (rehearsal/rule.py)

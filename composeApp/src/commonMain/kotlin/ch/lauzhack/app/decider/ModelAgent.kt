@@ -170,11 +170,13 @@ class ModelAgent(
      * what is on screen), with what was offered and shown before it. */
     private fun begin(n: Int, cat: Catalog) {
         val offered = if (n - offerAt in 1..3) offer else emptyList()
-        val next = coming?.first?.let(cat::itemOf)
-        val over = next != null && next !is Item.Slide && !onStage(next)
+        val landing = coming?.first?.let(cat::itemOf)
+        val over = landing != null && landing !is Item.Slide && !onStage(landing)
+        val screen = landing ?: front ?: stage
         val start = State(
-            screen = next ?: front ?: stage,
-            behind = if (over || next == null && front != null) stage as? Item.Slide else null,
+            screen = screen,
+            behind = if (over || landing == null && front != null) stage as? Item.Slide else null,
+            next = (screen as? Item.Slide)?.let { cat.slide(it.target.deck, it.page + 1) },
             offered = List(offered.size) { it + 1 },
             shown = shown?.takeIf { n - shownAt in 1..2 },
         )

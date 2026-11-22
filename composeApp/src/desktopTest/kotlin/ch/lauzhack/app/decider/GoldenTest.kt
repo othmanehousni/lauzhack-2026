@@ -27,6 +27,7 @@ class GoldenTest {
     private fun state(o: JsonObject) = State(
         screen = o.item("screen"),
         behind = o.item("behind") as Item.Slide?,
+        next = o.item("next") as Item.Slide?,
         offered = o.getValue("offered").jsonArray.map { it.jsonPrimitive.int },
         shown = o.item("shown"),
         heard = o.getValue("heard").jsonArray.map { it.jsonPrimitive.content },

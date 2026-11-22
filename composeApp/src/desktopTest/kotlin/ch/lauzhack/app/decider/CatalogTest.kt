@@ -25,7 +25,7 @@ class CatalogTest {
     private fun byAxis(items: List<Item>) = items.indices.flatMap { i -> Catalog.docs(items[i]).map { it to axis(i) } }.toMap()
 
     @Test
-    fun offeredFirstThenTheBestOfAnyDocumentAndQueryUntilSix() = runBlocking {
+    fun offeredFirstThenTheBestOfAnyDocumentAndQueryUntilEight() = runBlocking {
         val q = "task: search result | query: "
         val now = "please could you open the second one now"
         val e = Axes(byAxis(items) + mapOf(
@@ -37,7 +37,7 @@ class CatalogTest {
         val catalog = Catalog.build(items, e)
         assertEquals(items.flatMap(Catalog::docs), e.asked)
         val got = catalog.candidates(e, now, "open it", first = listOf(items[2], items[5]))
-        assertEquals(listOf(2, 5, 7, 8, 0, 9).map(items::get), got, "offered, then by the best cosine of any document and query, without repeats")
+        assertEquals(listOf(2, 5, 7, 8, 0, 9, 1, 6).map(items::get), got, "offered, then by the best cosine of any document and query, without repeats")
 
         fun slide(deck: String) = Item.Slide(deck, 2, 2, "Plan", "", Target.Slide(deck, 2))
         val decks = Catalog(listOf(slide("A"), slide("B")), List(2) { floatArrayOf(1f) })
