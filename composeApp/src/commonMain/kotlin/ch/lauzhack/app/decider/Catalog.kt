@@ -72,13 +72,16 @@ class Catalog(
         return out + chosen.sortedByDescending { score[it] }.map(items::get)
     }
 
+    /** [c]'s entry in [score], or null when [c] is not in the catalog. */
+    fun score(c: Item, score: DoubleArray): Double? = index[c]?.let { score[it] }
+
     /** [c] as the log names it, with its [score]: kind, a short name and the cosine. */
     fun label(c: Item, score: DoubleArray): String = when (c) {
         is Item.Slide -> "slide ${c.target.deck} ${c.page}"
         is Item.File -> "file ${c.name}"
         is Item.Site -> "site ${c.url}"
         is Item.App -> "app ${c.name}"
-    } + " " + (index[c]?.let { (score[it] * 1000).roundToInt() / 1000.0 } ?: "-")
+    } + " " + (score(c, score)?.let { (it * 1000).roundToInt() / 1000.0 } ?: "-")
 
     /** The best [n] of each tier by [score], one log line each, for rehearsal/check.py to tell what was not retrieved. */
     fun pool(score: DoubleArray, n: Int = 8): List<String> = items.indices.groupBy { tier(items[it]) }.map { (tier, ix) ->

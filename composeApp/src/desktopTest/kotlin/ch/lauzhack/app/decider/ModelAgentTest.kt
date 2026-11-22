@@ -10,6 +10,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -79,6 +80,19 @@ class ModelAgentTest {
         }
 
         val prompt get() = asked.last().first
+    }
+
+    @Test
+    fun aPickIsSureWhenItLeadsTheOthersAndScoresAsAMatchDoes() {
+        fun scored(vararg s: Double) = Catalog(listOf(slide(1), slide(2), github, notes), s.map { floatArrayOf(it.toFloat(), sqrt(1 - it * it).toFloat()) }, meeting = setOf("Talk"))
+        val r = Run(apply = false)
+        fun doubt(answer: String) = (r.say("that", answer).single() as Move.Ask).doubt
+        r.agent.catalog = scored(0.82, 0.70, 0.77, 0.60)
+        assertEquals(listOf(0.0, 1.0, 1.0), listOf(doubt("show 1"), doubt("open github"), doubt("search the market")), "a search has no score")
+        r.agent.catalog = scored(0.80, 0.70, 0.78, 0.60)
+        assertEquals(listOf(0.5, 1.0), listOf(doubt("show 1"), doubt("show 2")), "the best by a little, and not the best")
+        r.agent.catalog = scored(0.73, 0.60, 0.62, 0.60)
+        assertEquals(1.0, doubt("show 1"), "far ahead, but scoring as anything does: a request for what is not there")
     }
 
     @Test
