@@ -1,5 +1,6 @@
 package ch.lauzhack.app.agent
 
+import ch.lauzhack.app.Agent
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.Move
 import ch.lauzhack.app.OnScreen
@@ -113,7 +114,7 @@ class MoleAgent(
     private val threshold: Double = 0.5,
     private val anyLanguage: Boolean = false,
     private val settle: (suspend (Doubt) -> Action?)? = null,
-) {
+) : Agent {
     /** The sentences heard so far, in English unless anyLanguage. */
     val history: List<String> get() = earlier
 
@@ -138,16 +139,16 @@ class MoleAgent(
      * you like: the same words never move twice. A sentence ends with `heard.ended`; the next call, once the screen shows
      * its move, starts the next one.
      *
-     * A request with no target here returns [Move.Nothing] with [thought]'s act an [Action.Request]: hand it and
-     * [history] to the vision model and show what it finds.
+     * A request with no target here is [Move.Unsure], with [thought]'s act the [Action.Request]; a sentence that ends
+     * on a request cut off before its object is [Move.Wait], and is read with the next one.
      */
-    suspend fun anythingToDo(heard: Heard, onScreen: OnScreen): Move {
+    override suspend fun anythingToDo(heard: Heard, onScreen: OnScreen): Move {
         view = view.seen(catalog.canonical(onScreen.target))
-        if (over) {
+        if (heard == last || heard.text.isBlank()) return Move.Nothing
+        if (over) { // the next sentence starts from the screen as its first words arrive, after any tap or undo
             heard(last!!.text)
             over = false
         }
-        if (heard == last || heard.text.isBlank()) return Move.Nothing
         last = heard
         val t = decide(heard.text, heard.ended)
         thought = t
@@ -155,8 +156,12 @@ class MoleAgent(
         return when (val a = t.act) {
             is Action.Show -> Move.Show(a.target)
             is Action.Control -> Move.Control(a.name)
-            is Action.Request -> Move.Nothing
-            null -> if (t.offer.isEmpty()) Move.Nothing else Move.Ask(t.offer)
+            is Action.Request -> Move.Unsure
+            null -> when {
+                t.offer.isNotEmpty() -> Move.Ask(t.offer)
+                t.ended && t.reading?.best == Kind.Unfinished -> Move.Wait
+                else -> Move.Nothing
+            }
         }
     }
 
