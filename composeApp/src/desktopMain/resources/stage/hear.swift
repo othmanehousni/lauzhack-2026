@@ -1,12 +1,16 @@
 // Live speech to text with Apple's on-device SpeechTranscriber (macOS 26), for Ear.kt, which builds and starts it.
 //
-// Reads names to listen for (apps, websites, slide titles) on stdin, one per line, up to an empty line. Then prints one
-// JSON line each time the words of the utterance being spoken change: {"text", "kind": "live" | "final", "ago"}, where
-// "ago" is how many seconds ago the words last changed. When the microphone has been quiet for PAUSE seconds and no new
-// words came for SETTLED seconds, the presenter has paused and the utterance's final text follows. Both are needed:
-// words arrive up to a second late, and loudness alone cannot say which words. What was said before the voice stopped
-// was sent: the analyzer's final results time each word, so the words of one that also covers what is said next are
-// split there. (Asked to finalize early, the analyzer writes worse text, so it finalizes when it decides to.)
+// Reads names to listen for (apps, websites, slide titles) on stdin, one per line, up to an empty line. Then, ten times a
+// second, prints a JSON line if the words of the utterance being spoken changed: {"text", "kind": "live" | "final",
+// "ago", "quiet"}, where "ago" is how many seconds ago the words last changed. (The analyzer delivers its results in
+// bursts, a word at a time: only a burst's last words go out.) When the microphone has been quiet for PAUSE
+// seconds and no new words came for SETTLED seconds, the presenter has paused and the utterance's final text follows.
+// Both are needed: words arrive up to a second late, and loudness alone cannot say which words. What was said before
+// the voice stopped was sent: the analyzer's final results time each word, so the words of one that also covers what
+// is said next are split there. (Asked to finalize early, the analyzer writes worse text, so it finalizes when it
+// decides to.) Before that, a live line is "quiet" when the voice has been quiet for QUIET seconds and the words cover
+// it: the analyzer delivers its results about once a second, each for all the audio heard so far, and one that reaches
+// COVER seconds past the voice's end has its last words. The words then sent may still go on, if the presenter does.
 // Ten times a second it also prints {"level"}, the RMS loudness of the audio since the last one.
 //
 // With audio files as arguments, it hears those instead of the microphone, at the pace they would be spoken, each
@@ -16,6 +20,9 @@ import Speech
 
 let PAUSE = 1.2  // seconds of quiet that end an utterance; clear requests act on the live words before
 let SETTLED = 0.6  // seconds without new words, so the last ones have arrived
+let QUIET = 0.5  // seconds of quiet after which words that cover the voice are quiet: longer than a breath mid-sentence
+let COVER = 0.1  // seconds of audio past the voice's end that the analyzer's results must reach to hold its last words
+                 // (on the lever's audio, every result that reached 0.03 s past it held them)
 let TAIL = 1.0  // a word's quiet end can outlast the loud part by this much; what is said next starts PAUSE after
 let GAP = 2.0  // silence after each audio file
 
@@ -118,13 +125,18 @@ final class Feed: @unchecked Sendable {
 }
 
 /// What was said since the last utterance sent: the words of the analyzer's final results, each with the audio time it
-/// ends at (the first word of a result starts where the result does, said or not), its latest tentative text, and when
-/// the words last changed.
+/// ends at (the first word of a result starts where the result does, said or not), its latest tentative text, when
+/// the words last changed, and what was last sent, and whether as quiet.
 @MainActor
 final class Utterance {
     var final: [(text: String, end: Double)] = [], tentative = ""
     var cut = 0.0  // audio before this was sent already
     var changed = 0.0
+    var reached = 0.0  // the analyzer's results are about the audio up to here
+    var sent = "", quiet = false
+
+    /// The voice has been quiet for QUIET seconds and the results reach COVER past its end.
+    func stopped(_ feed: Feed) -> Bool { feed.quiet >= QUIET && reached >= feed.now - feed.quiet + COVER }
 
     var text: String {
         (final.filter { $0.end > cut }.map(\.text).joined() + tentative).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -144,8 +156,9 @@ final class Utterance {
         }
     }
 
-    func send(_ kind: String, _ now: Double) {
-        if !text.isEmpty { emit(["text": text, "kind": kind, "ago": max(0, now - changed)]) }
+    func send(_ kind: String, _ now: Double, quiet: Bool = false) {
+        (sent, self.quiet) = (text, quiet)
+        if !text.isEmpty { emit(["text": text, "kind": kind, "ago": max(0, now - changed), "quiet": quiet]) }
     }
 }
 
@@ -195,17 +208,19 @@ struct Hear {
             while true {
                 try await Task.sleep(for: .milliseconds(100))
                 emit(["level": feed.level()])
-                guard !utterance.text.isEmpty, feed.quiet >= PAUSE, feed.now - utterance.changed >= SETTLED else { continue }
+                guard !utterance.text.isEmpty else { continue }
+                let quiet = utterance.stopped(feed)
+                if utterance.text != utterance.sent || quiet && !utterance.quiet { utterance.send("live", feed.now, quiet: quiet) }
+                guard feed.quiet >= PAUSE, feed.now - utterance.changed >= SETTLED else { continue }
                 utterance.send("final", feed.now)
-                (utterance.cut, utterance.final, utterance.tentative) = (feed.now - feed.quiet + TAIL, [], "")
+                (utterance.cut, utterance.final, utterance.tentative, utterance.sent) = (feed.now - feed.quiet + TAIL, [], "", "")
             }
         }
         for try await result in transcriber.results {
-            let before = utterance.text
+            utterance.reached = max(utterance.reached, result.range.end.seconds)
+            let before = words(utterance.text)
             utterance.add(result)
-            guard utterance.text != before else { continue }  // silence also gets results, empty or repeated
-            if words(utterance.text) != words(before) { utterance.changed = feed.now }
-            utterance.send("live", feed.now)
+            if words(utterance.text) != before { utterance.changed = feed.now }
         }
     }
 }

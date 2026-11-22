@@ -17,15 +17,16 @@ class EarTest {
     @Test
     fun readsTheHelpersLines() = runBlocking {
         val ear = Ear(Files.createTempDirectory("ear").toFile())
-        val said = async(start = CoroutineStart.UNDISPATCHED) { ear.said.take(3).toList() }
+        val said = async(start = CoroutineStart.UNDISPATCHED) { ear.said.take(4).toList() }
         val levels = async(start = CoroutineStart.UNDISPATCHED) { ear.level.take(5).toList() }
         val notes = async(start = CoroutineStart.UNDISPATCHED) { ear.notes.take(2).toList() }
         ear.read(EarTest::class.java.getResource("/hear-sample.jsonl")!!.openStream().bufferedReader())
         assertEquals(
-            listOf(Heard("can you"), Heard("can you open github.com/lauzhack"), Heard("Can you open github.com/lauzhack \"now\", café?", ended = true)),
+            listOf(Heard("can you"), Heard("can you open github.com/lauzhack"), Heard("can you open github.com/lauzhack", quiet = true),
+                Heard("Can you open github.com/lauzhack \"now\", café?", ended = true)),
             said.await().map { it.heard },
         )
-        assertEquals(listOf(0, 300, 1400), said.await().map { it.ago.inWholeMilliseconds.toInt() })
+        assertEquals(listOf(0, 300, 500, 1400), said.await().map { it.ago.inWholeMilliseconds.toInt() })
         assertEquals(true, said.await().last().stopped.elapsedNow() >= 1400.milliseconds)
         assertEquals(listOf(0f, 0.0031622776f, 0.08f, 0.21f, 1e-5f), levels.await())
         assertEquals(listOf("getting Apple's English speech model ready", "listening... (ctrl-c to stop)"), notes.await())
