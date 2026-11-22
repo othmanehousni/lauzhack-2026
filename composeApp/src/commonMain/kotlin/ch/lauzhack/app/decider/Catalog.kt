@@ -104,9 +104,18 @@ class Catalog(
         is Target.App -> Item.App(t.name, t)
     }
 
-    /** The app or bookmark the decider named in `open <words>`, by its name or address. */
+    /** The app or bookmark the decider named in `open <words>`, by its name or address; else the one whose name, or
+     * address for words with a dot, has letters closest to theirs, at [NEAR] or more: the recognizer mishears names. */
     fun named(words: String): Item? = items.firstOrNull {
         it is Item.App && spelled(it.name) == words || it is Item.Site && (spelled(it.name) == words || it.url == words)
+    } ?: near(letters(words), address = '.' in words)
+
+    private fun near(heard: String, address: Boolean): Item? {
+        val names = items.mapNotNull { c -> (if (address) (c as? Item.Site)?.url else (c as? Item.App)?.name ?: (c as? Item.Site)?.name)?.let { letters(it) to c } }
+        val close = names.map { it.first }.distinct().associateWith { similarity(heard, it) }
+        val (best, score) = close.maxByOrNull { it.value } ?: return null
+        if (score < NEAR || close.any { it.key != best && it.value == score }) return null
+        return names.first { it.first == best }.second
     }
 
     companion object {
@@ -147,6 +156,21 @@ internal fun onStage(c: Item) = c is Item.File && c.name.substringAfterLast('.',
 /** A name as the decider writes it in `open <words>` (tune/prompt.py, spoken). */
 private fun spelled(name: String) =
     name.lowercase().map { if (it in 'a'..'z' || it in '0'..'9' || it in " .-'") it else ' ' }.joinToString("").split(' ').filter(String::isNotEmpty).joinToString(" ")
+
+private const val NEAR = 0.8 // "gitub" is GitHub at 0.83; "google meet" is Google Sheets at only 0.75
+
+private fun letters(name: String) = name.lowercase().filter { it in 'a'..'z' || it in '0'..'9' }
+
+/** One less the edits from [a] to [b] over the longer's length. */
+private fun similarity(a: String, b: String): Double {
+    var row = IntArray(b.length + 1) { it }
+    for (i in a.indices) {
+        val next = IntArray(b.length + 1).also { it[0] = i + 1 }
+        for (j in b.indices) next[j + 1] = minOf(row[j + 1] + 1, next[j] + 1, row[j] + if (a[i] == b[j]) 0 else 1)
+        row = next
+    }
+    return 1 - row[b.length].toDouble() / maxOf(a.length, b.length, 1)
+}
 
 private suspend fun unit(embedder: Embedder, text: String): FloatArray {
     val v = embedder.embed(text).values

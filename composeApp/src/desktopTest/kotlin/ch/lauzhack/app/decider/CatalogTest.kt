@@ -109,4 +109,20 @@ class CatalogTest {
         val x = Catalog.site(Target.Site("https://x.com", "X (Twitter)"))
         assertEquals(x, Catalog(listOf(x), listOf(floatArrayOf(1f))).named("x twitter"), "a name's other characters are spaces, collapsed")
     }
+
+    @Test
+    fun aNameMisheardIsTheOneItSpellsClosest() {
+        val made = items(emptyList(), listOf("Calculator", "Notes", "Chess", "Photos"), emptyList())
+        val catalog = Catalog(made, List(made.size) { floatArrayOf(1f) })
+        fun named(words: String) = (catalog.named(words) as? Item.Site)?.name ?: (catalog.named(words) as? Item.App)?.name
+        assertEquals("GitHub", named("gitub"))
+        assertEquals("GitHub", named("get hub"))
+        assertEquals("YouTube", named("you tube"))
+        assertEquals("Calculator", named("calculater"))
+        for (absent in listOf("google meet", "zorblax", "chess club", "the photos", "key note", "dentist", "jidhub"))
+            assertEquals(null, named(absent), "\"$absent\" is too far from any name")
+        assertEquals("Hugging Face", named("hoggingface.co"), "an address, by the bookmarks' addresses")
+        assertEquals("LauzHack", named("lawshack.com"))
+        for (address in listOf("example.com", "python.org", "gitlab.com", "loshack.com")) assertEquals(null, named(address), address)
+    }
 }
