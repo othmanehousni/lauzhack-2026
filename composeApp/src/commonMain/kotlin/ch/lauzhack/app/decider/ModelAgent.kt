@@ -45,7 +45,7 @@ class ModelAgent(
     /** The model's answer in the last decision, or null when it was not asked; for the log. */
     var answer: String? = null; private set
 
-    private class Utterance(val n: Int, val start: State, val offered: List<Item>, val last: Item.Slide?) {
+    private class Utterance(val n: Int, val start: State, val offered: List<Item>, val deck: Item.Slide?, val last: Item.Slide?) {
         var text = ""
         var words = 0
         var over = false
@@ -65,7 +65,7 @@ class ModelAgent(
     private var coming: Pair<Target, TimeMark>? = null // its announce, until it is on screen
     private var offer = emptyList<Item>()
     private var offerAt = 0
-    private var u = Utterance(Int.MIN_VALUE, State(), emptyList(), null)
+    private var u = Utterance(Int.MIN_VALUE, State(), emptyList(), null, null)
 
     private val turn = Mutex()
     private val gate = Mutex()
@@ -97,7 +97,7 @@ class ModelAgent(
         answer = null
         val cat = catalog
         observe(onScreen.target, cat, heard)
-        if (heard.n != u.n || u.over && heard.text != u.text) begin(heard.n)
+        if (heard.n != u.n || u.over && heard.text != u.text) begin(heard.n, cat)
         if (u.over) return Move.Nothing
         if (heard.text.isBlank()) return Move.Nothing.also { u.over = heard.ended }
         val words = heard.text.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
@@ -163,16 +163,19 @@ class ModelAgent(
         expect = null
     }
 
-    /** An utterance starts from the screen as it is now, with what was offered and shown before it. */
-    private fun begin(n: Int) {
+    /** An utterance starts from the screen as it is now, or as an announce will leave it (the decider takes back only
+     * what is on screen), with what was offered and shown before it. */
+    private fun begin(n: Int, cat: Catalog) {
         val offered = if (n - offerAt in 1..3) offer else emptyList()
+        val next = coming?.first?.let(cat::itemOf)
+        val over = next != null && next !is Item.Slide && !onStage(next)
         val start = State(
-            screen = front ?: stage,
-            behind = if (front != null) stage as? Item.Slide else null,
+            screen = next ?: front ?: stage,
+            behind = if (over || next == null && front != null) stage as? Item.Slide else null,
             offered = List(offered.size) { it + 1 },
             shown = shown?.takeIf { n - shownAt in 1..2 },
         )
-        u = Utterance(n, start, offered, last)
+        u = Utterance(n, start, offered, stage as? Item.Slide, last)
     }
 
     private fun take(m: Move, n: Int, cat: Catalog) {
@@ -198,7 +201,7 @@ class ModelAgent(
         val now = front ?: stage
         fun show(c: Item?) = if (c == null || same(c.target, now?.target)) Move.Nothing else Move.Show(c.target)
         fun pick(c: Item?) = show(c).let { if (it is Move.Show) Move.Ask(listOf(it.target)) else it }
-        val deck = s.screen as? Item.Slide ?: s.behind ?: u.last ?: cat.firstSlide
+        val deck = u.deck ?: u.last ?: cat.firstSlide
         fun page(p: Int) = deck?.let { cat.slide(it.target.deck, p) }
         return when (said.substringBefore(' ')) {
             "wait" -> Move.Wait

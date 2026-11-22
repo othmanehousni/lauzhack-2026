@@ -32,15 +32,17 @@ private object Same : Embedder {
 }
 
 /** A session of the model agent on virtual time, its model scripted: 200 ms an answer, "show 3" once it hears of the
- * roadmap, "show 4" of the costs, "next" for the next slide, and "undo" for a no while the state has something shown. */
+ * roadmap, "show 4" of the costs, "next" for the next slide, and "undo" for a no only when what was shown is the screen,
+ * as the decider does. */
 private class Talk(scope: TestScope) {
     val prompts = mutableListOf<String>()
     val agent = ModelAgent(Catalog(pages, List(4) { floatArrayOf(1f, 0f) }), Same, { p, _ ->
         delay(200)
         prompts += p
         val now = p.lines().first { it.startsWith("now (") }.substringAfter("): ")
+        val (screen, shown) = listOf("screen: ", "shown: ").map { k -> p.lines().first { it.startsWith(k) }.substringAfter(k) }
         when {
-            now.substringBefore(' ').trimEnd(',') == "no" -> if ("\nshown: none\n" in p) "nothing" else "undo"
+            now.substringBefore(' ').trimEnd(',') == "no" -> if (shown == screen) "undo" else "nothing"
             "costs" in now -> "show 4"
             "roadmap" in now -> "show 3"
             "next slide" in now -> "next"
@@ -79,7 +81,8 @@ class ModelSessionTest {
         t.rig.until(MoleState.Retrieving)
         t.rig.say("no")
         assertEquals("Okay, not shown.", t.rig.until(MoleState.Back).title)
-        assertTrue("\nshown: slide 3 of 4 \"Roadmap\" in Talk\n" in t.prompt("no"), "the announce is what the agent last showed")
+        val roadmap = "slide 3 of 4 \"Roadmap\" in Talk"
+        assertTrue(t.prompt("no").startsWith("screen: $roadmap\noffered: none\nshown: $roadmap\n"), "the announce is on screen as far as the agent knows")
         delay(5.seconds)
         assertEquals(emptyList(), t.rig.screen.calls)
     }
