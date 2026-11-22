@@ -101,7 +101,6 @@ internal class Demo(private val scope: CoroutineScope) {
         beat(MoleLine(Ready, "It's on screen.", market, card = "07"), 1700)
         beat(MoleLine(Back, card = "07"), 1500)
         beat(MoleLine(Hidden), 2700)
-        beat(MoleLine(Hello, "On your phone now."), 1800)
         beat(MoleLine(Idle), 400)
         val offer = "and can you pull up the offer we sent them"
         stream(offer)
@@ -110,7 +109,6 @@ internal class Demo(private val scope: CoroutineScope) {
         beat(MoleLine(Ready, "It's on screen.", "the second one", card = "2"), 1500)
         beat(MoleLine(Back, card = "2"), 1500)
         beat(MoleLine(Hidden), 2700)
-        beat(MoleLine(Hello), 1600)
         beat(MoleLine(Idle), 600)
         val robot = "show them how the warehouse robot picks"
         beat(MoleLine(Thinking, heard = robot), 1400)

@@ -20,12 +20,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.jetbrains.skia.EncodedImageFormat
@@ -81,7 +83,7 @@ class LoopbackTest {
                 // Some recognizers deliver words before their first ready or level callback.
                 val listening = CompletableDeferred<Unit>()
                 val routed = async {
-                    microphoneWords(emptyFlow(), laptop.words.onSubscription { listening.complete(Unit) }, laptop::usesPhoneMic).first()
+                    microphoneWords(emptyFlow(), laptop.words.onSubscription { listening.complete(Unit) }, usePhone = laptop::usesPhoneMic).first()
                 }
                 listening.await()
                 val firstCommand = Heard("next slide", ended = true)
@@ -142,6 +144,39 @@ class LoopbackTest {
                 phone.state.first { it.phoneLeads }
                 phone.mic(false)
                 phone.state.first { !it.phoneLeads }
+            }
+        } finally {
+            scope.cancel()
+            server.stop()
+        }
+    }
+
+    @Test
+    fun stalledAudioFallsBackDespiteControlTrafficAndResumesWithoutReconnect(): Unit = runBlocking {
+        val port = ServerSocket(0).use { it.localPort }
+        val mac = MutableStateFlow<Float?>(-70f)
+        val server = PhoneServer(MutableStateFlow(MoleLine(MoleState.Choosing, options = listOf(Choice("Slide", "", Choice.Kind.Slides)))),
+            MutableStateFlow(Link.Screen()), MutableStateFlow("Walk away"), mac, port, "127.0.0.1", beacon = false) { pcm, _ ->
+            pcm.collect {} // a hot recognizer, independent of microphone selection
+        }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val packet = ByteArray(PCM_BYTES) { if (it % 2 == 0) 0 else 32 }
+        server.start()
+        try {
+            withTimeout(10.seconds) {
+                val phone = LaptopClient(scope, HttpClient(CIO) { install(WebSockets) }, port)
+                phone.state.first { it.acceptsAudio }
+                repeat(3) { phone.audio(packet); delay(100) }
+                phone.state.first { it.phoneLeads }
+                val controls = launch { repeat(20) { phone.pick(0); delay(100) } }
+                try {
+                    withTimeout(1200) { phone.state.first { it.connected && !it.phoneLeads } }
+                    assertEquals(false, server.usesPhoneMic())
+                    repeat(3) { phone.audio(packet); delay(100) }
+                    phone.state.first { it.phoneLeads }
+                    phone.mic(false)
+                    phone.state.first { it.connected && !it.phoneLeads }
+                } finally { controls.cancel() }
             }
         } finally {
             scope.cancel()

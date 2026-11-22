@@ -1,56 +1,85 @@
 package ch.lauzhack.app.link
 
+import kotlin.math.log10
 import kotlin.math.pow
 
-internal const val SEATED_M = 0.5f // the presenter's distance to the laptop while calibrating
-internal const val EDGE_M = 3f // the phone leads past this
-internal const val BACK_M = 2f // and hands back under this: 3.5 dB of hysteresis
-internal const val CALIBRATION = 30 // samples of speech, 3 s at the phone's 10 Hz
-private const val SMOOTHING = 0.15f // about 0.6 s at 10 Hz
+internal const val SEATED_M = 0.5f
+internal const val EDGE_M = 1.5f
+internal const val BACK_M = 0.9f
+internal const val CALIBRATION = 10 // one second of speech at 10 Hz
+private const val TAKE_PHONE = 3 // 300 ms of evidence, including before calibration
+private const val TAKE_LAPTOP = 10 // a slower return avoids bouncing between microphones
+
+/** A slowly rising lower envelope learns room noise without treating a syllable as the noise floor. */
+internal data class Signal(
+    val noise: Float = -70f,
+    val recent: List<Float> = emptyList(),
+    val snr: Float = 0f,
+) {
+    fun next(db: Float): Signal {
+        val samples = (recent + db).takeLast(50)
+        val floor = minOf(noise + 0.15f, samples.sorted()[samples.size / 5])
+        return Signal(floor, samples, db - floor)
+    }
+}
 
 /**
- * Which microphone leads, stepped with [next] on each pair of levels taken while the presenter speaks.
- *
- * The phone travels with the presenter at a roughly constant distance from the mouth, so its level follows how loud
- * they speak, while the laptop's also falls 6 dB per doubling of distance. The phone's dB minus the laptop's is then
- * 20·log10(distance) plus a constant for the two gains and the phone's distance to the mouth; the median over the first
- * [CALIBRATION] samples, taken while the presenter is still [SEATED_M] from the laptop, measures that constant.
- * It reads wrong when the phone moves on the body after calibration (in a pocket it loses 10-20 dB and the presenter
- * reads several times closer, so the laptop keeps the lead), when echo dominates the laptop's microphone (past 1-2 m
- * in a hard room its level stops falling, so far reads short and the edge comes late), when automatic gain control or
- * Android's clamped rmsdB flattens either level, when the presenter turns their back to the laptop (reads farther),
- * when someone else talks (the phone hears speech, not whose), and when pairing happens away from the laptop.
+ * Both recognizers stay live. Choose the phone after three useful frames when the Mac is weak or the phone/Mac
+ * ratio has grown since speaking at the desk. Absolute level and signal/noise checks still apply after calibration,
+ * so pairing away from the desk, a muted Mac or a changed phone position cannot trap the lead on a poor microphone.
+ * Silence holds the choice; a return needs a full second of good Mac audio and a smaller ratio. Metres are only an
+ * estimate: automatic gain, room reflections and carrying the phone differently all change the ratio.
  */
 internal data class Walk(
     val lead: Link.Lead = Link.Lead(),
     val seen: List<Float> = emptyList(),
     val gain: Float? = null,
     val weakSamples: Int = 0,
-    val db: Float = 0f, // smoothed dB above the calibrated ratio
+    val db: Float = 0f,
+    val laptop: Signal = Signal(),
+    val phone: Signal = Signal(),
+    val phoneAudible: Boolean = true, // legacy recognizers may report readiness before levels
 )
 
-// Mac levels are dBFS. While the phone hears speech, eight consecutive weak Mac samples
-// are enough to use the phone even when pairing away from the desk or Android omits RMS.
-internal fun Walk.next(laptopDb: Float, phoneDb: Float?): Walk {
-    if (!laptopDb.isFinite() || phoneDb?.isFinite() == false) return this
-    if (gain == null || phoneDb == null) {
-        val weak = when {
-            laptopDb < -52f -> (weakSamples.coerceAtLeast(0) + 1).coerceAtMost(8)
-            laptopDb > -44f -> (weakSamples.coerceAtMost(0) - 1).coerceAtLeast(-8)
-            else -> 0
-        }
-        val phone = when (weak) {
-            8 -> true
-            -8 -> false
-            else -> lead.phone
-        }
-        val next = copy(lead = lead.copy(phone = phone), weakSamples = weak)
-        if (gain != null || phoneDb == null || laptopDb <= -44f) return next
-        val samples = seen + (phoneDb - laptopDb)
-        return if (samples.size < CALIBRATION) next.copy(seen = samples)
-        else next.copy(seen = emptyList(), gain = samples.sorted()[samples.size / 2])
+/** Call on every 100 ms frame, including silence, so room noise and mute detection keep updating. */
+internal fun Walk.next(laptopDb: Float?, phoneDb: Float?, speech: Boolean? = null): Walk {
+    if (laptopDb?.isFinite() == false || phoneDb?.isFinite() == false) return this
+    val mac = laptopDb?.let(laptop::next) ?: laptop
+    val mobile = phoneDb?.let(phone::next) ?: phone
+    val phoneSpeech = speech ?: (phoneDb == null || phoneDb > -62f && mobile.snr >= 8f)
+    val macSpeech = laptopDb != null && laptopDb > -60f && mac.snr >= 8f
+    val ratio = if (phoneDb != null && laptopDb != null) phoneDb - laptopDb else null
+    val samples = if (gain == null && phoneSpeech && macSpeech && laptopDb > -44f && ratio != null) seen + ratio else seen
+    val calibrated = gain ?: samples.takeIf { it.size >= CALIBRATION }?.sorted()?.let { (it[(it.size - 1) / 2] + it[it.size / 2]) / 2 }
+    val delta = if (ratio != null && calibrated != null) ratio - calibrated else null
+    val smoothed = delta?.let { db + 0.25f * (it - db) } ?: db
+    val metres = if (calibrated != null) (SEATED_M * 10f.pow(smoothed / 20)).coerceIn(0.1f, 50f) else lead.metres
+
+    val weakMac = laptopDb == null || laptopDb < -50f || !macSpeech
+    val away = delta != null && delta > 20 * log10(EDGE_M / SEATED_M)
+    val near = delta == null || smoothed < 20 * log10(BACK_M / SEATED_M)
+    val mutedPhone = phoneDb != null && phoneDb <= -85f
+    val wantPhone = phoneSpeech && (weakMac || away)
+    val wantMac = macSpeech && (mutedPhone || !phoneSpeech || laptopDb > -44f && near)
+    val evidence = when {
+        !lead.phone && wantPhone -> (weakSamples.coerceAtLeast(0) + 1).coerceAtMost(TAKE_PHONE)
+        lead.phone && wantMac -> (weakSamples.coerceAtMost(0) - 1).coerceAtLeast(-TAKE_LAPTOP)
+        else -> 0
     }
-    val db = db + SMOOTHING * (phoneDb - laptopDb - gain - db)
-    val metres = SEATED_M * 10f.pow(db / 20)
-    return copy(db = db, weakSamples = 0, lead = Link.Lead(phone = metres > if (lead.phone) BACK_M else EDGE_M, metres = metres))
+    val usePhone = when {
+        mutedPhone && macSpeech -> false
+        evidence == TAKE_PHONE -> true
+        evidence == -TAKE_LAPTOP -> false
+        else -> lead.phone
+    }
+    return copy(
+        lead = Link.Lead(usePhone, metres),
+        seen = if (calibrated == null) samples else emptyList(),
+        gain = calibrated,
+        weakSamples = if (usePhone != lead.phone) 0 else evidence,
+        db = smoothed,
+        laptop = mac,
+        phone = mobile,
+        phoneAudible = !mutedPhone,
+    )
 }

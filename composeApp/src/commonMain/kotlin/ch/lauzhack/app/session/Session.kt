@@ -25,12 +25,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -41,9 +39,29 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
-/** Keep both subscriptions live so the first phone results can both establish readiness and carry a command. */
-internal fun microphoneWords(laptop: Flow<Heard>, phone: Flow<Heard>, usePhone: () -> Boolean): Flow<Heard> =
-    merge(laptop.filter { !usePhone() }, phone.filter { usePhone() })
+/** Keep both recognizers subscribed. A delayed copy of a completed command from the other mic must not act twice. */
+internal fun microphoneWords(
+    laptop: Flow<Heard>,
+    phone: Flow<Heard>,
+    time: TimeSource = TimeSource.Monotonic,
+    usePhone: () -> Boolean,
+): Flow<Heard> = flow {
+    var completed: Pair<Boolean, List<String>>? = null
+    var completedAt: TimeMark? = null
+    merge(laptop.map { false to it }, phone.map { true to it }).collect { (source, piece) ->
+        if (source != usePhone()) return@collect
+        val words = piece.text.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter(String::isNotBlank)
+        val previous = completed
+        if (previous != null && previous.first != source && completedAt!!.elapsedNow() < 2.seconds &&
+            words.isNotEmpty() && previous.second.isNotEmpty() &&
+            (previous.second.take(words.size) == words || words.take(previous.second.size) == previous.second)) return@collect
+        emit(piece)
+        if (piece.ended) {
+            completed = source to words
+            completedAt = time.markNow()
+        }
+    }
+}
 
 /** The shared screen as the session drives it: the agent desktop on the laptop, a fake in tests. */
 interface SharedScreen {
@@ -74,7 +92,6 @@ class Session(
     private val agentDesktop: SharedScreen,
     private val mole: Mole,
     private val words: Flow<Heard>,
-    private val phoneLeads: Flow<Boolean> = flowOf(false),
     private val time: TimeSource = TimeSource.Monotonic,
     private val window: StateFlow<Duration> = MutableStateFlow(ANNOUNCE),
 ) {
@@ -105,8 +122,6 @@ class Session(
 
     suspend fun run(): Nothing = coroutineScope {
         mole.on(Event.Hello("Hi. I'm listening."))
-        val leads = phoneLeads.distinctUntilChanged()
-        launch { leads.drop(1).collect { mole.on(Event.Hello(if (it) "On your phone now." else "Back on the laptop.")) } }
         launch { words.collect(::hear) }
         launch { for (i in taps) turn.withLock { if (i < 0) stop() else offered().getOrNull(i)?.let { show(it, said = "", pick = i) } } }
         launch {

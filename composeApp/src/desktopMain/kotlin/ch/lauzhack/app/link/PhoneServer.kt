@@ -23,7 +23,10 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.NetworkInterface
 import kotlin.math.log10
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,18 +43,18 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.skia.Image
 
 /**
  * The laptop's end of the link. Serves phones on [port], announces itself once a second on every local network, and
- * runs the lead policy on each level the phone hears speech in against [laptopDb], the laptop microphone's level in dB
+ * runs the lead policy on every phone audio frame against [laptopDb], the laptop microphone's level in dB
  * now. [lead] says whose words to follow; it falls back to the laptop while no phone is connected.
  */
 class PhoneServer(
@@ -80,7 +83,7 @@ class PhoneServer(
     private fun select(active: Input?, db: Float?): Link.Lead =
         when {
             active == null || !usePhoneMic -> Link.Lead()
-            db == null -> active.walk.lead.copy(phone = true)
+            db == null -> active.walk.lead.copy(phone = active.walk.phoneAudible)
             else -> active.walk.lead
         }
 
@@ -116,7 +119,9 @@ class PhoneServer(
     private suspend fun DefaultWebSocketServerSession.serve() {
         phones.update { it + 1 }
         var walk = Walk()
+        val lastAudio = MutableStateFlow<TimeMark?>(null)
         fun report(ready: Boolean) {
+            lastAudio.value = if (ready) TimeSource.Monotonic.markNow() else null
             input.update { active ->
                 when {
                     active != null && active.socket !== this -> active
@@ -133,17 +138,22 @@ class PhoneServer(
         fun stopAudio() {
             audio?.stop()
             report(false)
+            walk = Walk() // a resumed capture may have different gain or phone placement
+        }
+        // Controls and WebSocket pings do not prove that microphone audio is still arriving.
+        val watchdog = launch {
+            lastAudio.collectLatest { last ->
+                if (last != null) {
+                    delay(700.milliseconds - last.elapsedNow())
+                    if (lastAudio.value == last) stopAudio()
+                }
+            }
         }
         val push = launch { pushes.collect { send(Frame.Text(it.encode())) } }
         try {
             if (audio != null) send(Frame.Text(Link.AcceptAudio.encode()))
             while (true) {
-                val received = if (audio?.started != true) incoming.receiveCatching()
-                    else withTimeoutOrNull(2.seconds) { incoming.receiveCatching() }
-                if (received == null) {
-                    stopAudio()
-                    continue
-                }
+                val received = incoming.receiveCatching()
                 val frame = received.getOrNull() ?: break
                 if (frame is Frame.Binary) {
                     val pcm = frame.data
@@ -151,8 +161,10 @@ class PhoneServer(
                     if (input.value?.let { it.socket !== this } == true) continue
                     val db = pcmDecibels(pcm)
                     val mac = laptopDb.value
-                    if (mac != null && db > -52f) walk = walk.next(mac, db)
-                    if (audio.offer(pcm)) report(true)
+                    walk = walk.next(mac, db)
+                    // Establish ownership before the recognizer can deliver its first result.
+                    report(true)
+                    if (!audio.offer(pcm)) report(false)
                     continue
                 }
                 if (frame !is Frame.Text) continue
@@ -168,8 +180,7 @@ class PhoneServer(
                         if ((l.state == MoleState.Choosing || l.state == MoleState.Retrieving) && message.index in -1 until l.options.size) _picks.emit(message.index)
                     }
                     is Link.Level -> {
-                        val db = laptopDb.value
-                        if (message.speech && db != null) walk = walk.next(db, message.db)
+                        walk = walk.next(laptopDb.value, message.db, message.speech)
                         report(true)
                         _levels.emit(message)
                     }
@@ -178,6 +189,7 @@ class PhoneServer(
             }
         } finally {
             stopAudio()
+            watchdog.cancel()
             push.cancel()
             phones.update { it - 1 }
         }
@@ -202,7 +214,6 @@ private class PcmStream(
 ) {
     private var packets: Channel<ByteArray>? = null
     private var worker: Job? = null
-    val started get() = worker != null
 
     fun offer(bytes: ByteArray): Boolean {
         if (worker?.isActive != true) {
