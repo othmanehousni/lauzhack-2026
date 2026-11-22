@@ -81,7 +81,7 @@ def main() -> None:
     run = json.loads(Path(f"/tmp/score_{name}.json").read_text())
     py, pysw = (baseline(log), false_switches(log)) if log else ({}, {})
     print(f"{'script':22} {'decider':>12} {'false act':>10} {'false sw':>9} {'recall':>10} {'miss cause':>14} | {'python':>12} {'false act':>10} {'false sw':>9}")
-    tot = Counter()
+    tot, part = Counter(), {"dev scripts": Counter(), "holdouts": Counter()}
     for script, rows in run["scripts"].items():
         empty = nothing_lines(ROOT / "eval" / script)
         ok = sum(r["verdict"] == "ok" for r in rows)
@@ -93,6 +93,7 @@ def main() -> None:
                f"{'R%d N%d D%d' % (causes['retrieval'], causes['retrieval or deck move'], causes['decision']):>14}"
         tot.update(ok=ok, n=len(rows), fa=fa, sw=sw, empty=sum(empty), need=len(need), found=sum(r["retrieved"] for r in need),
                    R=causes["retrieval"], N=causes["retrieval or deck move"], D=causes["decision"])
+        part["holdouts" if "holdout" in script else "dev scripts"].update(ok=ok, n=len(rows), fa=fa, empty=sum(empty), sw=sw)
         if script in py:
             p = py[script]
             pfa = sum(e and s != "-" for e, (_, s) in zip(empty, p))
@@ -101,6 +102,20 @@ def main() -> None:
         print(line)
     print(f"{'total':22} {pct(tot['ok'], tot['n']):>12} {pct(tot['fa'], tot['empty']):>10} {tot['sw']:>9} {pct(tot['found'], tot['need']):>10} "
           f"{'R%d N%d D%d' % (tot['R'], tot['N'], tot['D']):>14}" + (f" | {pct(tot['pok'], tot['pn']):>12} {pct(tot['pfa'], tot['empty']):>10} {tot['psw']:>9}" if py else ""))
+    for k, t in part.items():
+        print(f"{k:22} {pct(t['ok'], t['n']):>12} {pct(t['fa'], t['empty']):>10} {t['sw']:>9}")
+    if run.get("cases"):
+        accept = {json.loads(l)["family"]: json.loads(l)["accept"] for p in (ROOT / "eval/cases").glob("*.jsonl") for l in p.read_text().splitlines()}
+        print("\nrehearsal cases (typed | no final mark | plain)")
+        by = defaultdict(dict)
+        for f, _, got in run["cases"]:
+            name, i, form = f.split("|")
+            by[(name, i)][form] = (got in accept[f], got)
+        for (name, i), forms in by.items():
+            print(f"  {name:22} {i} " + " | ".join(f"{'ok ' if ok else 'BAD '}{got:12}" for ok, got in forms.values()))
+        oks = Counter(f.split("|")[2] for f, _, got in run["cases"] if got in accept[f])
+        print("  right by form:", dict(oks), "of", len(by), "each; the same answer in all three forms:",
+              sum(len({got for _, got in forms.values()}) == 1 for forms in by.values()), "of", len(by))
     for script in [a.split("=", 1)[1] for a in sys.argv if a.startswith("--confusion=")]:
         print(f"\nconfusion on {script}")
         confusion(run["scripts"][script])

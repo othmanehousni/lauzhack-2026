@@ -160,8 +160,6 @@ def train(name: str, seed: int = 0, n: int = 60000, epochs: float = 2.0, lr: flo
     import subprocess
     from collections import Counter
 
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
     sys.path.insert(0, "/root/tune")
     from prompt import prompt
     subprocess.run([sys.executable, "/root/tune/build.py", "--seed", str(seed), "--train", str(n), "--dev", "3000"], check=True)
@@ -171,23 +169,46 @@ def train(name: str, seed: int = 0, n: int = 60000, epochs: float = 2.0, lr: flo
     start = "/vol/base" if base == BASE else snapshot_download(base, local_dir=f"/vol/base-{base.split('/')[-1]}")
     finetune(start, [(prompt(e["state"]), e["answer"]) for e in rows["train"]], f"{out}/ckpt", epochs, batch, lr, "cuda", seed, epochs=True)
     vol.commit()
-    tok = AutoTokenizer.from_pretrained(f"{out}/ckpt", padding_side="left")
-    model = AutoModelForCausalLM.from_pretrained(f"{out}/ckpt", dtype=torch.bfloat16).cuda().eval()
     ok, total = Counter(), Counter()
-    dev = rows["dev"]
+    for f, want, got in hf_dev(f"{out}/ckpt", rows["dev"]):
+        f = f.split("/")[0] + ("/prefix" if "/" in f else "")
+        total[f] += 1
+        ok[f] += got == want
+    print(f"dev exact {sum(ok.values())}/{sum(total.values())} = {sum(ok.values()) / sum(total.values()):.3f}")
+    for f in sorted(total, key=lambda f: ok[f] / total[f]):
+        print(f"  {f:32} {ok[f]:4}/{total[f]:<4} {ok[f] / total[f]:.2f}")
+
+
+def hf_dev(ckpt: str, dev: list[dict]) -> list[tuple[str, str, str]]:
+    """(family, expected, answer) of the checkpoint on dev rows: greedy, unconstrained, on the GPU."""
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    sys.path.insert(0, "/root/tune")
+    from prompt import prompt
+    tok = AutoTokenizer.from_pretrained(ckpt, padding_side="left")
+    model = AutoModelForCausalLM.from_pretrained(ckpt, dtype=torch.bfloat16).cuda().eval()
+    out = []
     for i in range(0, len(dev), 64):
         part = dev[i:i + 64]
         enc = tok([chat(prompt(e["state"])) for e in part], add_special_tokens=False, return_tensors="pt", padding=True).to("cuda")
         with torch.no_grad():
             g = model.generate(**enc, max_new_tokens=16, do_sample=False)
-        for e, row in zip(part, g[:, enc.input_ids.shape[1]:]):
-            got = tok.decode(row, skip_special_tokens=False).split("<end_of_turn>")[0].strip()
-            f = e["family"].split("/")[0] + ("/prefix" if "/" in e["family"] else "")
-            total[f] += 1
-            ok[f] += got == e["answer"]
-    print(f"dev exact {sum(ok.values())}/{sum(total.values())} = {sum(ok.values()) / sum(total.values()):.3f}")
-    for f in sorted(total, key=lambda f: ok[f] / total[f]):
-        print(f"  {f:32} {ok[f]:4}/{total[f]:<4} {ok[f] / total[f]:.2f}")
+        out += [(e["family"], e["answer"], tok.decode(row, skip_special_tokens=False).split("<end_of_turn>")[0].strip())
+                for e, row in zip(part, g[:, enc.input_ids.shape[1]:])]
+    return out
+
+
+@app.function(image=gpu, gpu=["L4", "A10G"], timeout=3600, volumes={"/vol": vol})
+def dev_hf(names: list[str], devs: list[str]) -> dict:
+    """Each checkpoint /vol/<name>/ckpt on each dev set /vol/<dev>/data/dev.jsonl."""
+    rows = {d: [json.loads(l) for l in open(f"/vol/{d}/data/dev.jsonl")] for d in devs}
+    return {f"{n}@{d}": hf_dev(f"/vol/{n}/ckpt", rows[d]) for n in names for d in devs}
+
+
+@app.local_entrypoint()
+def devs(names: str, sets: str, out: str = "/tmp/devs.json"):
+    Path(out).write_text(json.dumps(dev_hf.remote(names.split(","), sets.split(","))))
+    print("wrote", out)
 
 
 SPACE = "\u2581"  # LiteRT-LM's LLGuidance sees SentencePiece's space mark, not a space: a constraint must spell spaces with it
@@ -403,12 +424,12 @@ def convert_run(name: str, prefix: str = "decider") -> str:
 
 
 @app.function(image=rt, cpu=4, memory=8192, timeout=3 * 3600, volumes={"/vol": vol})
-def score_script(model: str, script: str, constrained: bool = True) -> list[dict]:
+def score_script(model: str, script: str, constrained: bool = True, heard: bool = False) -> list[dict]:
     from huggingface_hub import hf_hub_download
     sys.path.insert(0, "/root/tune")
     import score
     catalog = score.Catalog(hf_hub_download(*EMBEDDER, local_dir="/vol/embedder"))
-    return score.run_script(catalog, score.Decider(model), Path("/root/eval") / script, constrained)
+    return score.run_script(catalog, score.Decider(model), Path("/root/eval") / script, constrained, heard)
 
 
 @app.function(image=rt, cpu=4, memory=8192, timeout=3 * 3600, volumes={"/vol": vol})
@@ -422,19 +443,20 @@ def score_dev(model: str, data: str, start: int, stop: int, families: str = "", 
 
 @app.local_entrypoint()
 def evaluate(name: str, scripts: str = "", dev: int = 3000, convert_first: bool = False, prefix: str = "decider", families: str = "",
-             mode: str = "constrained"):
-    """Score /vol/<name>/<prefix>_q8_ekv1024.litertlm on eval scripts (all by default; "none" for none) and the first `dev` dev rows
-    (of the given families only, if any)."""
+             mode: str = "constrained", text: str = "say", cases: str = "", tag: str = ""):
+    """Score /vol/<name>/<prefix>_q8_ekv1024.litertlm on eval scripts (all by default; "none" for none), as said or as heard
+    (text=heard: eval/heard), the first `dev` dev rows (of the given families only, if any) and the rows of each eval/<cases> (a,b)."""
     if convert_first:
         convert_run.remote(name, prefix)
     model = f"/vol/{name}/{prefix}_q8_ekv1024.litertlm"
     names = [] if scripts == "none" else scripts.split(",") if scripts else sorted(p.name for p in (HERE.parent / "eval").glob("*.jsonl"))
     constrained = mode == "constrained"
-    calls = [score_script.spawn(model, s, constrained) for s in names]
+    calls = [score_script.spawn(model, s, constrained, text == "heard") for s in names]
     chunks = [(model, f"/vol/{name}/data/dev.jsonl", i, min(dev, i + 150), families, constrained) for i in range(0, dev, 150)]
+    case_rows = [score_dev.spawn(model, f"/root/eval/{c}", 0, 10 ** 6, "", constrained) for c in cases.split(",") if c]
     devs = [x for part in score_dev.starmap(chunks) for x in part] if dev else []
-    out = {"scripts": {s: c.get() for s, c in zip(names, calls)}, "dev": devs}
-    tag = name + ("" if prefix == "decider" else "_" + prefix) + ("" if constrained else "_free")
+    out = {"scripts": {s: c.get() for s, c in zip(names, calls)}, "dev": devs, "cases": [x for c in case_rows for x in c.get()]}
+    tag = tag or name + ("" if prefix == "decider" else "_" + prefix) + ("" if constrained else "_free") + ("_heard" if text == "heard" else "")
     Path(f"/tmp/score_{tag}.json").write_text(json.dumps(out))
     print(f"wrote /tmp/score_{tag}.json")
 

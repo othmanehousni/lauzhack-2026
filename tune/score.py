@@ -292,9 +292,11 @@ class Replay:
         return w.split(" ", 1)[1] if w.startswith(("file ", "url ", "app ")) else w
 
 
-def run_script(catalog: Catalog, decider: Decider, path: Path, constrained: bool = True) -> list[dict]:
+def run_script(catalog: Catalog, decider: Decider, path: Path, constrained: bool = True, heard: bool = False) -> list[dict]:
+    """Each line as the script says it, or (heard) as the app's recognizer wrote it from a synthetic voice (eval/heard)."""
     replay = Replay(catalog, decider, constrained)
-    return [replay.line(json.loads(l)["say"], json.loads(l)["want"]) for l in path.read_text().splitlines() if l.strip()]
+    lines = [json.loads(l) for l in (path.parent / "heard" / f"{path.stem}.samantha.jsonl" if heard else path).read_text().splitlines() if l.strip()]
+    return [replay.line(" ".join(u["text"] for u in o["heard"]) if heard else o["say"], o["want"]) for o in lines]
 
 
 def dev_rows(decider: Decider, rows: list[dict], constrained: bool = True) -> list[tuple[str, str, str]]:
