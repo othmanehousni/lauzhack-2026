@@ -7,7 +7,7 @@
 
 <h1 align="center">Molière</h1>
 
-<p align="center"><b>Automated co-presenter.</b><br>LauzHack 2026 · Alt+F4</p>
+<p align="center"><b>Automated co-presenter.</b><br>LauzHack 2026, team Alt+F4</p>
 
 Molière listens to you during a call and puts the right slide, file, website or app on the screen you share. You talk to your audience as usual; Molière works out when you are asking for something and drives the shared screen for you.
 
