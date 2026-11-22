@@ -24,11 +24,13 @@ import ch.lauzhack.app.session.Laptop
 import ch.lauzhack.app.session.ANNOUNCE
 import ch.lauzhack.app.session.RulesBrain
 import ch.lauzhack.app.session.hasDecks
+import ch.lauzhack.app.session.replayed
 import ch.lauzhack.app.stage.HOME
 import ch.lauzhack.app.stage.typed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -66,6 +68,8 @@ import kotlin.time.Duration.Companion.seconds
  *   --rules       the rules decide even when decider.litertlm is in the models folder
  *   --no-history  no browser history for this run, whatever the tray says
  *   --models DIR  another folder of models for this run (to compare a decider without replacing the installed one)
+ *   --replay      what an ear heard, as hear.swift's lines on standard input, decided as in a call on a screen that only
+ *                 follows the moves: no VM, Chrome, phone, window, log file, nor this Mac's files and pages (rehearsal/replay.py)
  */
 fun main(args: Array<String>) {
     if ("--playground" in args || "--demo" in args) return application {
@@ -76,7 +80,8 @@ fun main(args: Array<String>) {
         else MoleFloater(demo.lines, demo::pick, onQuit = ::exitApplication)
     }
 
-    teeToLog()
+    val replay = "--replay" in args
+    if (!replay) teeToLog() // another app may be running and writing it
     val prefs = Preferences.userRoot().node("ch/lauzhack/moliere")
     val library = MutableStateFlow(File(args.after("--library") ?: prefs.get("decks", File(HOME, "Documents/Moliere").path)).absoluteFile)
     library.value.mkdirs()
@@ -96,7 +101,7 @@ fun main(args: Array<String>) {
             }
         }
         lines.receiveAsFlow()
-    } else null
+    } else if (replay) replayed(System.`in`) else null
     when {
         typed != null -> detector.start("Typed lines")
         audio.isNotEmpty() -> detector.start("Audio files")
@@ -116,12 +121,14 @@ fun main(args: Array<String>) {
         typed = typed,
         audio = audio,
         window = window,
-        shots = if (typed != null || audio.isNotEmpty()) File(LOGS, "screens").also { it.deleteRecursively() } else null,
+        shots = if (!replay && (typed != null || audio.isNotEmpty())) File(LOGS, "screens").also { it.deleteRecursively() } else null,
+        dry = replay,
     )
-    log("Molière: decks in ${library.value}, ${if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, " +
-        "${if (typed != null) "typed lines" else if (audio.isNotEmpty()) "${audio.size} audio files" else "the microphone"}, " +
+    log("Molière: decks in ${library.value}, ${if (replay) "nothing" else if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, " +
+        "${if (replay) "what an ear heard" else if (typed != null) "typed lines" else if (audio.isNotEmpty()) "${audio.size} audio files" else "the microphone"}, " +
         "${if (model) "the model decides" else "the rules decide"}, browser history ${if (history.value) "on" else "off"}, " +
         "picks wait up to ${window.value.inWholeMilliseconds} ms")
+    if (replay) runBlocking { awaitCancellation() }
 
     application {
         val settings = remember { Settings(prefs, library, history, window, WAITS, mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System))) }
