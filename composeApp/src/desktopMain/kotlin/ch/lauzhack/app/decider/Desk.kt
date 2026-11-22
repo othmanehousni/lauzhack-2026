@@ -103,7 +103,7 @@ class ModelBrain(private val engines: Engines) : Brain {
         val base = items(desk.decks, desk.apps, emptyList())
         val quick = base.toSet()
         val meeting = desk.decks.map { it.deck }.toSet()
-        val agent = ModelAgent(build(all.filter { it in quick || Catalog.doc(it) in known }, meeting, recents, whole = false), embedder, model, note = ::log)
+        val agent = ModelAgent(build(all.filter { it in quick || Catalog.docs(it).all(known::containsKey) }, meeting, recents, whole = false), embedder, model, note = ::log)
         scope.launch(Dispatchers.Default) {
             var seen = recents
             while (true) {
@@ -122,7 +122,7 @@ class ModelBrain(private val engines: Engines) : Brain {
         val catalog = Catalog.build(items, embedder, known, meeting, recent)
         val new = catalog.known.keys.count { it !in known }
         known = if (whole) catalog.known else known + catalog.known
-        recents.pages.mapTo(browsed) { Catalog.doc(page(it)) }
+        recents.pages.flatMapTo(browsed) { Catalog.docs(page(it)) }
         val keep = known.filterKeys { it !in browsed }
         if (keep.keys != saved) {
             withContext(Dispatchers.IO) { saveVectors(cache, keep) }

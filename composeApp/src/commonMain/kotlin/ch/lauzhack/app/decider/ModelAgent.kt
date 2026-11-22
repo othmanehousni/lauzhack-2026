@@ -103,8 +103,9 @@ class ModelAgent(
         if (heard.text.isBlank()) return Move.Nothing.also { u.over = heard.ended }
         val words = heard.text.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
         if (!heard.ended && words < u.words + (if (coming != null) 1 else 2)) return Move.Nothing
-        val score = cat.scores(embedder, heard.text, heard.earlier.lastOrNull())
-        val s = u.start.copy(heard = heard.earlier, now = heard.text, done = heard.ended, candidates = cat.candidates(score, u.offered, (u.deck ?: u.last)?.target?.deck))
+        val open = (u.deck ?: u.last)?.target?.deck
+        val score = cat.scores(embedder, heard.text, heard.earlier.lastOrNull(), open)
+        val s = u.start.copy(heard = heard.earlier, now = heard.text, done = heard.ended, candidates = cat.candidates(score, u.offered, open))
         note("candidates  \"${heard.text}\"${if (heard.ended) "" else " (still talking)"}  " +
             s.candidates.mapIndexed { i, c -> "${i + 1} ${cat.label(c, score)}" }.joinToString(" | "))
         if (heard.ended) cat.pool(score).forEach(note)
