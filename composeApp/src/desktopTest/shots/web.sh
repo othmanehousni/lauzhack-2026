@@ -1,6 +1,6 @@
 #!/bin/sh
 # Renders the web mole (mole/index.html) for every shot in shots.json into composeApp/build/mole-shots/web/, with
-# headless Chrome through agent-browser. Then `MoleShots` (desktopTest) puts each next to its Compose render.
+# headless Chrome through agent-browser. Then `MOLE_SHOTS=1 ./gradlew :composeApp:desktopTest` puts each next to its Compose render.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../../.." && pwd)

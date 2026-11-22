@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
 import javax.xml.parsers.DocumentBuilderFactory
+import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration
@@ -62,7 +63,8 @@ class PhoneCheck {
 
     @Test
     fun walk() = runBlocking {
-        dir = File(System.getenv("PHONE_CHECK") ?: return@runBlocking).apply { mkdirs() }
+        assumeTrue("set PHONE_CHECK to walk the phone app", System.getenv("PHONE_CHECK") != null)
+        dir = File(System.getenv("PHONE_CHECK")).apply { mkdirs() }
         dir.listFiles { f -> f.extension == "png" }?.forEach { it.delete() }
         dp = adb("shell", "wm", "density").trim().substringAfterLast(' ').toFloat() / 160
         adb("shell", "wm", "user-rotation", "lock", "0")

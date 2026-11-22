@@ -25,6 +25,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import java.nio.file.Files
 import javax.imageio.ImageIO
+import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
@@ -41,6 +42,7 @@ private const val LONG_FOLDER = "Quarterly business reviews and board meeting de
 class HomeShots {
     @Test
     fun render() {
+        assumeTrue("set MOLE_SHOTS to render the window", System.getenv("MOLE_SHOTS") != null)
         val out = File("build/home-shots").apply { deleteRecursively(); mkdirs() }
         val sheet = mutableListOf<Pair<String, BufferedImage>>()
         for ((w, h) in listOf(720 to 780, 480 to 600)) for (meeting in listOf(false, true)) for (theme in listOf(MoleTheme.Light, MoleTheme.Dark)) {

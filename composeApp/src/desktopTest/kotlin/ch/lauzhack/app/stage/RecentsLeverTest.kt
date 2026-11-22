@@ -13,6 +13,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.createTempDirectory
+import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.TimeSource
@@ -34,7 +35,7 @@ class RecentsLeverTest {
 
     @Test
     fun realMac() = runBlocking {
-        System.getenv("MOLE_RECENTS") ?: return@runBlocking println("recents lever skipped: set MOLE_RECENTS")
+        assumeTrue("set MOLE_RECENTS to run the recents lever", System.getenv("MOLE_RECENTS") != null)
         System.setProperty("java.awt.headless", "true")
         val tmp = tmp("mole-recents")
         try {
@@ -109,7 +110,7 @@ class RecentsLeverTest {
     /** The same without Spotlight, from the app's own walk of the folders; no browser history is read. */
     @Test
     fun realMacWithoutSpotlight() = runBlocking {
-        System.getenv("MOLE_RECENTS") ?: return@runBlocking println("recents lever skipped: set MOLE_RECENTS")
+        assumeTrue("set MOLE_RECENTS to run the recents lever", System.getenv("MOLE_RECENTS") != null)
         System.setProperty("java.awt.headless", "true")
         val tmp = tmp("mole-recents-walk")
         try {
@@ -151,7 +152,7 @@ class RecentsLeverTest {
 
     @Test
     fun showsEachKindOfRecentItem() = runBlocking {
-        System.getenv("MOLE_RECENTS") ?: return@runBlocking println("recents lever skipped: set MOLE_RECENTS")
+        assumeTrue("set MOLE_RECENTS to run the recents lever", System.getenv("MOLE_RECENTS") != null)
         System.setProperty("java.awt.headless", "true")
         val tmp = tmp("mole-recents-show")
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)

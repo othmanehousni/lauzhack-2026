@@ -15,6 +15,7 @@ import java.net.ServerSocket
 import java.net.URI
 import java.nio.file.Files
 import javax.imageio.ImageIO
+import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -40,7 +41,8 @@ class LeverTest {
 
     @Test
     fun stage() = runBlocking {
-        val library = System.getenv("MOLE_LIBRARY")?.let(::File) ?: return@runBlocking println("lever skipped: set MOLE_LIBRARY")
+        assumeTrue("set MOLE_LIBRARY to run the lever", System.getenv("MOLE_LIBRARY") != null)
+        val library = File(System.getenv("MOLE_LIBRARY"))
         System.setProperty("java.awt.headless", "true")
         val port = ServerSocket(0).use { it.localPort }
         val profile = Files.createTempDirectory("mole-chrome").toFile()
@@ -159,7 +161,8 @@ class LeverTest {
 
     @Test
     fun vm() = runBlocking {
-        val library = System.getenv("MOLE_LIBRARY")?.let(::File) ?: return@runBlocking println("lever skipped: set MOLE_LIBRARY")
+        assumeTrue("set MOLE_LIBRARY to run the lever", System.getenv("MOLE_LIBRARY") != null)
+        val library = File(System.getenv("MOLE_LIBRARY"))
         System.setProperty("java.awt.headless", "true")
         val ad = agentDesktop ?: return@runBlocking println("agent-desktop is not installed")
         println("agent-desktop: $ad")

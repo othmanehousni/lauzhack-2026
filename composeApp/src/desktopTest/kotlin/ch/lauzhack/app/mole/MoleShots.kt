@@ -30,6 +30,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.math.abs
+import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 
 @Serializable
@@ -72,6 +73,7 @@ private fun words(key: String): MoleLine = when (key) {
 class MoleShots {
     @Test
     fun render() {
+        assumeTrue("set MOLE_SHOTS to render the bar beside the web mole", System.getenv("MOLE_SHOTS") != null)
         val out = File("build/mole-shots")
         val shots = Json.decodeFromString<List<Shot>>(File("src/desktopTest/shots/shots.json").readText())
         val report = StringBuilder("%-22s %7s %7s\n".format("", "light", "dark"))
