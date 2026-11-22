@@ -8,7 +8,6 @@ import ch.lauzhack.app.engine.Engines
 import ch.lauzhack.app.engine.LiteRTClientConfig
 import ch.lauzhack.app.engine.LiteRTLLMClient
 import ch.lauzhack.app.log
-import ch.lauzhack.app.session.Brain
 import ch.lauzhack.app.stage.AgentDesktop
 import ch.lauzhack.app.stage.DeckPage
 import ch.lauzhack.app.stage.Page
@@ -77,7 +76,7 @@ private val REBUILD = 1.minutes  // a page opened a minute ago is a candidate
  * Vectors are kept on disk by document, so a restart or a rebuild embeds only what is new, except those of the browser's
  * pages, which stay in memory as the history does.
  */
-class ModelBrain(private val engines: Engines) : Brain {
+class ModelBrain(private val engines: Engines) {
     private val cache = File(engines.cacheDir, "decider-vectors-${EmbeddingGemma.name}.bin")
     private lateinit var embedder: Embedder
     private lateinit var model: suspend (String, String?) -> String
@@ -85,19 +84,26 @@ class ModelBrain(private val engines: Engines) : Brain {
     private var saved = emptySet<String>()
     private val browsed = ConcurrentHashMap.newKeySet<String>() // documents of browser pages, never written
 
-    override suspend fun warm(library: File, desk: AgentDesktop) = coroutineScope {
+    /** Loads both models and the vectors kept on disk, before a call or while the shared screen comes up; a call waits
+     * for it. Each model is kept as soon as it loads, so a retry after a failure loads only what is missing. */
+    suspend fun warm() = coroutineScope {
+        val decider = File(engines.modelsDir, DECIDER)
+        check(decider.isFile) { "No decider: put $DECIDER in ${decider.parent}." }
         val vectors = async(Dispatchers.IO) { loadVectors(cache) }
-        // on CPU, as the contract has it: on the GPU, LLGuidance lets <pad> through and the constrained answer fails
-        val client = LiteRTLLMClient(LiteRTClientConfig(engines.modelsDir, engines.cacheDir, backends = listOf(Backend.CPU())))
-        val decide = async(Dispatchers.IO) { ahead(decider(client)) }
-        val gemma = withContext(Dispatchers.IO) { engines.embedder() }
-        gemma.embed("task: search result | query: hello") // its first call takes longer
-        embedder = gemma
+        val decide = async(Dispatchers.IO) {
+            // on CPU, as the contract has it: on the GPU, LLGuidance lets <pad> through and the constrained answer fails
+            if (!::model.isInitialized) model = ahead(decider(LiteRTLLMClient(LiteRTClientConfig(engines.modelsDir, engines.cacheDir, backends = listOf(Backend.CPU())))))
+        }
+        if (!::embedder.isInitialized) withContext(Dispatchers.IO) {
+            embedder = engines.embedder().also { it.embed("task: search result | query: hello") } // its first call takes longer
+        }
         known = vectors.await().also { saved = it.keys }
-        model = decide.await()
+        decide.await()
     }
 
-    override suspend fun meet(desk: AgentDesktop, scope: CoroutineScope): Pair<Agent, List<String>> {
+    /** The agent for a call on [desk], which is up, and the names the ear is to expect, most useful first. [scope] is
+     * the call's, for work that runs as long as it does. */
+    suspend fun meet(desk: AgentDesktop, scope: CoroutineScope): Pair<Agent, List<String>> {
         val recents = desk.recents()
         val all = items(desk.decks, desk.apps, desk.documents, recents = recents)
         val base = items(desk.decks, desk.apps, desk.documents)

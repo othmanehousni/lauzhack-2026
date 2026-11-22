@@ -1,27 +1,19 @@
 package ch.lauzhack.app.session
 
-import ai.koog.embeddings.base.Embedder
 import ch.lauzhack.app.Agent
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
-import ch.lauzhack.app.agent.Catalog
-import ch.lauzhack.app.agent.Embeddings
-import ch.lauzhack.app.agent.Intents
-import ch.lauzhack.app.agent.MoleAgent
-import ch.lauzhack.app.agent.SlideText
 import ch.lauzhack.app.decider.ModelAgent
+import ch.lauzhack.app.decider.ModelBrain
 import ch.lauzhack.app.link.Link
 import ch.lauzhack.app.link.PORT
 import ch.lauzhack.app.link.PhoneServer
 import ch.lauzhack.app.log
 import ch.lauzhack.app.stage.AgentDesktop
-import ch.lauzhack.app.stage.DATA
-import ch.lauzhack.app.stage.DeckPage
 import ch.lauzhack.app.stage.Ear
 import ch.lauzhack.app.stage.HOME
-import ch.lauzhack.app.stage.decks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -50,16 +42,6 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
-/** What decides during a call: the model, or the rules. */
-interface Brain {
-    /** Loads what is slow to load, before a call or while the shared screen comes up; a call waits for it. */
-    suspend fun warm(library: File, desk: AgentDesktop)
-
-    /** The agent for a call on [desk], which is up, and the names the ear is to expect, most useful first. [scope] is
-     * the call's, for work that runs as long as it does. */
-    suspend fun meet(desk: AgentDesktop, scope: CoroutineScope): Pair<Agent, List<String>>
-}
-
 private const val NAMES = 100 // Apple's limit for SpeechAnalyzer's contextual strings, which recognize short phrases best
 
 /**
@@ -74,7 +56,7 @@ private const val NAMES = 100 // Apple's limit for SpeechAnalyzer's contextual s
  */
 class Laptop(
     scope: CoroutineScope,
-    private val brain: Brain,
+    private val brain: ModelBrain,
     private val library: StateFlow<File>,
     private val meeting: StateFlow<String?>,
     private val downloads: Flow<Pair<String, Float>>? = null,
@@ -128,7 +110,7 @@ class Laptop(
             val warm = async(Dispatchers.Default) { // now, so that a call starts without waiting for the models
                 val t = TimeSource.Monotonic.markNow()
                 try {
-                    brain.warm(library.value, desk)
+                    brain.warm()
                     log("models ready in ${t.elapsedNow().inWholeMilliseconds} ms")
                     true
                 } catch (e: Exception) { // a call tries again, and says so if it fails
@@ -171,7 +153,7 @@ class Laptop(
             awaitCancellation()
         }
         val (agent, names) = try {
-            if (!warm.await()) brain.warm(lib, desk)
+            if (!warm.await()) brain.warm()
             mole.on(Event.Setup("Reading your decks and files…"))
             brain.meet(desk, this)
         } catch (e: Exception) {
@@ -250,32 +232,6 @@ class Laptop(
     }
 }
 
-/** The rules decide: MoleAgent over the desk's decks, apps and newest files, each embedded once across calls. */
-class RulesBrain(embedder: () -> Embedder) : Brain {
-    private val embeddings by lazy { Embeddings(embedder()) }
-    private var intents: Intents? = null
-
-    override suspend fun warm(library: File, desk: AgentDesktop) {
-        intents = Intents.train(embeddings)
-        // the first call then embeds only what changed since: 1500 files take half a minute
-        val t = TimeSource.Monotonic.markNow()
-        Catalog.build(embeddings, texts(decks(library, DATA)), emptyList(), desk.newestFiles())
-        log("catalog warm in ${t.elapsedNow().inWholeMilliseconds} ms")
-    }
-
-    override suspend fun meet(desk: AgentDesktop, scope: CoroutineScope): Pair<Agent, List<String>> {
-        val t = TimeSource.Monotonic.markNow()
-        val slides = texts(desk.decks)
-        val catalog = Catalog.build(embeddings, slides, desk.apps, desk.newestFiles())
-        val intents = intents ?: Intents.train(embeddings).also { intents = it }
-        log("catalog of ${slides.size} slides, ${catalog.files.size} files, ${desk.apps.size} apps in ${t.elapsedNow().inWholeMilliseconds} ms")
-        val names = catalog.slides.map { it.deck.replace('_', ' ') } + catalog.slides.map { it.title } + catalog.vocabulary
-        return MoleAgent(catalog, intents) to names.distinct()
-    }
-}
-
-private fun texts(pages: List<DeckPage>) = pages.map { SlideText(it.deck, it.page, it.title, it.text) }
-
 /** Whether [dir] holds a PDF to present. */
 fun hasDecks(dir: File) = !dir.listFiles { f -> f.extension.equals("pdf", ignoreCase = true) }.isNullOrEmpty()
 
@@ -287,7 +243,7 @@ private fun logged(agent: Agent): Agent {
         agent.anythingToDo(heard, onScreen).also { move ->
             if (heard != last && heard.text.isNotBlank()) {
                 last = heard
-                val why = ((agent as? MoleAgent)?.thought?.reason ?: (agent as? ModelAgent)?.answer)?.let { " ($it)" }.orEmpty()
+                val why = (agent as? ModelAgent)?.answer?.let { " ($it)" }.orEmpty()
                 log("decide  ${t.elapsedNow().inWholeMilliseconds} ms  \"${heard.text}\"${if (heard.ended) "" else " (still talking)"}  ->  $move$why")
             }
         }

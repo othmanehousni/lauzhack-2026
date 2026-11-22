@@ -10,7 +10,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.application
-import ch.lauzhack.app.decider.DECIDER
 import ch.lauzhack.app.decider.ModelBrain
 import ch.lauzhack.app.engine.desktopEngines
 import ch.lauzhack.app.meeting.MeetingDetector
@@ -22,7 +21,6 @@ import ch.lauzhack.app.mole.Playground
 import ch.lauzhack.app.mole.Settings
 import ch.lauzhack.app.session.Laptop
 import ch.lauzhack.app.session.ANNOUNCE
-import ch.lauzhack.app.session.RulesBrain
 import ch.lauzhack.app.session.hasDecks
 import ch.lauzhack.app.session.replayed
 import ch.lauzhack.app.stage.HOME
@@ -65,7 +63,6 @@ import kotlin.time.Duration.Companion.seconds
  *                 run (the tray's Wait before showing)
  *   --library DIR the decks for this run instead of the chosen folder
  *   --host        a Chrome window on this Mac as the shared screen instead of the VM
- *   --rules       the rules decide even when decider.litertlm is in the models folder
  *   --no-history  no browser history for this run, whatever the tray says
  *   --models DIR  another folder of models for this run (to compare a decider without replacing the installed one)
  *   --replay      what an ear heard, as hear.swift's lines on standard input, decided as in a call on a screen that only
@@ -107,12 +104,11 @@ fun main(args: Array<String>) {
         audio.isNotEmpty() -> detector.start("Audio files")
         else -> app.launch { detector.run() }
     }
-    val model = "--rules" !in args && File(engines.modelsDir, DECIDER).isFile
     val history = MutableStateFlow("--no-history" !in args && prefs.getBoolean("history", true))
     val window = MutableStateFlow((args.after("--window")?.toLong() ?: prefs.getLong("window", ANNOUNCE.inWholeMilliseconds)).milliseconds)
     val laptop = Laptop(
         app,
-        if (model) ModelBrain(engines) else RulesBrain(engines::embedder),
+        ModelBrain(engines),
         library,
         detector.meeting.map { it?.title }.stateIn(app, SharingStarted.Eagerly, null),
         engines.download().filter { it.bytes < it.total }.map { it.file to it.bytes.toFloat() / it.total },
@@ -126,7 +122,7 @@ fun main(args: Array<String>) {
     )
     log("Molière: decks in ${library.value}, ${if (replay) "nothing" else if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, " +
         "${if (replay) "what an ear heard" else if (typed != null) "typed lines" else if (audio.isNotEmpty()) "${audio.size} audio files" else "the microphone"}, " +
-        "${if (model) "the model decides" else "the rules decide"}, browser history ${if (history.value) "on" else "off"}, " +
+        "browser history ${if (history.value) "on" else "off"}, " +
         "picks wait up to ${window.value.inWholeMilliseconds} ms")
     if (replay) runBlocking { awaitCancellation() }
 
@@ -137,7 +133,7 @@ fun main(args: Array<String>) {
         var home by remember { mutableIntStateOf(if (typed == null && audio.isEmpty()) 1 else 0) }
         if (home > 0) HomeWindow(home, { home = 0 }, theme) { demo ->
             Home(detector.meeting, { detector.start("Meeting") }, detector::stop, laptop.line, laptop::onPick, demo.lines, demo::pick,
-                laptop.onScreen, laptop.phone, if (model) 2 else 1, settings, ::chooseFolder)
+                laptop.onScreen, laptop.phone, settings, ::chooseFolder)
         }
         val meeting by detector.meeting.collectAsState()
         val lib by library.collectAsState()

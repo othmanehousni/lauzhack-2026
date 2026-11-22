@@ -169,7 +169,6 @@ internal fun Home(
     onSample: (Int) -> Unit,
     onScreen: StateFlow<OnScreen>,
     phone: StateFlow<Boolean>,
-    models: Int,
     settings: Settings,
     choose: (File) -> File?,
 ) {
@@ -216,7 +215,7 @@ internal fun Home(
                     Section("Settings") { Choices(settings, choose, wide) }
                     Column(Modifier.padding(top = 56.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         val quiet = type(13f, 18f, 400, -.039f, c.hint)
-                        BasicText("Runs on this Mac. ${if (models == 2) "Two small models" else "One small model"} inside the app, no server.", style = quiet)
+                        BasicText("Runs on this Mac. Two small models inside the app, no server.", style = quiet)
                         BasicText(if (call == null) "Your phone connects during a meeting." else if (phoned) "Phone connected." else "No phone connected.", style = quiet)
                     }
                 }

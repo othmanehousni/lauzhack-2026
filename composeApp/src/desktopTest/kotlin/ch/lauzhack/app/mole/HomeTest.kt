@@ -54,7 +54,7 @@ class HomeTest {
         val onScreen = MutableStateFlow(OnScreen())
         val phone = MutableStateFlow(false)
         val scene = ImageComposeScene(720, 780, Density(1f)) {
-            Home(detector.meeting, { detector.start("Meeting") }, detector::stop, line, {}, MutableStateFlow(Announce), {}, onScreen, phone, 2, settings, { null })
+            Home(detector.meeting, { detector.start("Meeting") }, detector::stop, line, {}, MutableStateFlow(Announce), {}, onScreen, phone, settings, { null })
         }
         var frame = 0L
         fun nodes(): List<SemanticsNode> {

@@ -79,7 +79,7 @@ class HomeShots {
         val scene = ImageComposeScene(w * 2, h * 2, Density(2f)) {
             Column(Modifier.fillMaxSize().background(theme.colors().page)) {
                 Spacer(Modifier.height(28.dp)) // HomeWindow's clear title bar
-                Home(call, {}, {}, line, {}, MutableStateFlow(sample), {}, screen, MutableStateFlow(meeting), 2, settings, { null })
+                Home(call, {}, {}, line, {}, MutableStateFlow(sample), {}, screen, MutableStateFlow(meeting), settings, { null })
             }
         }
         var image = scene.render(0)
