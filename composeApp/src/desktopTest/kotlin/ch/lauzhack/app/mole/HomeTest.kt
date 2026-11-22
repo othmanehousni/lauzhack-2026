@@ -53,7 +53,7 @@ class HomeTest {
         val line = MutableStateFlow(MoleLine(MoleState.Hidden))
         val onScreen = MutableStateFlow(OnScreen())
         val phone = MutableStateFlow(false)
-        val scene = ImageComposeScene(720, 780, Density(1f)) {
+        val scene = ImageComposeScene(1100, 760, Density(1f)) {
             Home(detector.meeting, { detector.start("Meeting") }, detector::stop, line, {}, MutableStateFlow(Announce), {}, onScreen, phone, settings, { null })
         }
         var frame = 0L
@@ -67,19 +67,28 @@ class HomeTest {
         fun texts() = nodes().mapNotNull { it.text() }
         fun click(label: String) = assertNotNull(nodes().first { it.text() == label }.config[SemanticsActions.OnClick].action).invoke()
 
-        assertTrue("Molière is asleep." in texts())
-        assertTrue("Your phone connects during a meeting." in texts())
+        fun node(description: String) = nodes().first { it.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull() == description }
+        fun tap(description: String) = assertNotNull(node(description).config[SemanticsActions.OnClick].action).invoke()
+        fun selected(description: String) = node(description).config.getOrNull(SemanticsProperties.Selected)
+
+        assertTrue(listOf("Welcome back", "The right slide, on cue.", "Your phone connects during a meeting.", "“Okay, let’s open up the company slides.”").all { it in texts() })
+        assertEquals(true, selected("Home"))
         click("Start a meeting")
         assertNotNull(detector.meeting.value, "the window's Start a meeting is the tray's")
-        assertTrue(listOf("Molière is in a meeting.", "End the meeting", "Nothing yet", "The desktop", "No phone connected.").all { it in texts() })
+        assertTrue(listOf("Molière is in a meeting.", "End the meeting", "The desktop", "No phone connected.").all { it in texts() })
 
         line.value = MoleLine(MoleState.Heard, heard = "Next slide please.")
         onScreen.value = OnScreen(Target.Slide("Company_Overview", 2, "Problem"), "Company Overview")
         phone.value = true
-        assertTrue(listOf("“Next slide please.”", "Company Overview, slide 2", "Phone connected.").all { it in texts() })
+        assertTrue(listOf("“Next slide please.”", "Company Overview, slide 2", "Company Overview, slide 2 is on screen.", "Phone connected.", "THIS MEETING").all { it in texts() })
         line.value = MoleLine(MoleState.Hidden)
         assertTrue("“Next slide please.”" in texts(), "what it heard last stays once the bar dives")
 
+        tap("Things to say")
+        assertEquals(true, selected("Things to say"))
+        tap("Settings")
+        assertEquals(true, selected("Settings"))
+        assertTrue("Welcome back" !in texts(), "settings are a page of their own")
         click("Use browser history")
         assertEquals(false, history.value)
         assertEquals(false, prefs.getBoolean("history", true))
@@ -93,7 +102,8 @@ class HomeTest {
         assertEquals("Dark", prefs.get("theme", ""))
 
         detector.stop() // the tray's End the meeting
-        assertTrue("Molière is asleep." in texts())
+        tap("Home")
+        assertTrue("The right slide, on cue." in texts())
         assertNull(detector.meeting.value)
         scene.close()
     }
