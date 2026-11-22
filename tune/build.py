@@ -19,7 +19,7 @@ sys.path.insert(0, str(HERE.parent))
 from intents import INTENTS  # noqa: E402
 
 sys.path.insert(0, str(HERE))
-from prompt import CONTROLS, grammar, prompt  # noqa: E402
+from prompt import CONTROLS, grammar, prompt, spoken  # noqa: E402
 
 
 from decks import DECKS  # noqa: E402
@@ -144,7 +144,7 @@ class Session:
 def candidates(rng: random.Random, s: Session, targets: list[dict], near: list[dict] = (), pinned: list[dict] = (), k: int | None = None,
                avoid: list[dict] = ()) -> list[dict]:
     """A retrieval result: the targets somewhere near the top, near-misses around them, then other items of the session."""
-    k = k or rng.choice([6] * 8 + [3, 4, 5, 7, 8])
+    k = k or rng.choice([8] * 8 + [3, 4, 5, 6, 7])
     taken = {key(c) for c in [*pinned, *avoid]}
     out: list[dict] = []
     for c in [*targets, *rng.sample(list(near), len(near))]:
@@ -215,6 +215,9 @@ def noise(rng: random.Random, text: str, p: float = 1.0) -> str:
 def heard_name(rng: random.Random, name: str, p: float = 0.4) -> str:
     if name in SOUNDS and rng.random() < p:
         return rng.choice(SOUNDS[name])
+    w = name.split()
+    if len(w) > 1 and rng.random() < 0.2:
+        name = w[-1] if w[0] in ("Google", "Microsoft", "Apple", "Adobe", "Amazon", "Visual") or rng.random() < 0.5 else w[0]
     return name if rng.random() < 0.6 else name.lower()
 
 
@@ -248,6 +251,8 @@ OPENERS = ["can you pull up", "could you pull up", "pull up", "let's pull up", "
            "put up", "let's get", "can you get", "can we get", "I'd like to show you", "I want to show you", "now let's see",
            "can you take us to", "take us to", "go to", "let's go to", "can you go to", "jump to", "let's jump to", "can you jump to",
            "can you open", "open", "let me open", "let's open", "could you open", "would you mind opening", "can you throw up",
+           "let's switch to", "switch to", "let's move on to", "move on to", "let's start with", "let's begin with", "let's turn to",
+           "over to", "on to", "let's go over", "let me walk you through", "let's do", "can I get", "back to", "let's go back to",
            "can you pop up", "I'll pull up", "I'm going to pull up", "let me just pull up", "can you quickly pull up", "could you put up",
            "let's switch to", "switch to", "can you switch to", "flip to", "can you flip to", "let me grab", "can you grab",
            "can you get me", "let me get", "we need", "I need", "give me", "pull", "can you find", "find me", "load"]
@@ -256,12 +261,54 @@ OPENER_FORMS = ["{v} {o}", "{v} {o}", "{v} {o}", "{v} {o}", "put {o} on the scre
                 "I want {o} on the screen", "could we get {o} on screen"]
 HEDGES = ["", "", "", "", "okay ", "so ", "alright ", "um ", "and ", "right, ", "now ", "maybe we can ",
           "I think we should ", "if you could ", "let's quickly ", "actually ", "sorry, ", "okay so ", "ah, ", "uh ", "and then ",
-          "so yeah, ", "anyway, ", "okay, so now ", "and now ", "just ", "let's see, ", "hmm, ", "yeah so "]
+          "so yeah, ", "anyway, ", "okay, so now ", "and now ", "just ", "let's see, ", "hmm, ", "yeah so ", "hang on, ", "wait, ", "one sec, "]
+CONTROL_TAILS = ["", "", "", " there", " for a sec", " a bit", ", please", " please", ", it's hard to see", " so everyone can see", ", thanks",
+                 " for a second", " a little", ", I can't read it", " now"]
 TAILS = ["", "", "", "", "", ", please", " please", " for a second", " real quick", " so everyone can see", ", thanks", " now",
-         " again", "?", ".", " for a sec", " quickly", " if you can", ", that'd be great", " for everyone"]
+         " again", "?", ".", " for a sec", " quickly", " if you can", ", that'd be great", " for everyone",
+         ", I want to check something", ", just to be sure", ", someone asked about it", ", so we can compare", " before we move on",
+         ", I want to point something out", " for the people who joined late", ", there was a question about it", ", one more time"]
 CANCELS = [", hmm, on second thought, not now", ". no wait, forget it", ", but let's do that at the end", "... actually no, later", ", or no, let's skip it", ". nah, forget it",
            ", actually let's not", ", well, maybe after the break", ", no, scratch that", " — never mind, it's not important",
            ", but I'll do it after the call", ", but there's no time today", ". actually, no, we'll come back to it"]
+def tail(rng) -> str:
+    return f", {pick(rng, PEOPLE)} {pick(rng, ['wants to see', 'asked about', 'missed'])} {pick(rng, ['it', 'that', 'that part'])}" if rng.random() < 0.1 else pick(rng, TAILS)
+
+
+TALK_FORMS = ["so, {b}", "as you can see, {b}", "{b}, which is the key point here", "and {b}", "um, {b}, and that matters", "{b}",
+              "the main thing here is {b}", "so basically {b}", "{b}, and {b2}", "if you look at this, {b}", "what this shows is {b}",
+              "{b}, uh, {b2}", "right, so {b}"]
+TOPIC_FORMS = ["now, {t}", "so, {t}", "next up, {t}", "let's talk about {t}", "moving on to {t}", "okay, {t}", "and now {t}",
+               "let's get into {t}", "so what about {t}?", "a word on {t}", "this brings us to {t}", "time for {t}", "so, um, {t}"]
+
+
+def said(rng, text: str) -> str:
+    """A bullet as a presenter says it: lowercase, percent spelled, small numbers often in words."""
+    text = re.sub(r"(\d)%", r"\1 percent", text[0].lower() + text[1:])
+    return re.sub(r"\b\d{1,2}\b", lambda m: words(int(m.group())) if rng.random() < 0.6 else m.group(), text)
+
+
+def talk_line(rng, d: dict, j: int) -> str:
+    """What a presenter says over slide j: a written line, its bullets in a frame, or its title announced."""
+    sl, r = d["slides"][j], rng.random()
+    if r < 0.5 or not sl["bullets"]:
+        return pick(rng, sl["talk"])
+    if r < 0.8:
+        b = rng.sample(sl["bullets"], min(2, len(sl["bullets"])))
+        return pick(rng, TALK_FORMS).format(b=said(rng, b[0]), b2=said(rng, b[-1]))
+    return pick(rng, TOPIC_FORMS).format(t=sl["title"].lower())
+
+
+def cancel(rng) -> str:
+    """A request taken back at its end, composed: ", hmm, no, skip it"."""
+    while True:
+        c = (pick(rng, [", actually", ", hmm", ". no wait", ", oh", ", or", ", wait", ", uh", "... well"]) + pick(rng, [" no", " nah", "", " no no"]) +
+             pick(rng, [", never mind", ", forget it", ", scratch that", ", not now", ", skip it", ", let's not", ", leave it", ", doesn't matter",
+                        ", not important", ", another time"]))
+        if c != ", actually no, never mind":
+            return c
+
+
 PUT_OFF = ["we'll look at {o} after the break", "I'll pull up {o} later", "{o} comes later, hold that thought",
            "I'm not going to open {o} today", "let's leave {o} for the Q&A", "I'll send {o} around after the call instead", "remind me to show {o} later",
            "we won't have time for {o}, sorry", "I'd show you {o} but it's not ready yet"]
@@ -368,16 +415,6 @@ def pick(rng, xs):
     return rng.choice(xs)
 
 
-def say(rng, opener: str | None, obj: str) -> str:
-    form = pick(rng, OPENER_FORMS)
-    v = opener or pick(rng, OPENERS)
-    return pick(rng, HEDGES) + form.format(v=v, o=obj) + pick(rng, TAILS)
-
-
-def title_words(t: str) -> str:
-    return t.lower() if pick(random.Random(t), [0, 1]) else t
-
-
 def deck_spoken(rng, d: dict) -> str:
     w = re.sub(r"[_\-]+", " ", d["name"]).split()
     if len(w) > 2 and rng.random() < 0.5:
@@ -428,10 +465,11 @@ def request(rng, s: Session, family: str, obj: str, answer: str, target: dict | 
     pre = ""
     if preamble and rng.random() < 0.3:
         pre = pick(rng, PREAMBLES + INTENTS["aside"][:60] + INTENTS["talk"][:60] + BACKGROUND[:10]) + " "
-    verb = pick(rng, HEDGES) + before.format(v=v)
+    hedge, verb = pick(rng, HEDGES), before.format(v=v)
     if noisy:
-        pre, verb, obj = noise(rng, pre), noise(rng, verb), noise(rng, obj, 0.5)
-    segs = [(pre, "nothing"), (verb, "wait" if verb.strip() else "nothing"), (obj, answer), (after.format(v=v) + pick(rng, TAILS), answer)]
+        pre, hedge, verb, obj = noise(rng, pre), noise(rng, hedge), noise(rng, verb), noise(rng, obj, 0.5)
+    segs = [(pre, "nothing"), (hedge, "nothing"), (verb, "wait" if verb.strip() else "nothing"), (obj, answer),
+            (after.format(v=v) + tail(rng), answer)]
     c = cands if cands is not None else candidates(rng, s, [target] if target else [], near)
     if target and cands is None and key(target) not in {key(x) for x in c}:
         raise ValueError("target lost")
@@ -444,11 +482,15 @@ def request(rng, s: Session, family: str, obj: str, answer: str, target: dict | 
 
 def utter(rng, family: str, segs: list[tuple[str, str]], heard: list[str], cands: list[dict], **state) -> list[dict]:
     """The utterance whole (done), and one or two prefixes while it is spoken, each labelled by what has been said so far."""
-    text_words, labels = [], []
+    text_words, labels, spans = [], [], []
     for t, label in segs:
         w = t.split()
-        text_words += w
-        labels += [None] * (len(w) - 1) + [label] if w else []
+        if w:
+            spans.append((len(text_words), len(text_words) + len(w), label))
+            text_words += w
+    labels = [None] * len(text_words)
+    for _, end, label in spans:
+        labels[end - 1] = label
     if not text_words:
         return []
     final = labels[-1]
@@ -464,12 +506,25 @@ def utter(rng, family: str, segs: list[tuple[str, str]], heard: list[str], cands
         if len(text_words) < 3:
             break
         n = rng.randrange(1, len(text_words))
-        label = next((labels[i] for i in range(n - 1, -1, -1) if labels[i]), "nothing")
+        k = next(i for i, (a, end, _) in enumerate(spans) if a < n <= end)
+        prev = spans[k - 1][2] if k else "nothing"
+        label = spans[k][2] if n == spans[k][1] else prev if prev == spans[k][2] else "wait"
         out.append(ex(family + "/prefix", " ".join(text_words[:n]), label, heard=heard, cands=cands, done=rng.random() < 0.25, **state))
     return out
 
 
 # ------------------------------------------------ families: each returns a few examples, given a fresh session
+
+def namesakes(rng, s: Session, words: str) -> list[dict]:
+    """Files named like a slide or deck, so a request for the slides is told from one for a file."""
+    folder = pick(rng, s.files)["folder"]
+    w = " ".join(x.capitalize() if i == 0 else x for i, x in enumerate(words.split()))
+    return [{"kind": "file", "name": f"{w}{pick(rng, ['', ' notes', ' draft', ' v2', ' export', ' data', ' summary', ' 2026'])}.{pick(rng, ['pdf', 'xlsx', 'docx', 'pptx'])}",
+             "folder": folder} for _ in range(rng.choice([1, 1, 2]))]
+
+
+NOT_OPEN = [v for v in OPENERS if "open" not in v and "load" not in v]
+
 
 def fam_slide_title(rng, s: Session):
     sl = pick(rng, s.slides)
@@ -478,13 +533,23 @@ def fam_slide_title(rng, s: Session):
     screen, behind = s.screen(pick(rng, ["slide", "slide", "desktop", "front"]))
     if screen and key(screen) == key(sl):
         return []
+    near = near_slides(s, sl)
+    if screen and screen["kind"] == "slide" and rng.random() < 0.4:  # the deck on screen has it, another deck has one like it
+        same = [x for x in s.slides if x["deck"] == screen["deck"] and x["page"] > 1 and x != screen]
+        others = [x for x in s.slides if x["deck"] != screen["deck"]]
+        if same and others:
+            sl = pick(rng, same)
+            near = [{**pick(rng, others), "title": sl["title"]}] + near_slides(s, sl)
     t = sl["title"].lower() if rng.random() < 0.6 else sl["title"]
     if rng.random() < 0.25 and sl["text"]:
         b = pick(rng, sl["text"].split("; "))
         obj = pick(rng, CONTENT_OBJ).format(b=b.lower() if rng.random() < 0.6 else b)
     else:
         obj = pick(rng, SLIDE_OBJ).format(t=t)
-    return request(rng, s, "slide title", obj, "show {n}", sl, near_slides(s, sl), screen, behind)
+    if rng.random() < 0.3:
+        return request(rng, s, "slide over file", obj, "show {n}", sl, near + namesakes(rng, s, sl["title"]), screen, behind,
+                       opener=pick(rng, NOT_OPEN))
+    return request(rng, s, "slide title", obj, "show {n}", sl, near, screen, behind)
 
 
 def fam_intents_slide(rng, s: Session):
@@ -521,12 +586,13 @@ def fam_slide_number(rng, s: Session):
         phrase = pick(rng, ["the first slide", "back to the first slide", "go to the title slide", "first slide please"])
     else:
         phrase = form.format(n=spoken_number(rng, k), o=ORDS[k - 1])
+    phrase += tail(rng)
     if behind is None and k == cur + 1:
         answer = "nothing"
     else:
         answer = f"slide {k}"
     c = candidates(rng, s, [], [x for x in s.slides if x["deck"] == screen.get("deck")][:3])
-    return utter(rng, "slide number", [(noise(rng, pick(rng, HEDGES)), "nothing"), (noise(rng, phrase) + pick(rng, TAILS), answer)],
+    return utter(rng, "slide number", [(noise(rng, pick(rng, HEDGES)), "nothing"), (noise(rng, phrase), answer)],
                  context(rng, s), c, screen=screen, behind=behind)
 
 
@@ -537,6 +603,8 @@ def fam_deck(rng, s: Session):
     if screen and screen.get("deck") == cover["deck"]:
         return []
     near = [slide(x, 0) for x in s.decks if x is not d] + [slide(d, i) for i in range(1, min(3, len(d["slides"])))]
+    if rng.random() < 0.35:
+        near += namesakes(rng, s, deck_spoken(rng, d))
     if rng.random() < 0.35:  # the deck named in a preamble, the slides asked for generically
         intro = pick(rng, INTRO).format(t=deck_spoken(rng, d))
         obj = pick(rng, SLIDES_WORDS)
@@ -546,7 +614,11 @@ def fam_deck(rng, s: Session):
                                                                         "I'll put up", "let's get", "let me share"])), "wait"),
                 (noise(rng, obj + tail), f"show {index(c, cover)}")]
         return utter(rng, "deck in preamble", segs, context(rng, s, 0), c, screen=screen, behind=behind)
-    obj = pick(rng, DECK_OBJ).format(d=deck_spoken(rng, d))
+    name = deck_spoken(rng, d)
+    own = [x for x in re.sub(r"[_\-]+", " ", d["name"]).split() if len(x) > 3 and not x.isdigit() and sum(x.lower() in o["name"].lower() for o in s.decks) == 1]
+    if own and rng.random() < 0.25:  # one word of the name that no other deck has
+        name = pick(rng, own).lower()
+    obj = pick(rng, DECK_OBJ).format(d=name)
     return request(rng, s, "deck", obj, "show {n}", cover, near, screen, behind)
 
 
@@ -584,6 +656,8 @@ def fam_next_prev(rng, s: Session):
                                          "keep going", "next slide please", "can we go to the next one"] if label == "next" else
                                         ["the one before", "previous one", "back a slide",
                                          "can you go back one slide", "the slide before", "one back", "go back a slide please"]))
+    if rng.random() < 0.3:
+        text = text.rstrip(".!?") + tail(rng)
     kind = pick(rng, ["slide"] * 6 + ["desktop", "front"])
     screen, behind = s.screen(kind)
     if kind == "slide":
@@ -613,8 +687,7 @@ def fam_site(rng, s: Session):
     absent = rng.random() < 0.12
     if absent:
         c = candidates(rng, s, [], [], avoid=[target])
-        word = re.sub(r"[^a-z0-9 .\-']", "", target["name"].lower()).strip()
-        return request(rng, s, "open by name", obj, f"open {word}", None, [], screen, behind, cands=c)
+        return request(rng, s, "open by name", obj, f"open {spoken(target['name'])}", None, [], screen, behind, cands=c)
     return request(rng, s, "site" if target["kind"] == "site" else "app", obj, "show {n}", target, near_sites(s, target), screen, behind)
 
 
@@ -648,7 +721,7 @@ def fam_intents_open(rng, s: Session):
         return []
     if rng.random() < 0.1:  # what was asked for is not among the candidates
         c = candidates(rng, s, [], [], avoid=[target])
-        answer = f"open {re.sub(r'[^a-z0-9 .-]', '', target['name'].lower())}" if form in ("site", "app") else "unsure"
+        answer = f"open {spoken(target['name'])}" if form in ("site", "app") else "unsure"
         return utter(rng, "absent", [(noise(rng, text), answer)], context(rng, s), c, screen=screen, behind=behind)
     near = near_sites(s, target) if form in ("site", "app") else near_files(s, target) if target["kind"] == "file" else []
     c = candidates(rng, s, [target], near)
@@ -673,7 +746,7 @@ def fam_address(rng, s: Session):
         c = candidates(rng, s, [], [])
         answer = f"open {host}"
     v = pick(rng, ["go to", "can you go to", "open", "let's go to", "pull up", "can you open", "head to", "take us to", "type in", "visit"])
-    return utter(rng, "address", [(noise(rng, pick(rng, HEDGES) + v, 0.6), "wait"), (spoken + pick(rng, TAILS), answer)], context(rng, s), c,
+    return utter(rng, "address", [(noise(rng, pick(rng, HEDGES), 0.6), "nothing"), (noise(rng, v, 0.6), "wait"), (spoken + pick(rng, TAILS), answer)], context(rng, s), c,
                  screen=screen, behind=behind)
 
 
@@ -697,12 +770,15 @@ def fam_file(rng, s: Session):
     k = kind_word(rng, f) if rng.random() < 0.5 else None
     form = pick(rng, FILE_OBJ)
     if k is None:
-        form = form.replace(" {k}", "").replace("the {k} with ", "")
+        form = form.replace("the {k} with ", "").replace(" {k}", "")
     obj = form.format(s=desc, k=k or "")
-    c = candidates(rng, s, [f], near)
+    twin = {**pick(rng, s.slides), "title": stem(f)} if rng.random() < 0.25 else None
+    c = candidates(rng, s, [f] + ([twin] if twin else []), near)
     fits = matches(desc, k, [x for x in c if x["kind"] == "file"])
     if key(f) not in {key(x) for x in fits}:
         return []
+    if twin and k is None:
+        return request(rng, s, "slide over file", obj, f"show {index(c, twin)}", twin, near, screen, behind, cands=c, opener=pick(rng, NOT_OPEN))
     if len(fits) == 1:
         return request(rng, s, "file", obj, f"show {index(c, f)}", f, near, screen, behind, cands=c)
     if len(fits) <= 3:
@@ -797,6 +873,8 @@ def can(screen: dict | None, control: str) -> bool:
 def fam_control(rng, s: Session):
     control = pick(rng, CONTROLS)
     text = pick(rng, INTENTS[f"control {control}"])
+    if rng.random() < 0.5:
+        text = pick(rng, HEDGES) + text.rstrip(".!?") + pick(rng, CONTROL_TAILS)
     kind = pick(rng, ["site", "site", "file", "file", "slide", "desktop", "app"])
     screen, behind = s.screen(kind)
     if kind == "site" and control in ("play the video", "pause the video") and rng.random() < 0.7:
@@ -959,17 +1037,19 @@ def fam_later(rng, s: Session):
     if screen and key(screen) == key(item):
         return []
     v = pick(rng, OPENERS)
-    segs = [(noise(rng, pick(rng, HEDGES) + v), "wait"), (phrase, f"show {index(c, item)}"), (pick(rng, CANCELS), "nothing")]
+    back = pick(rng, CANCELS) if rng.random() < 0.4 else cancel(rng)
+    segs = [(noise(rng, pick(rng, HEDGES)), "nothing"), (noise(rng, v), "wait"), (phrase, f"show {index(c, item)}"), (back, "nothing")]
     return utter(rng, "cancelled", segs, context(rng, s), c, screen=screen, behind=behind)
 
 
 def fam_wait(rng, s: Session):
     screen, behind = s.screen(pick(rng, ["slide", "slide", "desktop", "front"]))
     if rng.random() < 0.5:
-        text = pick(rng, INTENTS["unfinished"])
+        segs = [(noise(rng, pick(rng, INTENTS["unfinished"])), "wait")]
     else:
-        text = pick(rng, HEDGES) + pick(rng, OPENERS) + pick(rng, ["", " the", " the, um", " our", " the uh", ",", " um", " the... the", " uh,", " that"])
-    return utter(rng, "wait", [(noise(rng, text), "wait")], context(rng, s), candidates(rng, s, [], []), screen=screen, behind=behind)
+        segs = [(noise(rng, pick(rng, HEDGES)), "nothing"),
+                (noise(rng, pick(rng, OPENERS) + pick(rng, ["", " the", " the, um", " our", " the uh", ",", " um", " the... the", " uh,", " that"])), "wait")]
+    return utter(rng, "wait", segs, context(rng, s), candidates(rng, s, [], []), screen=screen, behind=behind)
 
 
 def fam_split(rng, s: Session):
@@ -977,10 +1057,14 @@ def fam_split(rng, s: Session):
     first = pick(rng, INTENTS["unfinished"]) if rng.random() < 0.4 else pick(rng, HEDGES) + pick(rng, OPENERS) + pick(rng, [" the", " the, um", ",", " uh", " our", ""])
     kind = pick(rng, ["slide", "deck", "file", "site", "app", "never"])
     screen, behind = s.screen(pick(rng, ["slide", "desktop", "front"]))
-    if kind == "never":
+    if kind == "never":  # the request before is dropped; what an earlier action showed stays
         text = pick(rng, ["actually forget it", "hmm, never mind, it doesn't matter", "no, it's fine, let's move on",
-                          "oh, never mind, I'll show it later"])
-        return utter(rng, "split", [(noise(rng, text), "nothing")], [noise(rng, first)], candidates(rng, s, [], []), screen=screen, behind=behind)
+                          "oh, never mind, I'll show it later", cancel(rng).lstrip(",. ")])
+        if rng.random() < 0.5:
+            first = pick(rng, OPENERS) + " " + pick(rng, UNKNOWN) + pick(rng, ["?", "", " please"])
+        shown = screen if screen and screen["kind"] != "slide" and rng.random() < 0.6 else None
+        return utter(rng, "split", [(noise(rng, text), "nothing")], [noise(rng, first)], candidates(rng, s, [], []), screen=screen, behind=behind,
+                     shown=shown)
     if kind == "slide":
         item = pick(rng, [x for x in s.slides if x["page"] > 1] or s.slides)
         obj = pick(rng, SLIDE_OBJ).format(t=item["title"].lower())
@@ -1065,16 +1149,16 @@ def fam_talk_follow(rng, s: Session):
     n = len(d["slides"])
     cur = rng.randrange(n - 1)
     r = rng.random()
-    if r < 0.5:
-        j = min(n - 1, cur + pick(rng, [1, 1, 1, 1, 2, 2, 3, 4]))
-    elif r < 0.75:
+    if r < 0.55:
+        j = min(n - 1, cur + pick(rng, [1, 1, 1, 1, 1, 2, 2, 3, 4]))
+    elif r < 0.8:
         j = cur
     else:
         j = rng.randrange(0, cur + 1) if cur else cur
     screen, target = slide(d, cur), slide(d, j)
-    line = pick(rng, d["slides"][j]["talk"])
+    line = talk_line(rng, d, j)
     c = candidates(rng, s, [target] + ([screen] if j != cur else []), near_slides(s, target))
-    answer = f"show {index(c, target)}" if j > cur else "nothing"
+    answer = "next" if j == cur + 1 else f"show {index(c, target)}" if j > cur else "nothing"
     family = "talk follows" if j > cur else "talk stays"
     return utter(rng, family, [(noise(rng, line), answer)], context(rng, s, rng.choice([0, 1])), c, screen=screen)
 
@@ -1083,7 +1167,7 @@ def fam_talk_elsewhere(rng, s: Session):
     """Talk about a slide while no slide is on air, or about another deck: nothing."""
     sl = pick(rng, s.slides)
     d = next(x for x in s.decks if deck_name(x) == sl["deck"])
-    line = pick(rng, d["slides"][sl["page"] - 1]["talk"])
+    line = talk_line(rng, d, sl["page"] - 1)
     screen, behind = s.screen(pick(rng, ["desktop", "front"]))
     c = candidates(rng, s, [sl], near_slides(s, sl))
     return utter(rng, "talk stays", [(noise(rng, line), "nothing")], context(rng, s), c, screen=screen, behind=behind)
@@ -1121,7 +1205,7 @@ FAMILIES = {fam_slide_title: 5, fam_intents_slide: 3, fam_slide_number: 2.5, fam
             fam_next_prev: 3, fam_site: 4, fam_intents_open: 4, fam_address: 1.5, fam_file: 4, fam_ask_siblings: 3, fam_unsure: 1.5,
             fam_absent_slide: 1, fam_search: 2, fam_click: 1, fam_control: 3, fam_bare_control: 1.2, fam_close: 1.5, fam_undo: 2,
             fam_pick: 3.5, fam_pick_file: 1, fam_pick_without_offer: 0.6, fam_mention: 4, fam_later: 4, fam_wait: 2.5, fam_split: 3,
-            fam_pronoun: 2.5, fam_intents_context: 1, fam_already: 1.5, fam_talk_follow: 6, fam_talk_elsewhere: 1.5, fam_chatter: 7}
+            fam_pronoun: 2.5, fam_intents_context: 1, fam_already: 1.5, fam_talk_follow: 9, fam_talk_elsewhere: 1.5, fam_chatter: 7}
 
 
 def build(seed: int, n: int, split: str) -> list[dict]:
@@ -1132,9 +1216,17 @@ def build(seed: int, n: int, split: str) -> list[dict]:
     while len(out) < n:
         f = rng.choices(fams, weights)[0]
         try:
-            out += f(rng, Session(rng, w))
+            s = Session(rng, w)
+            exs = f(rng, s)
         except (ValueError, IndexError, StopIteration):
             continue
+        for e in exs:  # the slide after the one on screen, as the app shows it
+            st = e["state"]
+            sc = st["screen"]
+            st["next"] = next((x for x in s.slides if sc and sc["kind"] == "slide" and x["deck"] == sc["deck"] and x["page"] == sc["page"] + 1), None)
+            if sc and not st["shown"] and e["answer"] != "undo" and not e["family"].startswith(("reject", "undo")) and rng.random() < 0.4:
+                st["shown"] = sc  # in the app the screen was usually put there by the last action or the one before
+        out += exs
     rng.shuffle(out)
     for e in out[:n]:
         assert re.fullmatch(grammar(e["state"]), e["answer"]), (e["family"], e["answer"], grammar(e["state"]))
