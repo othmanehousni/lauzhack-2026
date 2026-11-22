@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from prompt import grammar, prompt
+from prompt import grammar, prompt, spoken
 
 ROOT = Path(__file__).resolve().parent.parent
 SPACE = "▁"  # LiteRT-LM's LLGuidance sees SentencePiece's space mark, not a space: a constraint must spell spaces with it
@@ -126,8 +126,8 @@ class View:
 
 
 class Replay:
-    def __init__(self, catalog: Catalog, decider: Decider):
-        self.cat, self.decider = catalog, decider
+    def __init__(self, catalog: Catalog, decider: Decider, constrained: bool = True):
+        self.cat, self.decider, self.constrained = catalog, decider, constrained
         self.view, self.before_last = View(), View()
         self.heard: list[str] = []
         self.offered: list[str] = []
@@ -162,7 +162,7 @@ class Replay:
         if verb == "open":
             words = rest.strip()
             for i, it in self.cat.items.items():
-                if it["kind"] in ("site", "app") and (it["name"].lower() == words or it["kind"] == "site" and it["url"] == host(words)):
+                if it["kind"] in ("site", "app") and (spoken(it["name"]) == words or it["kind"] == "site" and it["url"] == host(words)):
                     return self.cat.action(i)
             return ("url", "https://" + words) if "." in words else ("app", words)
         if verb in ("search", "click"):
@@ -178,7 +178,9 @@ class Replay:
     def state(self, start: View, now: str, done: bool) -> tuple[dict, list[str]]:
         cands = self.cat.retrieve(now, self.heard, self.offered)
         on = start.onair
+        after = f"{on[1].rsplit(' p', 1)[0]} p{int(on[1].rsplit(' p', 1)[1]) + 1}" if on and on[0] == "slide" else None
         st = {"screen": self.item(on), "behind": self.item(start.last) if on is not None and on[0] != "slide" and start.last else None,
+              "next": self.cat.items.get(after),
               "offered": list(range(1, len(self.offered) + 1)), "shown": self.cat.items.get(self.shown) if self.shown else None,
               "heard": self.heard[-2:], "now": now, "done": done, "candidates": [self.cat.items[c] for c in cands]}
         return st, cands
@@ -199,7 +201,8 @@ class Replay:
             st, cands = self.state(start, " ".join(words[:n]), done)
             p, g = prompt(st), grammar(st)
             if done:
-                answer, c, s = self.decider(p, g)
+                answer, c, s = self.decider(p, g if self.constrained else None)
+                answer = answer if re.fullmatch(g, answer) else "nothing"
                 stats["create_s"].append(c)
                 stats["send_s"].append(s)
                 stats["tokens"].append(self.decider.tokens(p))
@@ -273,18 +276,18 @@ class Replay:
         return w.split(" ", 1)[1] if w.startswith(("file ", "url ", "app ")) else w
 
 
-def run_script(catalog: Catalog, decider: Decider, path: Path) -> list[dict]:
-    replay = Replay(catalog, decider)
+def run_script(catalog: Catalog, decider: Decider, path: Path, constrained: bool = True) -> list[dict]:
+    replay = Replay(catalog, decider, constrained)
     return [replay.line(json.loads(l)["say"], json.loads(l)["want"]) for l in path.read_text().splitlines() if l.strip()]
 
 
-def dev_rows(decider: Decider, rows: list[dict]) -> list[tuple[str, str, str]]:
+def dev_rows(decider: Decider, rows: list[dict], constrained: bool = True) -> list[tuple[str, str, str]]:
     """(family, expected, answer) for dev examples: constrained when the sentence is done, checked against the grammar if not."""
     out = []
     for e in rows:
         st = e["state"]
         g = grammar(st)
-        if st["done"]:
+        if st["done"] and constrained:
             a = decider(prompt(st), g)[0]
         else:
             a = decider(prompt(st))[0]

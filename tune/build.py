@@ -19,7 +19,7 @@ sys.path.insert(0, str(HERE.parent))
 from intents import INTENTS  # noqa: E402
 
 sys.path.insert(0, str(HERE))
-from prompt import CONTROLS, grammar, prompt  # noqa: E402
+from prompt import CONTROLS, grammar, prompt, spoken  # noqa: E402
 
 
 from decks import DECKS  # noqa: E402
@@ -629,8 +629,7 @@ def fam_site(rng, s: Session):
     absent = rng.random() < 0.12
     if absent:
         c = candidates(rng, s, [], [], avoid=[target])
-        word = re.sub(r"[^a-z0-9 .\-']", "", target["name"].lower()).strip()
-        return request(rng, s, "open by name", obj, f"open {word}", None, [], screen, behind, cands=c)
+        return request(rng, s, "open by name", obj, f"open {spoken(target['name'])}", None, [], screen, behind, cands=c)
     return request(rng, s, "site" if target["kind"] == "site" else "app", obj, "show {n}", target, near_sites(s, target), screen, behind)
 
 
@@ -664,7 +663,7 @@ def fam_intents_open(rng, s: Session):
         return []
     if rng.random() < 0.1:  # what was asked for is not among the candidates
         c = candidates(rng, s, [], [], avoid=[target])
-        answer = f"open {re.sub(r'[^a-z0-9 .-]', '', target['name'].lower())}" if form in ("site", "app") else "unsure"
+        answer = f"open {spoken(target['name'])}" if form in ("site", "app") else "unsure"
         return utter(rng, "absent", [(noise(rng, text), answer)], context(rng, s), c, screen=screen, behind=behind)
     near = near_sites(s, target) if form in ("site", "app") else near_files(s, target) if target["kind"] == "file" else []
     c = candidates(rng, s, [target], near)
@@ -1085,16 +1084,16 @@ def fam_talk_follow(rng, s: Session):
     n = len(d["slides"])
     cur = rng.randrange(n - 1)
     r = rng.random()
-    if r < 0.5:
-        j = min(n - 1, cur + pick(rng, [1, 1, 1, 1, 2, 2, 3, 4]))
-    elif r < 0.75:
+    if r < 0.55:
+        j = min(n - 1, cur + pick(rng, [1, 1, 1, 1, 1, 2, 2, 3, 4]))
+    elif r < 0.8:
         j = cur
     else:
         j = rng.randrange(0, cur + 1) if cur else cur
     screen, target = slide(d, cur), slide(d, j)
     line = pick(rng, d["slides"][j]["talk"])
     c = candidates(rng, s, [target] + ([screen] if j != cur else []), near_slides(s, target))
-    answer = f"show {index(c, target)}" if j > cur else "nothing"
+    answer = "next" if j == cur + 1 else f"show {index(c, target)}" if j > cur else "nothing"
     family = "talk follows" if j > cur else "talk stays"
     return utter(rng, family, [(noise(rng, line), answer)], context(rng, s, rng.choice([0, 1])), c, screen=screen)
 
@@ -1141,7 +1140,7 @@ FAMILIES = {fam_slide_title: 5, fam_intents_slide: 3, fam_slide_number: 2.5, fam
             fam_next_prev: 3, fam_site: 4, fam_intents_open: 4, fam_address: 1.5, fam_file: 4, fam_ask_siblings: 3, fam_unsure: 1.5,
             fam_absent_slide: 1, fam_search: 2, fam_click: 1, fam_control: 3, fam_bare_control: 1.2, fam_close: 1.5, fam_undo: 2,
             fam_pick: 3.5, fam_pick_file: 1, fam_pick_without_offer: 0.6, fam_mention: 4, fam_later: 4, fam_wait: 2.5, fam_split: 3,
-            fam_pronoun: 2.5, fam_intents_context: 1, fam_already: 1.5, fam_talk_follow: 6, fam_talk_elsewhere: 1.5, fam_chatter: 7}
+            fam_pronoun: 2.5, fam_intents_context: 1, fam_already: 1.5, fam_talk_follow: 9, fam_talk_elsewhere: 1.5, fam_chatter: 7}
 
 
 def build(seed: int, n: int, split: str) -> list[dict]:
@@ -1152,9 +1151,14 @@ def build(seed: int, n: int, split: str) -> list[dict]:
     while len(out) < n:
         f = rng.choices(fams, weights)[0]
         try:
-            out += f(rng, Session(rng, w))
+            s = Session(rng, w)
+            exs = f(rng, s)
         except (ValueError, IndexError, StopIteration):
             continue
+        for e in exs:  # the slide after the one on screen, as the app shows it
+            sc = e["state"]["screen"]
+            e["state"]["next"] = next((x for x in s.slides if sc and sc["kind"] == "slide" and x["deck"] == sc["deck"] and x["page"] == sc["page"] + 1), None)
+        out += exs
     rng.shuffle(out)
     for e in out[:n]:
         assert re.fullmatch(grammar(e["state"]), e["answer"]), (e["family"], e["answer"], grammar(e["state"]))

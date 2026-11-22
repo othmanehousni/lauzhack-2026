@@ -13,6 +13,7 @@ HERE = Path(__file__).parent
 BASE = "unsloth/gemma-3-270m-it"  # ungated mirror of google/gemma-3-270m-it
 EMBEDDER = ("litert-community/embeddinggemma-2-text-270m-litert-lm", "embeddinggemma-2-text-270m.litertlm")
 PREFILL, KV = [128, 512], 1024  # prefill signatures and KV cache of the converted decider
+STOPS = [106, 1]  # <end_of_turn> first: LiteRT-LM's constraint lets only the first stop token end an answer
 
 MAVEN = "https://dl.google.com/android/maven2"
 JARS = [f"{MAVEN}/com/google/ai/edge/litertlm/litertlm-jvm/0.19.1/litertlm-jvm-0.19.1.jar",
@@ -131,7 +132,7 @@ def convert(ckpt: str, outdir: str, name: str) -> str:
     converter.convert_to_litert(
         gemma3.build_model_270m(ckpt), output_path=outdir, output_name_prefix=name, prefill_seq_len=PREFILL, kv_cache_max_len=KV,
         quantize="dynamic_int8", export_config=config, output_format="litertlm", tokenizer_model_path=f"{ckpt}/tokenizer.model",
-        start_token_id=2, stop_token_ids=[1, 106], prompt_prefix="<start_of_turn>user\n",
+        start_token_id=2, stop_token_ids=STOPS, prompt_prefix="<start_of_turn>user\n",
         prompt_suffix="<end_of_turn>\n<start_of_turn>model\n", model_prompt_prefix="<start_of_turn>model\n",
         model_prompt_suffix="<end_of_turn>\n", user_prompt_prefix="<start_of_turn>user\n", user_prompt_suffix="<end_of_turn>\n")
     out = max(glob.glob(f"{outdir}/{name}*.litertlm"), key=os.path.getmtime)
@@ -383,39 +384,44 @@ def derisk(skip: bool = False):
 
 
 @app.function(image=conv, cpu=8, memory=32768, timeout=3600, volumes={"/vol": vol})
-def convert_run(name: str) -> str:
-    out = convert(f"/vol/{name}/ckpt", f"/vol/{name}", "decider")
+def convert_run(name: str, prefix: str = "decider") -> str:
+    out = convert(f"/vol/{name}/ckpt", f"/vol/{name}", prefix)
     vol.commit()
     return out
 
 
 @app.function(image=rt, cpu=4, memory=8192, timeout=3 * 3600, volumes={"/vol": vol})
-def score_script(model: str, script: str) -> list[dict]:
+def score_script(model: str, script: str, constrained: bool = True) -> list[dict]:
     from huggingface_hub import hf_hub_download
     sys.path.insert(0, "/root/tune")
     import score
     catalog = score.Catalog(hf_hub_download(*EMBEDDER, local_dir="/vol/embedder"))
-    return score.run_script(catalog, score.Decider(model), Path("/root/eval") / script)
+    return score.run_script(catalog, score.Decider(model), Path("/root/eval") / script, constrained)
 
 
 @app.function(image=rt, cpu=4, memory=8192, timeout=3 * 3600, volumes={"/vol": vol})
-def score_dev(model: str, data: str, start: int, stop: int) -> list:
+def score_dev(model: str, data: str, start: int, stop: int, families: str = "", constrained: bool = True) -> list:
     sys.path.insert(0, "/root/tune")
     import score
     rows = [json.loads(l) for l in open(data)][start:stop]
-    return score.dev_rows(score.Decider(model), rows)
+    rows = [e for e in rows if not families or e["family"] in families.split(",")]
+    return score.dev_rows(score.Decider(model), rows, constrained)
 
 
 @app.local_entrypoint()
-def evaluate(name: str, scripts: str = "", dev: int = 3000, convert_first: bool = False):
-    """Score /vol/<name>/decider_q8_ekv1024.litertlm on eval scripts (all by default) and the first `dev` dev rows."""
+def evaluate(name: str, scripts: str = "", dev: int = 3000, convert_first: bool = False, prefix: str = "decider", families: str = "",
+             mode: str = "constrained"):
+    """Score /vol/<name>/<prefix>_q8_ekv1024.litertlm on eval scripts (all by default; "none" for none) and the first `dev` dev rows
+    (of the given families only, if any)."""
     if convert_first:
-        convert_run.remote(name)
-    model = f"/vol/{name}/decider_q8_ekv1024.litertlm"
-    names = scripts.split(",") if scripts else sorted(p.name for p in (HERE.parent / "eval").glob("*.jsonl"))
-    calls = [score_script.spawn(model, s) for s in names]
-    chunks = [(model, f"/vol/{name}/data/dev.jsonl", i, min(dev, i + 150)) for i in range(0, dev, 150)]
+        convert_run.remote(name, prefix)
+    model = f"/vol/{name}/{prefix}_q8_ekv1024.litertlm"
+    names = [] if scripts == "none" else scripts.split(",") if scripts else sorted(p.name for p in (HERE.parent / "eval").glob("*.jsonl"))
+    constrained = mode == "constrained"
+    calls = [score_script.spawn(model, s, constrained) for s in names]
+    chunks = [(model, f"/vol/{name}/data/dev.jsonl", i, min(dev, i + 150), families, constrained) for i in range(0, dev, 150)]
     devs = [x for part in score_dev.starmap(chunks) for x in part] if dev else []
     out = {"scripts": {s: c.get() for s, c in zip(names, calls)}, "dev": devs}
-    Path(f"/tmp/score_{name}.json").write_text(json.dumps(out))
-    print(f"wrote /tmp/score_{name}.json")
+    tag = name + ("" if prefix == "decider" else "_" + prefix) + ("" if constrained else "_free")
+    Path(f"/tmp/score_{tag}.json").write_text(json.dumps(out))
+    print(f"wrote /tmp/score_{tag}.json")

@@ -1,6 +1,6 @@
 # Decider contract
 
-The app builds one prompt per decision, sends it as the user turn of a fresh conversation to `decider.litertlm` (LiteRT-LM 0.19.1, CPU, `SamplerConfig(topK=1)`, at most 16 output tokens) and applies the answer. At `done` the conversation is created with the LL_GUIDANCE constraint provider and the message sent with `ResponseFormat.regex(grammar(state))` in which every space is written as `▁` (U+2581): LiteRT-LM's LLGuidance matches SentencePiece's space mark, and a literal space fails with `Parser Error: token "▁" doesn't satisfy the grammar`. Creating a constrained conversation costs about 0.9 s on CPU (sending is 0.1 s), so create the next one ahead of time. Partial decisions run unconstrained and count as `nothing` unless the answer matches `grammar(state)`. In the JVM API that is `ConversationConfig(samplerConfig = SamplerConfig(topK = 1, ...), enableResponseFormat = true)` and `sendMessage(prompt, responseFormat = ResponseFormat.regex(...))`; `litertlm-jvm-0.19.1` on Linux behaves the same (`modal_tune.py::jvm_check`: a literal space throws `LiteRtLmJniException ... Parser Error`, `show▁1|nothing` answers `show 1`, the constrained conversation takes 0.90 s to create). `tune/prompt.py` is the reference; `tune/golden.jsonl` has 243 cases of `{"input": state, "prompt": ..., "grammar": ...}` that a Kotlin port must reproduce byte for byte.
+The app builds one prompt per decision, sends it as the user turn of a fresh conversation to `decider.litertlm` (LiteRT-LM 0.19.1, CPU, `SamplerConfig(topK=1)`, at most 16 output tokens) and applies the answer. At `done` the conversation is created with the LL_GUIDANCE constraint provider and the message sent with `ResponseFormat.regex(grammar(state))` in which every space is written as `▁` (U+2581): LiteRT-LM's LLGuidance matches SentencePiece's space mark, and a literal space fails with `Parser Error: token "▁" doesn't satisfy the grammar`. Creating a constrained conversation costs about 0.9 s on CPU (sending is 0.1 s), so create the next one ahead of time. Partial decisions run unconstrained and count as `nothing` unless the answer matches `grammar(state)`. In the JVM API that is `ConversationConfig(samplerConfig = SamplerConfig(topK = 1, ...), enableResponseFormat = true)` and `sendMessage(prompt, responseFormat = ResponseFormat.regex(...))`; `litertlm-jvm-0.19.1` on Linux behaves the same (`modal_tune.py::jvm_check`: a literal space throws `LiteRtLmJniException ... Parser Error`, `show▁1|nothing` answers `show 1`, the constrained conversation takes 0.90 s to create). The model's stop tokens are `<end_of_turn>` (106) then `<eos>` (1); the order matters, since under a constraint LiteRT-LM lets only the first one end an answer, and with `<eos>` first every answer that could go on (`slide 5`, `ask 1 3`, any words) ran on to 16 tokens. `tune/prompt.py` is the reference; `tune/golden.jsonl` has 243 cases of `{"input": state, "prompt": ..., "grammar": ...}` that a Kotlin port must reproduce byte for byte.
 
 ## State
 
@@ -8,6 +8,7 @@ The app builds one prompt per decision, sends it as the user turn of a fresh con
 |---|---|
 | `screen` | the item in front of the audience, or null for the desktop |
 | `behind` | the slide under `screen` when a file, site or app covers the deck, else null |
+| `next` | the slide after `screen` in its deck when `screen` is a slide, else null |
 | `offered` | 1-based candidate numbers the last `ask` offered (they are candidates 1..m), else `[]` |
 | `shown` | the item the last action put on screen, for the two utterances after it, else null |
 | `heard` | earlier finished utterances, oldest first (only the last two are used) |
@@ -23,7 +24,8 @@ Candidates: the offered items first, then catalog items by descending cosine sim
 `clean(s)` turns each run of spaces, tabs, CR and LF into one space and trims spaces. `head(s, n)` keeps `s` if `len(s) <= n`, else cuts at `n` characters, drops the last partial word (everything after the last space) and appends `…`. `tail(s, n)` keeps `s` if short, else takes the last `n` characters and drops everything up to and including the first space. Lengths are in UTF-16 code units in Kotlin and code points in Python; the golden cases are ASCII where they truncate.
 
 ```
-screen: {item without text, or "desktop"}[ over {behind item without text}]
+screen: {item, or "desktop"}[ over {behind item without text}]
+next: {item}                             only when next is set
 offered: {offered numbers joined by " ", or "none"}
 shown: {item without text, or "none"}
 heard: {tail(clean(h), 200)}            one line for each of the last two
@@ -54,7 +56,7 @@ Item text: slide `slide {page} of {pages} "{clean(title)}" in {clean(deck)}` the
 | `ask N M [K]` | offers those candidates to the presenter; they become `offered` for the next utterance |
 | `slide N`, `next`, `previous` | moves in the deck on screen or behind (or the last one shown); out of range does nothing |
 | `slides` | closes what covers the deck, or shows the last slide shown |
-| `open words` | opens an address (words with a dot) in the browser, or an app or bookmark of that name |
+| `open words` | opens an address (words with a dot) in the browser, or the app or bookmark whose name, lowercased with every character outside `a-z0-9 .-'` as a space and spaces collapsed, is `words` |
 | `search words` | web search for the words |
 | `click words` | clicks the link or button with that text on the page on screen |
 | `control X` | that control on the page or file on screen |
