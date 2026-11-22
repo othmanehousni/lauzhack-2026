@@ -57,19 +57,21 @@ class RecentsTest {
             }
 
             val page = recents.pages.single().target
-            assertEquals(Move.Ask(listOf(page)), say("the pricing page we saw", "show 5"))
+            assertEquals(Move.Ask(listOf(page)), say("the pricing page we saw", "show 2"))
             val candidates = prompts.last().lines().filter { it.first().isDigit() }
+            assertEquals(3, candidates.size, "a recent deck is one candidate, its first slide, until it is on screen")
             assertEquals("1 slide 1 of 4 \"Slide 1\" in roadmap: about pricing", candidates[0])
-            assertEquals("5 site Acme pricing (acme.com/pricing)", candidates[4], "an address without its query or fragment")
-            assertTrue(candidates[5].startsWith("6 file \"notes.txt\" in "), candidates[5])
+            assertEquals("2 site Acme pricing (acme.com/pricing)", candidates[1], "an address without its query or fragment")
+            assertTrue(candidates[2].startsWith("3 file \"notes.txt\" in "), candidates[2])
             assertEquals(page, screen.onScreen.target)
 
-            assertEquals(Move.Ask(listOf(Target.File(notes.path))), say("and my notes", "show 6"))
+            assertEquals(Move.Ask(listOf(Target.File(notes.path))), say("and my notes", "show 3"))
             assertEquals(Target.File(notes.path), screen.onScreen.target)
 
-            val third = recents.decks.single().pages[2]
-            assertEquals(Move.Ask(listOf(Target.Slide(third.deck, 3, third.title))), say("the roadmap's third slide", "show 3"))
-            assertEquals(Move.Show(Target.Slide("roadmap", 4, "Slide 4")), say("next slide", "next"), "a recent deck is a deck")
+            val first = recents.decks.single().pages[0]
+            assertEquals(Move.Ask(listOf(Target.Slide(first.deck, 1, first.title))), say("the roadmap deck", "show 1"))
+            assertEquals(Move.Show(Target.Slide("roadmap", 2, "Slide 2")), say("next slide", "next"), "a recent deck is a deck")
+            assertEquals(Move.Ask(listOf(Target.Slide("roadmap", 4, "Slide 4"))), say("its last slide", "show 4"), "on screen, all its slides are candidates")
         } finally {
             tmp.deleteRecursively()
         }

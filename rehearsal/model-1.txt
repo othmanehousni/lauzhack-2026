@@ -1,0 +1,60 @@
+# chatter that must not act
+Hi everyone, thanks for joining, can you all hear me okay? || keep
+Marc, did you get the garden shed sorted in the end? || keep
+# decks by name
+Okay, let's open up the company slides. || slide Company_Overview 1
+Next slide please. || slide Company_Overview 2
+Next. || slide Company_Overview 3
+Go back one. || slide Company_Overview 2
+Go to slide 7. || slide Company_Overview 7
+Jump to slide nine. || slide Company_Overview 9
+# by meaning, same deck
+So how big is this market really? || slide Company_Overview 5 announce
+Let me show you who we are up against. || slide Company_Overview 8 announce
+And what does it cost? || slide Company_Overview 6 announce
+# mentions that must not act
+I sent the PDF to Marc this morning. || keep
+We will come back to the financials later, not now. || keep
+I had planned to show you GitHub, maybe another time. || keep
+# other decks
+Now let's switch to the Q3 financials. || slide Q3_2026_Financials 1
+How much cash do we have left? || slide Q3_2026_Financials 5 announce
+What about churn? || slide Q3_2026_Financials 6 announce
+Let's look at the product roadmap. || slide Product_Roadmap 1
+Tell me about the cold storage robot. || slide Product_Roadmap 3 announce
+Which systems do we integrate with? || slide Product_Roadmap 5 announce
+# sites and controls
+Open GitHub. || site github.com
+Scroll down a bit. || site github.com
+Go back to the slides. || slide Product_Roadmap 5
+Let me pull up YouTube for a second. || site youtube.com
+Close that. || slide Product_Roadmap 5
+Can you open example.com for me? || site example.com
+Close that. || slide Product_Roadmap 5
+Search for warehouse robot grippers. || site google.com/search
+Close that. || slide Product_Roadmap 5
+# veto inside the window
+@1.2
+Here is the team behind all this. || announce
+@6
+No, not that one. || slide Product_Roadmap 5 stopped
+# veto after it is shown
+Show me the gross margin slide. || slide Q3_2026_Financials 3
+No, go back. || slide Product_Roadmap 5
+# mishearings
+Next slice please. || slide Product_Roadmap 6
+Go to slide for. || slide Product_Roadmap 4
+Open get hub. || site github.com
+Close that. || slide Product_Roadmap 4
+# a request at the end of a long sentence
+So as I was saying before we got interrupted the team spent most of the summer in the field talking to warehouse managers and what we kept hearing is that the hard part is everything around the robot so with that in mind let me show you the traction slide. || slide Company_Overview 7
+# out of range and unknown
+Go to slide 99. || keep
+Open the quarterly penguin migration report. || keep
+# correction in one breath
+Show the revenue slide, sorry, I mean the hiring plan. || slide Q3_2026_Financials 7
+# seen recently
+Can we pull up the deck about the mountain hut renovation? || slide Alpine 1 announce
+Next slide. || slide Alpine 2
+Open the ferry timetable I had up this morning. || file Ferry timetable announce
+Close that. || slide Alpine 2

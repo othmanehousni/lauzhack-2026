@@ -51,7 +51,7 @@ class ModelAgentTest {
     private val notes = Item.App("Notes", Target.App("Notes"))
     private val plan = Catalog.file("/u/Docs/Plan.pdf")
     private val photo = Catalog.file("/u/Pictures/House.jpg")
-    private val catalog = Catalog(listOf(slide(1), slide(2), slide(3), github, notes, photo, plan), List(7) { floatArrayOf(1f, 0f) })
+    private val catalog = Catalog(listOf(slide(1), slide(2), slide(3), github, notes, photo, plan), List(7) { floatArrayOf(1f, 0f) }, meeting = setOf("Talk"))
     private fun ask(c: Item) = Move.Ask(listOf(c.target))
 
     /** A model that answers from a script and records what it was asked. */
@@ -136,7 +136,7 @@ class ModelAgentTest {
         assertTrue("offered: none" in r.prompt)
 
         r.say("show that", "ask 4 6")
-        r.say("the second", "show 2")
+        assertEquals(Move.Show(photo.target), r.say("the second", "show 2").last(), "a pick from the offer is shown at once, not announced")
         r.say("good", "nothing")
         assertTrue("offered: none" in r.prompt, "an action clears the offer")
     }
