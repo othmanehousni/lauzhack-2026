@@ -58,6 +58,7 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
     rehearsal/run.sh rehearsal/model-1.txt .stage/rehearsal/hard 6
     python3 rehearsal/check.py .stage/rehearsal/hard
   Last score tonight: 33 of 45 (the old hand rules: 28 of 41 on the lines both can do).
+  A second set that nothing was tuned on (rehearsal/held-1.txt): 25 of 45.
   The lines it misses are listed in section 8.
 
 
@@ -92,7 +93,8 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
     tap Stop on the phone                                         tested on an emulator against the real app
     click Stop on the bar                                         tested in code only, nobody clicked it
   Ask again after a stop and it is announced again.
-  After it is shown, "no, go back" within a few seconds restores the previous screen.
+  After it is shown, "no, go back" within 20 seconds restores the previous screen (tested at 13 seconds).
+  When what you talk about is simply the next slide of the deck on screen, it moves on at once, like a click.
   Commands on what is already on screen (next, previous, slide 7, scroll, close) act at once.
   Menu bar mole, "Wait before showing": 2.5 s, 1.5 s, or none. Try all three and keep the one that feels right.
   NOT VERIFIED BY A PERSON: clicking the tray menu items (they are built and the app runs; nobody clicked).
@@ -140,6 +142,7 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
     --paced        with --typed: each line arrives word by word, like speech
     --audio DIR    hears audio files instead of the microphone
     --window MS    the wait before showing, for one run
+    --models DIR   another folder of models for one run (to try a new decider without replacing the installed one)
 
 
 7. A THREE-MINUTE RUN FOR THE JURY
@@ -164,8 +167,10 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
     "How much cash do we have left?"              nothing (wanted Cash and runway)
     "Can you open example.com for me?"            opened google.com
     "Open get hub." (a mishearing of GitHub)      announced a slide
-    "Go to slide 99."                             went to slide 9
+    "Go to slide 99."  "Go to slide 42."          went to slide 9 and slide 4 (a number beyond the deck is cut short)
     "Open the quarterly penguin migration report." (does not exist)   announced an unrelated slide; "no" stops it
+    12 requests for things that do not exist      7 did nothing, 5 announced an unrelated slide or app.
+                                                  Say "no", or it is shown when the wait runs out.
     Things seen recently                          not found tonight (Spotlight, see section 5)
   Training continues on Modal on exactly these; the model file can be swapped without a rebuild.
 

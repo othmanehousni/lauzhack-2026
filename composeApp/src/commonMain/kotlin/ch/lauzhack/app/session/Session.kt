@@ -51,7 +51,7 @@ interface SharedScreen {
 }
 
 internal val THINK = 1.seconds // an agent slower than this over new words shows the mole thinking
-internal val UNDO = 8.seconds  // how long "no, not that" takes back what just went up
+internal val UNDO = 20.seconds // how long "no, not that" takes back what just went up: room to notice, say so and be heard
 internal val ANNOUNCE = 2500.milliseconds // how long an announce can be stopped before it is shown, unless the presenter chose otherwise
 internal val STALL = 5.seconds // a screen call that has not answered by then has failed
 private const val EARLIER = 3  // utterances handed to the agent with each one

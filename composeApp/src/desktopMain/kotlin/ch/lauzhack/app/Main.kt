@@ -60,6 +60,7 @@ import kotlin.time.Duration.Companion.seconds
  *   --host        a Chrome window on this Mac as the shared screen instead of the VM
  *   --rules       the rules decide even when decider.litertlm is in the models folder
  *   --no-history  no browser history for this run, whatever the tray says
+ *   --models DIR  another folder of models for this run (to compare a decider without replacing the installed one)
  */
 fun main(args: Array<String>) {
     if ("--playground" in args || "--demo" in args) return application {
@@ -78,7 +79,7 @@ fun main(args: Array<String>) {
     // The tray's Quit, Cmd-Q and Ctrl-C all end here: the session, the ear and the phone server stop, and the helpers with them.
     Runtime.getRuntime().addShutdownHook(Thread { runBlocking { withTimeoutOrNull(3.seconds) { app.coroutineContext.job.cancelAndJoin() } } })
 
-    val engines = desktopEngines()
+    val engines = desktopEngines(args.after("--models"))
     val detector = MeetingDetector()
     val audio = audio(args)
     val typed = if ("--typed" in args) {
