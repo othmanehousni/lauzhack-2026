@@ -7,7 +7,7 @@
 # path, which the wait for other runs would find in this command line), LIBRARY another folder of decks.
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APP=${BUNDLE:-$ROOT/composeApp/build/compose/binaries/main/app}/Moliere.app/Contents/MacOS/Moliere
-LIB=${LIBRARY:-$ROOT/library}  # the three Acme decks of fixtures/make_decks.py
+LIB=${LIBRARY:-$ROOT/library}  # the three Acme decks of fixtures/make_decks.py, the documents of make_documents.py
 FIX="$HOME/Documents/Moliere rehearsal fixtures $$"  # this run's own: another run's end must not remove them
 SCEN=$1; OUT=$2; GAP=${3:-6}; shift 3 2>/dev/null
 [ -x "$APP" ] && [ -d "$LIB" ] || { echo "no app at $APP or no decks in $LIB"; exit 1; }
@@ -24,7 +24,7 @@ for i in $(seq 1 20); do  # Spotlight may lag: the lines seen recently then fail
     [ "$(mdfind -onlyin "$FIX" 'kMDItemNumberOfPages >= 3' | wc -l)" -ge 2 ] && break
   sleep 1
 done
-{ basename -a "$LIB"/*.pdf; echo "$NAMES"; } | sed 's/\.pdf$//' > "$OUT/public.txt"  # names check.py may print
+{ ls "$LIB"; echo "$NAMES"; } | sed 's/\.[^.]*$//' > "$OUT/public.txt"  # names check.py may print: decks, documents
 
 while pgrep -x Moliere >/dev/null; do sleep 5; done  # one may have started meanwhile
 FIFO=$(mktemp -u /tmp/moliere-typed.XXXXXX); mkfifo "$FIFO"
