@@ -169,3 +169,5 @@ if __name__ == '__main__':
     print(f"picks: {sum(r['sure'] for r in right)}/{len(right)} right ones at once, {sum(waits) / max(len(waits), 1) / 1000:.2f} s average wait before a right one; "
           f"{sum(r['announce'] and r['doubt'] >= 1 for r in wrong)}/{len(wrong)} wrong ones waited the longest ({WINDOW[0] / 1000:g} s), {sum(r['sure'] for r in wrong)} went up at once")
     print(f"{checked - bad}/{checked} as expected, {bad} failed, {len(rows)} lines")
+    if open(os.path.join(sys.argv[1], 'out.txt'), errors='ignore').read().rstrip().splitlines()[-1:] != ['done']:
+        print("INCOMPLETE: the run stopped before its last line, so lines it never reached are not in the score")
