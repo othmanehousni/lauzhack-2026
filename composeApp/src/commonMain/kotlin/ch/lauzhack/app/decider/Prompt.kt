@@ -16,6 +16,7 @@ sealed interface Item {
 data class State(
     val screen: Item? = null,
     val behind: Item.Slide? = null,
+    val next: Item.Slide? = null,
     val offered: List<Int> = emptyList(),
     val shown: Item? = null,
     val heard: List<String> = emptyList(),
@@ -60,7 +61,8 @@ internal fun line(c: Item, text: Boolean = true): String = when (c) {
 }
 
 fun prompt(s: State): String = buildList {
-    add("screen: " + (s.screen?.let { line(it, false) } ?: "desktop") + (s.behind?.let { " over ${line(it, false)}" } ?: ""))
+    add("screen: " + (s.screen?.let { line(it) } ?: "desktop") + (s.behind?.let { " over ${line(it, false)}" } ?: ""))
+    s.next?.let { add("next: ${line(it)}") }
     add("offered: " + s.offered.joinToString(" ").ifEmpty { "none" })
     add("shown: " + (s.shown?.let { line(it, false) } ?: "none"))
     for (h in s.heard.takeLast(2)) add("heard: ${tail(clean(h), HEARD)}")

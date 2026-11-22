@@ -86,7 +86,7 @@ class ModelAgentTest {
         val r = Run(slide(1).target, apply = false)
         assertEquals(listOf(Move.Nothing, ask(github), Move.Nothing), r.say("can you open github please", "show 4", "show 4", "show 4"))
         assertEquals(listOf(null, null), r.asked.take(2).map { it.second }, "partials are unconstrained")
-        assertEquals(grammar(State(screen = slide(1), candidates = catalog.items.take(6))), r.asked.last().second, "done is constrained")
+        assertEquals(grammar(State(screen = slide(1), candidates = catalog.items)), r.asked.last().second, "done is constrained")
     }
 
     @Test

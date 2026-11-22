@@ -1,6 +1,6 @@
 """The decider's prompt and answer grammar, as the Kotlin app builds them (spec: tune/CONTRACT.md, cases: tune/golden.jsonl).
 
-A state is a dict: screen, behind, offered, shown, heard, now, done, candidates (see CONTRACT.md)."""
+A state is a dict: screen, behind, next, offered, shown, heard, now, done, candidates (see CONTRACT.md)."""
 import re
 
 CONTROLS = ["scroll down", "scroll up", "scroll to the top", "scroll to the bottom", "zoom in", "zoom out", "reset the zoom",
@@ -34,11 +34,16 @@ def item(c: dict, text: bool = True) -> str:
     raise ValueError(c)
 
 
+def spoken(name: str) -> str:
+    """A name as an `open` answer can say it."""
+    return " ".join(re.sub(r"[^a-z0-9 .\-']", " ", name.lower()).split())
+
+
 def prompt(p: dict) -> str:
-    screen = item(p["screen"], text=False) if p["screen"] else "desktop"
+    screen = item(p["screen"]) if p["screen"] else "desktop"
     if p.get("behind"):
         screen += f" over {item(p['behind'], text=False)}"
-    lines = [f"screen: {screen}",
+    lines = [f"screen: {screen}", *([f"next: {item(p['next'])}"] if p.get("next") else []),
              f"offered: {' '.join(map(str, p['offered'])) or 'none'}",
              f"shown: {item(p['shown'], text=False) if p.get('shown') else 'none'}",
              *[f"heard: {tail(clean(h), HEARD)}" for h in p["heard"][-2:]],

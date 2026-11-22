@@ -103,8 +103,9 @@ class ModelAgent(
         if (heard.text.isBlank()) return Move.Nothing.also { u.over = heard.ended }
         val words = heard.text.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
         if (!heard.ended && words < u.words + (if (coming != null) 1 else 2)) return Move.Nothing
-        val score = cat.scores(embedder, heard.text, heard.earlier.lastOrNull())
-        val s = u.start.copy(heard = heard.earlier, now = heard.text, done = heard.ended, candidates = cat.candidates(score, u.offered, (u.deck ?: u.last)?.target?.deck))
+        val open = (u.deck ?: u.last)?.target?.deck
+        val score = cat.scores(embedder, heard.text, heard.earlier.lastOrNull(), open)
+        val s = u.start.copy(heard = heard.earlier, now = heard.text, done = heard.ended, candidates = cat.candidates(score, u.offered, open))
         note("candidates  \"${heard.text}\"${if (heard.ended) "" else " (still talking)"}  " +
             s.candidates.mapIndexed { i, c -> "${i + 1} ${cat.label(c, score)}" }.joinToString(" | "))
         if (heard.ended) cat.pool(score).forEach(note)
@@ -169,11 +170,13 @@ class ModelAgent(
      * what is on screen), with what was offered and shown before it. */
     private fun begin(n: Int, cat: Catalog) {
         val offered = if (n - offerAt in 1..3) offer else emptyList()
-        val next = coming?.first?.let(cat::itemOf)
-        val over = next != null && next !is Item.Slide && !onStage(next)
+        val landing = coming?.first?.let(cat::itemOf)
+        val over = landing != null && landing !is Item.Slide && !onStage(landing)
+        val screen = landing ?: front ?: stage
         val start = State(
-            screen = next ?: front ?: stage,
-            behind = if (over || next == null && front != null) stage as? Item.Slide else null,
+            screen = screen,
+            behind = if (over || landing == null && front != null) stage as? Item.Slide else null,
+            next = (screen as? Item.Slide)?.let { cat.slide(it.target.deck, it.page + 1) },
             offered = List(offered.size) { it + 1 },
             shown = shown?.takeIf { n - shownAt in 1..2 },
         )
