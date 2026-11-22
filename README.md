@@ -29,22 +29,48 @@ Both models run in the app's process through LiteRT-LM. The model alone decides 
 
 You need:
 
-- A Mac with macOS 26 and Xcode's command line tools (`xcode-select --install`). The ear needs both.
-- [mise](https://mise.jdx.dev/) for the JDK and the Android SDK, and [uv](https://docs.astral.sh/uv/) to draw the sample decks.
-- For the shared screen, `agent-desktop` (`npm install -g agent-desktop`) and its VM, set up once as the next section describes. Without them, `--host` uses a Chrome window on your Mac as the shared screen, and Google Chrome must be installed.
+- A Mac with macOS 26 or newer and [mise](https://mise.jdx.dev/) 2026.11.8 or newer.
+- Xcode Command Line Tools with a macOS 26+ SDK. Setup opens Apple's installer if the tools are missing. Finish that installer and rerun `mise install`; an outdated SDK must be updated through Apple's Software Update.
+- For the optional VM, a macOS restore image and the guest setup described below. The app falls back to a Chrome window on your Mac when no VM is configured.
 
-### Build the app
+### Install and run
 
-Build the app and draw the three sample decks into `library/`:
+From the repository root:
 
 ```sh
 mise trust
 mise install
-mise exec -- ./gradlew :composeApp:createDistributable
-uv run --no-project --with reportlab python fixtures/make_decks.py library
 ```
 
-`mise install` installs Temurin JDK 21 and the Android SDK command line tools 23.0. Its `postinstall` hook then installs Android SDK Platform 36, Build Tools 36.0.0 and the platform tools. Accept the SDK licenses when it asks. The Gradle wrapper downloads Gradle, Kotlin, Compose and the other dependencies on first use. The app is `composeApp/build/compose/binaries/main/app/Moliere.app`.
+`mise.toml` declares Temurin JDK 21, Android SDK command-line tools 23.0, Node.js 24, Python 3.12, uv, and `agent-desktop`. The `agent-desktop` installation enables its own native-binary installer. The postinstall hook installs missing Android SDK Platform 36, Build Tools 36.0.0 and platform tools, installs Google Chrome through mise's built-in cask manager, and generates the three sample decks in `library/`. Accept Android licenses and any native installer prompts when asked. An existing Chrome installation is kept. Homebrew is not required.
+
+Run the desktop app:
+
+```sh
+mise run desktop
+```
+
+This builds `Moliere.app`, including its native runtime and macOS permission declarations, and runs it in the terminal with `library/` as the decks folder. Press Ctrl+C or choose **Quit Molière** in the menu bar to stop. Extra arguments reach the app, for example `mise run desktop --host` to always use Chrome on this Mac.
+
+Run the Android companion on a connected, authorized phone or a booted emulator:
+
+```sh
+mise run android
+```
+
+This checks the device connection, builds, installs, and opens the app. Keep one device connected, or select it with `ANDROID_SERIAL`. The Android SDK task skips installation when all required packages are present.
+
+Other commands:
+
+| Command | What it does |
+| --- | --- |
+| `mise run desktop:demo` | Scripted floater demo, without microphone, models, or a VM. |
+| `mise run desktop:typed` | Type commands instead of speaking, using Chrome on this Mac. |
+| `mise run desktop:build` | Build `composeApp/build/compose/binaries/main/app/Moliere.app`. |
+| `mise run build` | Build the Mac app and Android debug APK. |
+| `mise run fixtures` | Generate missing or outdated sample decks. |
+
+The Gradle wrapper downloads Gradle, Kotlin, Compose, LiteRT-LM, and other application dependencies on first use. Android Studio and a separate Gradle installation are optional.
 
 On its first start, Molière downloads EmbeddingGemma 2 to `~/Library/Application Support/Moliere/models/`. It does not download the decider. Put `decider.litertlm` in the same folder. It comes from the fine tune in `tune/`, which "How it is tested" describes. Without it, the hand written rules decide.
 
@@ -53,13 +79,13 @@ On its first start, Molière downloads EmbeddingGemma 2 to `~/Library/Applicatio
 To see the bar without models or a VM, play the scripted story:
 
 ```sh
-composeApp/build/compose/binaries/main/app/Moliere.app/Contents/MacOS/Moliere --demo
+mise run desktop:demo
 ```
 
-To check the whole chain except the microphone, type the lines instead of saying them. Add `--host` if you have no VM.
+To check the whole chain except the microphone, type the lines instead of saying them. This task uses Chrome on your Mac. To use a configured VM instead, run `mise run desktop --typed --no-history`.
 
 ```sh
-composeApp/build/compose/binaries/main/app/Moliere.app/Contents/MacOS/Moliere --typed --library "$PWD/library" --no-history
+mise run desktop:typed
 ```
 
 Wait for "Hi. I'm listening.", then type each line and press Return:
@@ -77,10 +103,10 @@ The first line does nothing. The next three act at once. The bar announces the l
 ### Present with your voice
 
 ```sh
-open composeApp/build/compose/binaries/main/app/Moliere.app
+mise run desktop
 ```
 
-Molière has no Dock icon. Its mole is in the menu bar. It reads PDF decks from `~/Documents/Moliere`, or from the folder you pick with **Choose decks folder…**. Choose **Start a meeting**, allow each permission macOS asks for, and share the "Molière screen" window in your call.
+Molière has no Dock icon. Its mole is in the menu bar. The mise launcher uses the sample decks in `library/`; choose **Choose decks folder…** to use your own. Opening the built app directly defaults to `~/Documents/Moliere`. Choose **Start a meeting**, allow each permission macOS asks for, and share the "Molière screen" window in your call.
 
 ### Add the phone
 
@@ -92,11 +118,11 @@ To install the phone app on a connected Android phone, run `mise run android`. F
 
 The shared screen is a macOS VM that `agent-desktop` runs. Set it up once:
 
-1. Run `agent-desktop sandbox install macos`.
+1. Run `mise run vm:setup`. The VM provider is optional and is not installed by the postinstall hook.
 2. Get a macOS 26.x image. Apple's catalog now offers only macOS 27.x, which a macOS 26.4 host cannot run. The 26.4 image is at `https://updates.cdn-apple.com/2026WinterFCS/fullrestores/122-00766/062A6121-2ABE-45D7-BCB1-72B666B6D2C2/UniversalMac_26.4_25E246_Restore.ipsw`. It is 19.7 GB, and `shasum` prints `177baf85518c6e9cebf83990e11e59259b5c97dd` for it.
-3. Run `agent-desktop sandbox create base --provider macos --set ipsw=<path to the .ipsw>`. Repeat `agent-desktop sandbox status base` until it stops answering `working`. The install writes about 21 GB. Delete the image afterwards.
+3. Run `mise run vm:create /absolute/path/to/restore.ipsw`. Repeat `mise exec -- agent-desktop sandbox status base` until it stops answering `working`. The install writes about 21 GB. Delete the image afterwards.
 4. Optional, to save RAM: in `~/.agent-desktop/sandboxes/base/vm/config.json`, lower `memorySize` from 8 GB (8589934592) to 4 GB (4294967296).
-5. Run `agent-desktop sandbox start base --window --set title="Molière screen"`.
+5. Run `mise run vm:start`.
 6. In the guest, finish Setup Assistant. Give the account the same short name as your Mac account (`cat ~/.agent-desktop/sandboxes/base/guest_user`). Turn on automatic login in System Settings > Users & Groups.
 7. In the guest, open Terminal and run `sh "/Volumes/My Shared Files/guest-setup.sh"`.
 8. In the guest, turn on Remote Login in System Settings > General > Sharing.
