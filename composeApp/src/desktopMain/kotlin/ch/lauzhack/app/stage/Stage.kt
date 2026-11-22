@@ -193,16 +193,29 @@ class Stage(private val vm: Vm?, data: File, private val port: Int, private val 
             shell(listOf("open", "-a", "Google Chrome"))
             covered = false
         }
-        if (tab == front && sockets[tab]?.closeReason?.isCompleted != true) return  // a closed socket: the tab may be gone
-        val r = http("/json/activate/$tab")
-        if (r.status == HttpStatusCode.NotFound) {  // closed behind the app's back, by hand or by the screen agent
-            tabs.values.removeAll { it == tab }
-            sockets.remove(tab)
-            if (tab == home) up() else bring(home)
-        } else {
+        if (tab != front || sockets[tab]?.closeReason?.isCompleted == true) {  // a closed socket: the tab may be gone
+            val r = http("/json/activate/$tab")
+            if (r.status == HttpStatusCode.NotFound) {  // closed behind the app's back, by hand or by the screen agent
+                tabs.values.removeAll { it == tab }
+                sockets.remove(tab)
+                return if (tab == home) up() else bring(home)
+            }
             check(r.status.isSuccess()) { "activate $tab: ${r.status}" }
             front = tab
         }
+        if (vm != null) uncover(tab)
+    }
+
+    /** A key pressed in the VM's window can minimize its Chrome or take it out of full screen. Every call still succeeds
+     * then, on a page nobody sees, so each show looks first and puts the window back. */
+    private suspend fun uncover(tab: String) {
+        val window = call(tab, "Browser.getWindowForTarget")
+        val full = window.getValue("bounds").str("windowState") == "fullscreen"
+        if (full && evaluate(tab, "document.visibilityState")?.jsonPrimitive?.content == "visible") return
+        shell(listOf("open", "-a", "Google Chrome"))
+        if (!full) for (state in listOf("normal", "fullscreen")) call(tab, "Browser.setWindowBounds", buildJsonObject {
+            put("windowId", window.getValue("windowId")); put("bounds", buildJsonObject { put("windowState", state) })
+        })
     }
 
     // -- what the presenter asks for ---------------------------------------------------------------------------------
