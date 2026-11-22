@@ -13,7 +13,7 @@ from prompt import grammar, prompt, spoken
 
 ROOT = Path(__file__).resolve().parent.parent
 SPACE = "▁"  # LiteRT-LM's LLGuidance sees SentencePiece's space mark, not a space: a constraint must spell spaces with it
-K = 6  # candidates per decision
+K, DECK_BONUS = 8, 0.04  # candidates per decision; cosine added to slides of the deck on screen (tune/retrieval.py, dev scripts)
 PREVIEW = {"show", "slide", "next", "previous", "slides", "control", "close"}  # answers a partial sentence may act on
 
 
@@ -78,7 +78,17 @@ class Catalog:
             self.docs[name] = f"title: {name} | text: app"
         self.on_stage = literal(ROOT / "stage.py", "ON_STAGE")
         self.ids = list(self.docs)
-        self.vecs = self.embed(list(self.docs.values()))
+        texts, self.owner = list(self.docs.values()), list(range(len(self.ids)))
+        for j, i in enumerate(self.ids):  # each item also by its name alone, a deck by its name, an app or site as one
+            it, name = self.items[i], self.items[i].get("title") or self.items[i]["name"]
+            alts = {"slide": [f"title: {name} | text: none"] + ([f"title: {it['deck']} | text: presentation slides"] if it.get("page") == 1 else []),
+                    "file": [f"title: {name} | text: none"], "site": [f"title: {name} | text: {name} website, {it.get('url')}"],
+                    "app": [f"title: {name} | text: {name} app"]}[it["kind"]]
+            texts += alts
+            self.owner += [j] * len(alts)
+        self.vecs = self.embed(texts)
+        self.owner = np.array(self.owner)
+        self.decks = np.array([self.items[i].get("deck", "") if self.items[i]["kind"] == "slide" else "" for i in self.ids])
 
     def embed(self, texts: list[str]) -> np.ndarray:
         return np.concatenate([np.array([r.embedding for r in self.embedder.compute_embedding_batch(texts[i:i + 32])]) for i in range(0, len(texts), 32)])
@@ -87,10 +97,14 @@ class Catalog:
         kind = self.items[i]["kind"]
         return {"slide": "slide", "file": "file", "site": "url", "app": "app"}[kind], i
 
-    def retrieve(self, now: str, heard: list[str], pinned: list[str]) -> list[str]:
-        q = self.embed([f"task: search result | query: {now}"] + ([f"task: search result | query: {heard[-1]} {now}"] if heard else []))
+    def retrieve(self, now: str, heard: list[str], pinned: list[str], deck: str | None) -> list[str]:
+        qs = [now] + ([f"{heard[-1]} {now}"] if heard else []) + [" ".join(now.split()[-6:])]
+        q = self.embed([f"task: search result | query: {x}" for x in qs])
+        s = np.full(len(self.ids), -1.0)
+        np.maximum.at(s, self.owner, (self.vecs @ q.T).max(1))
+        s += DECK_BONUS * (self.decks == deck)
         out = list(pinned)
-        for j in np.argsort(-(self.vecs @ q.T).max(1)):
+        for j in np.argsort(-s):
             if len(out) >= K:
                 break
             if self.ids[j] not in out:
@@ -120,8 +134,8 @@ class View:
             return View(a, None, self.last)
         if kind == "close":
             return View(self.stage, None, self.last) if self.front else View(None, None, self.last)
-        if kind == "control" or a[1].startswith(("unsure", "click ")):
-            return self
+        if kind == "control" or a[1].startswith(("unsure", "click ")) or a[1].startswith("search ") and self.front and self.front[0] == "url":
+            return self  # a search on a site on screen runs in that site
         return View(self.stage, a, self.last)
 
 
@@ -176,8 +190,9 @@ class Replay:
         return None
 
     def state(self, start: View, now: str, done: bool) -> tuple[dict, list[str]]:
-        cands = self.cat.retrieve(now, self.heard, self.offered)
         on = start.onair
+        deck = self.cat.items[start.last[1]]["deck"] if start.last else None
+        cands = self.cat.retrieve(now, self.heard, self.offered, deck)
         after = f"{on[1].rsplit(' p', 1)[0]} p{int(on[1].rsplit(' p', 1)[1]) + 1}" if on and on[0] == "slide" else None
         st = {"screen": self.item(on), "behind": self.item(start.last) if on is not None and on[0] != "slide" and start.last else None,
               "next": self.cat.items.get(after),
@@ -266,7 +281,7 @@ class Replay:
         navigable = any(t in ids and ids[t]["kind"] == "slide" and start.last and t.rsplit(" p", 1)[0] == start.last[1].rsplit(" p", 1)[0] for t in targets)
         return {"said": said, "want": want, "verdict": verdict, "should": should, "answer": answer, "taken": strs, "asked": asked,
                 "false_action": not should and (bool(taken) or answer.startswith(("ask ", "unsure"))), "needs_retrieval": should and bool(targets),
-                "retrieved": found, "navigable": navigable, "cause": None if verdict == "ok" else
+                "retrieved": found, "navigable": navigable, "candidates": cands, "cause": None if verdict == "ok" else
                 "decision" if not (should and targets) or found else "retrieval or deck move" if navigable else "retrieval", "trace": trace, **stats}
 
     @staticmethod

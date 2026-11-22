@@ -61,7 +61,7 @@ def text_of(m) -> str:
     return c if isinstance(c, str) else "".join(x.get("text", "") for x in c)
 
 
-def finetune(base: str, pairs: list[tuple[str, str]], out: str, steps: int, batch: int, lr: float, device: str, seed: int = 0) -> None:
+def finetune(base: str, pairs: list[tuple[str, str]], out: str, steps: float, batch: int, lr: float, device: str, seed: int = 0, epochs: bool = False) -> None:
     """Full fine-tune on the answer tokens only; logits are computed for those positions alone (the vocabulary is 262k)."""
     import random
     import shutil
@@ -75,16 +75,28 @@ def finetune(base: str, pairs: list[tuple[str, str]], out: str, steps: int, batc
     model.train()
     cap = model.config.get_text_config().final_logit_softcapping
     data = [(tok(chat(p), add_special_tokens=False).input_ids, tok(a + "<end_of_turn>", add_special_tokens=False).input_ids) for p, a in pairs]
+    rng, t0 = random.Random(seed), time.time()
+
+    def epoch() -> list[list[int]]:  # random batches of similar length, so little of each is padding: up to 1.5 batch rows and 12k tokens
+        order, out = rng.sample(range(len(data)), len(data)), []
+        for i in range(0, len(order), batch * 64):
+            pool = sorted(order[i:i + batch * 64], key=lambda j: len(data[j][0]) + len(data[j][1]))
+            while pool:
+                k = 1
+                while k < min(len(pool), batch * 3 // 2) and (k + 1) * (len(data[pool[k]][0]) + len(data[pool[k]][1])) <= 12000:
+                    k += 1
+                out.append(pool[:k])
+                pool = pool[k:]
+        rng.shuffle(out)
+        return out
+
+    batches = epoch()
+    steps = round(steps * len(batches)) if epochs else int(steps)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0, betas=(0.9, 0.98))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda t: min(1.0, (t + 1) / max(1, steps // 20)) * max(0.0, 1 - t / steps))
-    rng, batches, t0 = random.Random(seed), [], time.time()
     for step in range(steps):
-        if not batches:  # an epoch in random batches of similar length, so little of each batch is padding
-            order = rng.sample(range(len(data)), len(data))
-            for i in range(0, len(order), batch * 64):
-                pool = sorted(order[i:i + batch * 64], key=lambda j: len(data[j][0]))
-                batches += [pool[k:k + batch] for k in range(0, len(pool), batch)]
-            rng.shuffle(batches)
+        if not batches:
+            batches = epoch()
         rows = [data[i] for i in batches.pop()]
         width = max(len(p) + len(a) for p, a in rows)
         ids = torch.zeros(len(rows), width, dtype=torch.long)
@@ -157,7 +169,7 @@ def train(name: str, seed: int = 0, n: int = 60000, epochs: float = 2.0, lr: flo
     out = f"/vol/{name}"
     shutil.copytree("/root/tune/data", f"{out}/data", dirs_exist_ok=True)
     start = "/vol/base" if base == BASE else snapshot_download(base, local_dir=f"/vol/base-{base.split('/')[-1]}")
-    finetune(start, [(prompt(e["state"]), e["answer"]) for e in rows["train"]], f"{out}/ckpt", int(epochs * n / batch), batch, lr, "cuda", seed)
+    finetune(start, [(prompt(e["state"]), e["answer"]) for e in rows["train"]], f"{out}/ckpt", epochs, batch, lr, "cuda", seed, epochs=True)
     vol.commit()
     tok = AutoTokenizer.from_pretrained(f"{out}/ckpt", padding_side="left")
     model = AutoModelForCausalLM.from_pretrained(f"{out}/ckpt", dtype=torch.bfloat16).cuda().eval()
@@ -425,3 +437,40 @@ def evaluate(name: str, scripts: str = "", dev: int = 3000, convert_first: bool 
     tag = name + ("" if prefix == "decider" else "_" + prefix) + ("" if constrained else "_free")
     Path(f"/tmp/score_{tag}.json").write_text(json.dumps(out))
     print(f"wrote /tmp/score_{tag}.json")
+
+
+@app.function(image=rt, cpu=4, memory=8192, timeout=3600, volumes={"/vol": vol})
+def embed_eval() -> bytes:
+    """Catalog and query vectors for every eval line (whole, after the line before, its last six words), for tuning retrieval with numpy."""
+    import io
+
+    import numpy as np
+    from huggingface_hub import hf_hub_download
+    sys.path.insert(0, "/root/tune")
+    import score
+    cat = score.Catalog(hf_hub_download(*EMBEDDER, local_dir="/vol/embedder"))
+    keys, texts = [], []
+    for p in sorted(Path("/root/eval").glob("*.jsonl")):
+        says = [json.loads(l)["say"] for l in p.read_text().splitlines() if l.strip()]
+        for i, say in enumerate(says):
+            for kind, q in (("now", say), ("both", f"{says[i - 1]} {say}" if i else say), ("tail", " ".join(say.split()[-6:]))):
+                keys.append(f"{p.name}|{i}|{kind}")
+                texts.append(f"task: search result | query: {q}")
+    variants, owners = [], []
+    for i, it in cat.items.items():
+        name = it.get("title") or it["name"]
+        alts = {"slide": [f"title: {name} | text: none"] + ([f"title: {it['deck']} | text: presentation slides"] if it.get("page") == 1 else []),
+                "file": [f"title: {name} | text: none"], "site": [f"title: {name} | text: {name} website, {it.get('url')}"],
+                "app": [f"title: {name} | text: {name} app"]}[it["kind"]]
+        variants += alts
+        owners += [f"{i}|alt"] * len(alts)
+    buf = io.BytesIO()
+    np.savez_compressed(buf, ids=np.array(cat.ids), docs=cat.vecs, keys=np.array(keys), queries=cat.embed(texts),
+                        alt_owner=np.array(owners), alt_docs=cat.embed(variants))
+    return buf.getvalue()
+
+
+@app.local_entrypoint()
+def vectors(out: str = "/tmp/eval_vectors.npz"):
+    Path(out).write_bytes(embed_eval.remote())
+    print("wrote", out)
