@@ -2,7 +2,7 @@
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:windowBackground">#272421</item>
-        <item name="android:windowSplashScreenBackground">#272421</item>
+        <item name="android:windowBackground">#222222</item>
+        <item name="android:windowSplashScreenBackground">#222222</item>
     </style>
 </resources>

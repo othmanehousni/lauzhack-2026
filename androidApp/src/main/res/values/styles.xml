@@ -3,7 +3,7 @@
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:windowBackground">#F2EDE4</item>
-        <item name="android:windowSplashScreenBackground">#F2EDE4</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:windowSplashScreenBackground">#FFFFFF</item>
     </style>
 </resources>
