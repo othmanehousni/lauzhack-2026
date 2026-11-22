@@ -16,13 +16,16 @@ import ch.lauzhack.app.meeting.MeetingDetector
 import ch.lauzhack.app.mole.Demo
 import ch.lauzhack.app.mole.Home
 import ch.lauzhack.app.mole.HomeWindow
+import ch.lauzhack.app.mole.Mode
 import ch.lauzhack.app.mole.MoleTheme
 import ch.lauzhack.app.mole.Playground
 import ch.lauzhack.app.mole.SYSTEM
 import ch.lauzhack.app.mole.Settings
 import ch.lauzhack.app.session.Laptop
 import ch.lauzhack.app.session.ANNOUNCE
+import ch.lauzhack.app.session.Mime
 import ch.lauzhack.app.session.hasDecks
+import ch.lauzhack.app.session.lipreading
 import ch.lauzhack.app.session.replayed
 import ch.lauzhack.app.stage.HOME
 import ch.lauzhack.app.stage.typed
@@ -35,6 +38,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -53,7 +57,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Molière. With no flag, the real thing: asleep until a call, then listening and driving the shared screen.
+ * Molière. With no flag, the real thing: asleep until a call, then listening and driving the shared screen; or in Mime
+ * mode, chosen in the window or the tray, reading your lips at the camera with lipreading/, which says them aloud.
  *   --playground  every state of the mole, one click away
  *   --demo        the scripted story on the floater
  *   --typed       lines from standard input instead of the microphone, one line one utterance; starts a meeting,
@@ -67,6 +72,7 @@ import kotlin.time.Duration.Companion.seconds
  *   --host        a Chrome window on this Mac as the shared screen instead of the VM
  *   --no-history  no browser history for this run, whatever the tray says
  *   --models DIR  another folder of models for this run (to compare a decider without replacing the installed one)
+ *   --lipreading DIR  the teammates' lip reader for Mime mode, remembered for the next runs
  *   --replay      what an ear heard, as hear.swift's lines on standard input, decided as in a call on a screen that only
  *                 follows the moves: no VM, Chrome, phone, window, log file, nor this Mac's files and pages (rehearsal/replay.py)
  */
@@ -109,11 +115,13 @@ fun main(args: Array<String>) {
     }
     val history = MutableStateFlow("--no-history" !in args && prefs.getBoolean("history", true))
     val window = MutableStateFlow((args.after("--window")?.toLong() ?: prefs.getLong("window", ANNOUNCE.inWholeMilliseconds)).milliseconds)
+    // A scripted run presents. Miming, the laptop sleeps through a call: no ear, no decider, no shared screen.
+    val mode = MutableStateFlow(if (typed != null || audio.isNotEmpty()) Mode.Present else runCatching { Mode.valueOf(prefs.get("mode", "")) }.getOrDefault(Mode.Present))
     val laptop = Laptop(
         app,
         ModelBrain(engines),
         library,
-        detector.meeting.map { it?.title }.stateIn(app, SharingStarted.Eagerly, null),
+        combine(detector.meeting, mode) { m, now -> m?.title?.takeIf { now == Mode.Present } }.stateIn(app, SharingStarted.Eagerly, null),
         engines.download().filter { it.bytes < it.total }.map { it.file to it.bytes.toFloat() / it.total },
         history,
         sandbox = if ("--host" in args) null else "base",
@@ -130,24 +138,33 @@ fun main(args: Array<String>) {
     if (replay) runBlocking { awaitCancellation() }
     val language = Lang.entries.firstOrNull { it.name == prefs.get("language", "") } // null follows the system
     if (typed == null && audio.isEmpty()) lang = language ?: SYSTEM // a scripted run reads English, as its scorers do
+    val mime = Mime(app, lipreading(args.after("--lipreading"), prefs), mode)
+    val line = combine(mode, laptop.line, mime.line) { now, presenting, miming -> if (now == Mode.Mime) miming else presenting }
+        .stateIn(app, SharingStarted.Eagerly, laptop.line.value)
 
     application {
-        val settings = remember { Settings(prefs, library, history, window, WAITS, mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System)), mutableStateOf(language)) }
+        val settings = remember { Settings(prefs, library, history, window, WAITS, mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System)), mutableStateOf(language), mode) }
         var theme by settings.theme
         // Opens with the app but not for a scripted run, which may run while someone works on this Mac.
         var home by remember { mutableIntStateOf(if (typed == null && audio.isEmpty()) 1 else 0) }
         if (home > 0) HomeWindow(home, { home = 0 }, theme) { demo ->
             Home(detector.meeting, { detector.start("Meeting") }, detector::stop, laptop.line, laptop::onPick, demo.lines, demo::pick,
-                laptop.onScreen, laptop.phone, settings, ::chooseFolder)
+                laptop.onScreen, laptop.phone, settings, ::chooseFolder, mime)
         }
         val meeting by detector.meeting.collectAsState()
         val lib by library.collectAsState()
         val browsing by history.collectAsState()
         val wait by window.collectAsState()
+        val now by mode.collectAsState()
+        val mimed by mime.line.collectAsState()
         val empty by produceState(false, lib) { while (true) { value = !hasDecks(lib); delay(3.seconds) } }
-        MoleFloater(laptop.line, laptop::onPick, ::exitApplication, theme) {
+        MoleFloater(line, laptop::onPick, ::exitApplication, theme, now) {
             Item(ui.openApp, onClick = { home++ })
-            if (meeting == null) Item(ui.startMeeting, onClick = { detector.start("Meeting") })
+            for (m in Mode.entries) CheckboxItem(ui.mode(m), checked = m == now, onCheckedChange = { settings.mode(m) }) // a tray menu has no radio items
+            Separator()
+            if (now == Mode.Mime) {
+                if (mimed.state == MoleState.Hidden) Item(ui.startMiming, onClick = mime::start) else Item(ui.stopMiming, onClick = mime::stop)
+            } else if (meeting == null) Item(ui.startMeeting, onClick = { detector.start("Meeting") })
             else Item(ui.endMeeting, onClick = detector::stop)
             Separator()
             if (empty) Item(ui.noPdfIn(lib.name), enabled = false, onClick = {})
@@ -191,7 +208,7 @@ fun main(args: Array<String>) {
 }
 
 private val SWITCHES = setOf("--playground", "--demo", "--typed", "--paced", "--host", "--no-history", "--replay")
-private val VALUED = setOf("--window", "--library", "--models")
+private val VALUED = setOf("--window", "--library", "--models", "--lipreading")
 
 /** Stops on a flag without its value or a --window that is not milliseconds; warns of a flag it does not know, which
  * may be a typo of one it does (--no-histroy would read the history). */

@@ -34,6 +34,7 @@ import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -66,6 +67,7 @@ import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Lang
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.meeting.Meeting
+import ch.lauzhack.app.session.Mime
 import ch.lauzhack.app.stage.HOME
 import ch.lauzhack.app.lang
 import ch.lauzhack.app.ui
@@ -107,6 +109,7 @@ internal fun Overview(
     choose: (File) -> File?,
     scroll: ScrollState,
     toSay: Boolean,
+    mime: Mime,
     onLanguage: () -> Unit,
 ) {
     val c = LocalMoleColors.current
@@ -115,6 +118,16 @@ internal fun Overview(
     val now by line.collectAsState()
     val seen by onScreen.collectAsState()
     val phoned by phone.collectAsState()
+    val mode by settings.mode.collectAsState()
+    val miming = mode == Mode.Mime
+    val mimed by mime.line.collectAsState()
+    val reading = mimed.state != MoleState.Hidden
+    val ready by produceState(mime.ready()) {
+        while (true) {
+            value = mime.ready()
+            delay(3.seconds)
+        }
+    }
     val heard = remember(call) { mutableStateListOf<Heard>() }
     LaunchedEffect(now) {
         if (call == null || now.heard.isEmpty()) return@LaunchedEffect
@@ -122,8 +135,13 @@ internal fun Overview(
         if (heard.firstOrNull()?.words == now.heard) heard[0] = Heard(heard[0].at, now.heard, did.ifEmpty { heard[0].did })
         else heard.add(0, Heard(LocalTime.now().format(CLOCK), now.heard, did))
     }
-    val live = call != null || now.state != MoleState.Hidden
-    val bar = if (!live) sample.collectAsState().value else if (now.state == MoleState.Hidden) MoleLine(MoleState.Idle) else now
+    val live = if (miming) reading else call != null || now.state != MoleState.Hidden
+    val bar = when {
+        miming -> if (reading) mimed else MoleLine(MoleState.Idle, ui.mouthWords)
+        !live -> sample.collectAsState().value
+        now.state == MoleState.Hidden -> MoleLine(MoleState.Idle)
+        else -> now
+    }
     var content by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var say by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val glide = css<Float>(200)
@@ -141,12 +159,28 @@ internal fun Overview(
                 Spacer(Modifier.height(28.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Column(Modifier.weight(1f)) {
-                        Hero(call != null, seen, if (call != null) onEnd else onStart, f.hero)
+                        val mole = Modifier.size(148.dp, 110.dp)
+                        if (miming) Hero(ui.mimeTitle, ui.mimeLine, if (reading) ui.stopMiming else ui.startMiming, if (reading) mime::stop else mime::start, f.hero) { MimeMole(mole) }
+                        else {
+                            val inCall = call != null
+                            Hero(if (inCall) ui.inMeeting else ui.heroTitle, if (inCall) ui.isOnScreen(seen.label()) else ui.heroLine,
+                                if (inCall) ui.endMeeting else ui.startMeeting, if (inCall) onEnd else onStart, f.hero) {
+                                MolePuppet(MoleState.Retrieving, null, "07", "", mole) // the mole with a slide in its paw
+                            }
+                        }
                         Spacer(Modifier.height(16.dp))
                         Card(f) {
-                            Status(Icon.Phone, ui.phone, if (call == null) ui.phoneLater else if (phoned) ui.phoneOn else ui.phoneOff) { Lamp(phoned) }
-                            Rule()
-                            Status(Icon.Screen, ui.onScreen, seen.label()) {}
+                            if (miming) {
+                                Status(Icon.Camera, ui.lipReading, if (!ready) ui.lipsNotSetUp else if (reading) ui.lipsOn else ui.lipsReady) { Lamp(reading) }
+                                if (!ready) {
+                                    Rule()
+                                    SetUp()
+                                }
+                            } else {
+                                Status(Icon.Phone, ui.phone, if (call == null) ui.phoneLater else if (phoned) ui.phoneOn else ui.phoneOff) { Lamp(phoned) }
+                                Rule()
+                                Status(Icon.Screen, ui.onScreen, seen.label()) {}
+                            }
                         }
                         if (!wide) {
                             Spacer(Modifier.height(16.dp))
@@ -154,21 +188,23 @@ internal fun Overview(
                             Spacer(Modifier.height(16.dp))
                             Language(settings, f, onLanguage)
                         }
-                        Spacer(Modifier.height(44.dp))
-                        Column(Modifier.onGloballyPositioned { say = it }) {
-                            if (call != null && heard.isNotEmpty()) {
-                                Label(ui.thisMeeting)
-                                Rows(heard.map { Triple(it.at, listOf(ui.quote(it.words)), it.did) })
-                            } else {
-                                Label(ui.thingsToSay, ui.thingsNote)
-                                Rows(SAY.map { (kind, lines) -> Triple(ui.kinds[kind], lines.map(ui.quote), null) })
+                        if (!miming) {
+                            Spacer(Modifier.height(44.dp))
+                            Column(Modifier.onGloballyPositioned { say = it }) {
+                                if (call != null && heard.isNotEmpty()) {
+                                    Label(ui.thisMeeting)
+                                    Rows(heard.map { Triple(it.at, listOf(ui.quote(it.words)), it.did) })
+                                } else {
+                                    Label(ui.thingsToSay, ui.thingsNote)
+                                    Rows(SAY.map { (kind, lines) -> Triple(ui.kinds[kind], lines.map(ui.quote), null) })
+                                }
                             }
                         }
                         Spacer(Modifier.height(44.dp))
                         Label(if (live) ui.live else ui.sample)
                         // Tall enough for the sample's options to open upward inside it.
                         Box(Modifier.fillMaxWidth().heightIn(min = 252.dp).clip(RoundedCornerShape(16.dp)).background(f.card).border(1.dp, c.rule, RoundedCornerShape(16.dp)).padding(bottom = 20.dp), Alignment.BottomCenter) {
-                            MoleBar(bar, if (live) onPick else onSample, theme = if (c == MoleColors.Dark) MoleTheme.Dark else MoleTheme.Light)
+                            MoleBar(bar, if (live) onPick else onSample, theme = if (c == MoleColors.Dark) MoleTheme.Dark else MoleTheme.Light, mode = mode)
                         }
                     }
                     if (wide) Column(Modifier.width(SIDE), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -190,24 +226,40 @@ private fun Scrollbar(scroll: ScrollState) {
     }
 }
 
-// The dark banner: what Molière does, or that it is in a meeting and what is on screen; the one red button; the mole.
+// The dark banner: what the mode does, or that Molière is in a meeting and what is on screen; the one red button; the mole.
 @Composable
-private fun Hero(inCall: Boolean, seen: OnScreen, onClick: () -> Unit, color: Color) {
+private fun Hero(title: String, line: String, button: String, onClick: () -> Unit, color: Color, mole: @Composable () -> Unit) {
     val light = Color(0xFFF4F2EF)
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(color).padding(start = 32.dp, end = 20.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
         Column(Modifier.weight(1f).padding(vertical = 28.dp)) {
-            BasicText(if (inCall) ui.inMeeting else ui.heroTitle, style = type(22f, 28f, 600, -.4f, light))
+            BasicText(title, style = type(22f, 28f, 600, -.4f, light))
             Spacer(Modifier.height(6.dp))
-            BasicText(if (inCall) ui.isOnScreen(seen.label()) else ui.heroLine, style = type(15f, 22f, 400, -.135f, light.copy(alpha = .72f)), maxLines = 3)
+            BasicText(line, style = type(15f, 22f, 400, -.135f, light.copy(alpha = .72f)), maxLines = 3)
             Spacer(Modifier.height(20.dp))
-            Primary(if (inCall) ui.endMeeting else ui.startMeeting, onClick)
+            Primary(button, onClick)
         }
         Spacer(Modifier.width(16.dp))
-        CompositionLocalProvider(LocalMoleColors provides MoleColors.Dark) {
-            MolePuppet(MoleState.Retrieving, null, "07", "", Modifier.size(148.dp, 110.dp)) // the mole with a slide in its paw
+        CompositionLocalProvider(LocalMoleColors provides MoleColors.Dark, content = mole)
+    }
+}
+
+private val SETUP = listOf("git lfs pull", "lipreading/setup.sh")
+
+// What sets the lip reader up, to copy into Terminal.
+@Composable
+private fun SetUp() {
+    val c = LocalMoleColors.current
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Body(ui.runOnce, c.muted, lines = 2, size = 13f)
+        SelectionContainer {
+            BasicText(
+                SETUP.joinToString("\n"),
+                Modifier.fillMaxWidth().background(c.fill, RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+                type(13f, 20f, 500, -.039f, c.ink),
+            )
         }
     }
 }
@@ -386,6 +438,8 @@ private fun Choices(s: Settings, choose: (File) -> File?, wide: Boolean) {
     }
     val wait by s.window.collectAsState()
     val history by s.history.collectAsState()
+    Field(ui.modeLabel, wide) { Segments(Mode.entries.map { ui.mode(it) to it }, s.mode.collectAsState().value, s::mode) }
+    Rule()
     Field(ui.decks, wide) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f), Arrangement.spacedBy(10.dp)) {

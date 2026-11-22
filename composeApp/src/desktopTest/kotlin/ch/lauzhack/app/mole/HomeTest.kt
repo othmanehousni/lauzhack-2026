@@ -15,6 +15,10 @@ import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.meeting.MeetingDetector
+import ch.lauzhack.app.session.Mime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.util.prefs.AbstractPreferences
@@ -53,8 +57,10 @@ class HomeTest {
         val line = MutableStateFlow(MoleLine(MoleState.Hidden))
         val onScreen = MutableStateFlow(OnScreen())
         val phone = MutableStateFlow(false)
+        val scope = CoroutineScope(Dispatchers.Default)
+        val mime = Mime(scope, null, settings.mode) // no lip reader here: not set up
         val scene = ImageComposeScene(1100, 760, Density(1f)) {
-            Home(detector.meeting, { detector.start("Meeting") }, detector::stop, line, {}, MutableStateFlow(Announce), {}, onScreen, phone, settings, { null })
+            Home(detector.meeting, { detector.start("Meeting") }, detector::stop, line, {}, MutableStateFlow(Announce), {}, onScreen, phone, settings, { null }, mime)
         }
         var frame = 0L
         fun nodes(): List<SemanticsNode> {
@@ -105,7 +111,29 @@ class HomeTest {
         tap("Home")
         assertTrue("The right slide, on cue." in texts())
         assertNull(detector.meeting.value)
+
+        // The mode, at the top of the settings: Mime turns the home page into the mime's, with what to run to set it up.
+        tap("Settings")
+        click("Mime")
+        assertEquals(Mode.Mime, settings.mode.value)
+        assertEquals("Mime", prefs.get("mode", ""))
+        tap("Home")
+        assertTrue(listOf("Speak without a sound.", "Start miming", "Lip reading isn't set up yet.", "git lfs pull\nlipreading/setup.sh").all { it in texts() }, "${texts()}")
+        assertTrue("Start a meeting" !in texts())
+        click("Start miming")
+        val until = System.nanoTime() + 5_000_000_000L
+        while (mime.line.value.state == MoleState.Hidden && System.nanoTime() < until) Thread.sleep(20)
+        assertEquals(MoleLine(MoleState.Failed, "Lip reading isn't set up yet."), mime.line.value, "not set up is the bar's one line")
+        click("Stop miming")
+        assertEquals(MoleState.Hidden, mime.line.value.state)
+        assertTrue("Start miming" in texts())
+        tap("Settings")
+        click("Present")
+        assertEquals(Mode.Present, settings.mode.value)
+        tap("Home")
+        assertTrue("The right slide, on cue." in texts())
         scene.close()
+        scope.cancel()
     }
 
     private fun all(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::all)
