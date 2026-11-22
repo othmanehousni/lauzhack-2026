@@ -44,16 +44,19 @@ class EarTest {
 
     @Test
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun aMutedMacStillDeliveringSamplesExpiresAndRecovers() = runTest {
+    fun silenceUpdatesImmediatelyAndAStoppedHelperExpiresAndRecovers() = runTest {
         val rms = MutableSharedFlow<Float>()
         val db = rms.inputDecibels().stateIn(backgroundScope, SharingStarted.Eagerly, null)
         runCurrent()
         rms.emit(0.1f)
         runCurrent()
         assertEquals(-20f, db.value)
-        repeat(10) { rms.emit(0f); advanceTimeBy(100) }
-        assertEquals(-20f, db.value)
-        repeat(6) { rms.emit(1e-6f); advanceTimeBy(100) }
+        rms.emit(0f)
+        runCurrent()
+        assertEquals(-100f, db.value)
+        repeat(10) { rms.emit(1e-6f); advanceTimeBy(100) }
+        assertEquals(-100f, db.value, "fresh silence is different from a stopped helper")
+        advanceTimeBy(501)
         assertNull(db.value)
         rms.emit(0.01f)
         runCurrent()

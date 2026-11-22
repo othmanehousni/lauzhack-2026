@@ -72,7 +72,7 @@ internal class Rig(private val scope: TestScope, shows: Target? = null, script: 
     val screen = FakeScreen(scope, shows)
     val mole = Mole(scope.backgroundScope, scope.testTimeSource)
     val window = MutableStateFlow(ANNOUNCE)
-    val session = Session(Agent { h, s -> asked += scope.currentTime to h; script(h, s) }, screen, mole, microphoneWords(laptop, phone) { phoneLeads.value }, phoneLeads, scope.testTimeSource, window)
+    val session = Session(Agent { h, s -> asked += scope.currentTime to h; script(h, s) }, screen, mole, microphoneWords(laptop, phone, scope.testTimeSource) { phoneLeads.value }, scope.testTimeSource, window, phoneLeads)
     val lines = mutableListOf<Pair<Long, MoleLine>>()
 
     init {
@@ -202,9 +202,10 @@ class SessionTest {
         assertEquals(slide(7), rig.session.onScreen.value.target)
 
         // walking away: the phone leads, and only its words count
+        val beforePhone = rig.lines.size
         rig.phoneLeads.value = true
-        assertEquals("On your phone now.", rig.until(MoleState.Hello).title)
-        rig.until(MoleState.Idle)
+        delay(100.milliseconds)
+        assertEquals(beforePhone, rig.lines.size, "a microphone handoff never changes the floater")
         rig.say("show them the hail damage photos", to = rig.laptop)
         rig.say("and can you pull up the offer we sent them", to = rig.phone)
         val choosing = rig.until(MoleState.Choosing)
@@ -222,9 +223,10 @@ class SessionTest {
         rig.until(MoleState.Hidden)
 
         // back at the laptop: a request the agent takes long over, on a slow screen
+        val beforeLaptop = rig.lines.size
         rig.phoneLeads.value = false
-        assertEquals("Back on the laptop.", rig.until(MoleState.Hello).title)
-        rig.until(MoleState.Idle)
+        delay(100.milliseconds)
+        assertEquals(beforeLaptop, rig.lines.size, "returning to the laptop never changes the floater")
         rig.screen.latency = 1500.milliseconds
         rig.say("show them how the warehouse robot picks")
         rig.until(MoleState.Thinking)
@@ -270,7 +272,7 @@ class SessionTest {
         assertEquals(slide(9), rig.session.onScreen.value.target)
 
         assertEquals(
-            "Hidden Tunneling Hello Idle Heard Ready Back Hidden Hello Idle Choosing Picked Ready Back Hidden Hello Idle Thinking Heard " +
+            "Hidden Tunneling Hello Idle Heard Ready Back Hidden Idle Choosing Picked Ready Back Hidden Idle Thinking Heard " +
                 "Working Ready Back Hidden Idle Unsure Back Hidden Idle Waiting Heard Working Failed Back Hidden Idle Heard Ready Back Hidden " +
                 "Idle Retrieving Picked Ready Back Hidden",
             rig.states().joinToString(" "),
@@ -727,8 +729,6 @@ class SessionTest {
         rig.start()
         delay(3.seconds)
         rig.phoneLeads.value = true
-        rig.until(MoleState.Hello)
-        rig.until(MoleState.Idle)
         val margin = rig.announced("which brings us to the margin", to = rig.phone)
         rig.say("show them the hail damage photos", to = rig.laptop) // not the one leading: not heard
         rig.phoneLeads.value = false // the lead changes hands inside the window: the announce keeps the line
@@ -739,7 +739,6 @@ class SessionTest {
         rig.until(MoleState.Hidden)
 
         rig.phoneLeads.value = true
-        rig.until(MoleState.Idle)
         rig.say("and the costs", to = rig.phone)
         rig.until(MoleState.Retrieving)
         delay(1.seconds)

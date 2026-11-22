@@ -204,8 +204,8 @@ class Laptop(
         }
         try {
             phones.start() // inside the try: a port another app holds fails this meeting, and stop() still runs
-            val words = microphoneWords(typed ?: ear!!.heard, phones.words, phones::usesPhoneMic)
-            val s = Session(logged(agent), if (dry) DryScreen() else desk.asScreen(), mole, words, phones.lead.map { it.phone }, window = window)
+            val words = microphoneWords(typed ?: ear!!.heard, phones.words, usePhone = phones::usesPhoneMic)
+            val s = Session(logged(agent), if (dry) DryScreen() else desk.asScreen(), mole, words, window = window, phoneLeads = phones.lead.map { it.phone })
             session.value = s
             launch { phones.picks.collect(s::pick) }
             launch { phones.connected.collect { phoned.value = it; log(if (it) "phone connected" else "no phone") } }
@@ -255,12 +255,12 @@ class Laptop(
     }
 }
 
-/** A stopped helper or sustained digital silence expires the last audible sample, even if the phone sends no levels. */
+/** Keep silence current too. A stopped helper expires separately, within half a second. */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 internal fun Flow<Float>.inputDecibels(): Flow<Float?> =
-    filter { it.isFinite() && it > 1e-5f }.transformLatest { rms ->
-        emit(20 * log10(rms))
-        delay(1500.milliseconds)
+    filter { it.isFinite() && it >= 0f }.transformLatest { rms ->
+        emit(20 * log10(rms.coerceAtLeast(1e-5f)))
+        delay(500.milliseconds)
         emit(null)
     }
 
