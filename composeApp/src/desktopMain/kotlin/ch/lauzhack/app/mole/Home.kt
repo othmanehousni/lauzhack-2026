@@ -79,7 +79,10 @@ import androidx.compose.ui.window.rememberWindowState
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.OnScreen
+import ch.lauzhack.app.Lang
 import ch.lauzhack.app.Target
+import ch.lauzhack.app.lang
+import ch.lauzhack.app.ui
 import ch.lauzhack.app.meeting.Meeting
 import ch.lauzhack.app.stage.HOME
 import kotlinx.coroutines.delay
@@ -88,21 +91,24 @@ import kotlinx.coroutines.flow.StateFlow
 import java.awt.Desktop
 import java.awt.Dimension
 import java.io.File
+import java.util.Locale
 import java.util.prefs.Preferences
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-// The lines of DEMO.txt section 1, checked against the sample decks, and the last one from rehearsal/seen-1.txt.
+// What to say for each of ui.sayLabels: the lines of DEMO.txt section 1, checked against the sample decks, and the last one from rehearsal/seen-1.txt.
 private val SAY = listOf(
-    "Open a deck" to listOf("Okay, let’s open up the company slides.", "Now let’s switch to the Q3 financials."),
-    "Move in the deck" to listOf("Next slide please.", "Go to slide 7."),
-    "Ask by meaning" to listOf("So how big is this market really?", "What about churn?"),
-    "Open a site and close it" to listOf("Open GitHub.", "Scroll down a bit.", "Close that."),
-    "Say no" to listOf("No, not that one.", "No, go back."),
-    "Seen recently" to listOf("Open the ferry timetable I had up this morning."),
+    listOf("Okay, let’s open up the company slides.", "Now let’s switch to the Q3 financials."),
+    listOf("Next slide please.", "Go to slide 7."),
+    listOf("So how big is this market really?", "What about churn?"),
+    listOf("Open GitHub.", "Scroll down a bit.", "Close that."),
+    listOf("No, not that one.", "No, go back."),
+    listOf("Open the ferry timetable I had up this morning."),
 )
 private val LABEL = 176.dp
+/** The system's language when it is one of Molière's, else English. */
+internal val SYSTEM = Lang.of(Locale.getDefault().language)
 private val TICK = svg("M3.9 9.45l3.3 3.3 6.9-7.35")
 
 /** The tray's settings, changed the tray's way: the same state under the same keys, so each shows the other's change. */
@@ -111,13 +117,15 @@ internal class Settings(
     val library: MutableStateFlow<File>,
     val history: MutableStateFlow<Boolean>,
     val window: MutableStateFlow<Duration>,
-    val waits: List<Pair<String, Long>>,
+    val waits: List<Long>,
     val theme: MutableState<MoleTheme>,
+    val language: MutableState<Lang?> = mutableStateOf(null), // null follows the system
 ) {
     fun decks(dir: File) = save { library.value = dir; put("decks", dir.path) }
     fun history(on: Boolean) = save { history.value = on; putBoolean("history", on) }
     fun window(ms: Long) = save { window.value = ms.milliseconds; putLong("window", ms) }
     fun theme(t: MoleTheme) = save { theme.value = t; put("theme", t.name) }
+    fun language(l: Lang?) = save { language.value = l; lang = l ?: SYSTEM; put("language", l?.name ?: "") }
 
     private fun save(change: Preferences.() -> Unit) {
         prefs.change()
@@ -191,32 +199,32 @@ internal fun Home(
                 Column(Modifier.widthIn(max = 600.dp).fillMaxWidth()) {
                     Crossfade(call != null, animationSpec = css(200)) { inCall ->
                         Column {
-                            BasicText(if (inCall) "Molière is in a meeting." else "Molière is asleep.", style = type(28f, 34f, 600, -.616f, c.ink))
+                            BasicText(if (inCall) ui.inMeeting else ui.asleep, style = type(28f, 34f, 600, -.616f, c.ink))
                             Spacer(Modifier.height(12.dp))
                             if (inCall) Column(verticalArrangement = Arrangement.spacedBy(if (wide) 4.dp else 12.dp)) {
-                                Field("Heard", wide) { Body(if (heard.isEmpty()) "Nothing yet" else "“$heard”", if (heard.isEmpty()) c.hint else c.ink, lines = 2) }
-                                Field("On screen", wide) { Body(seen.label(), c.ink) }
-                            } else Body("It listens during your calls and puts the right slide, file, site or app on the screen you share. It wakes when a call starts.", c.muted, lines = 3)
+                                Field(ui.heard, wide) { Body(if (heard.isEmpty()) ui.nothingYet else ui.quote(heard), if (heard.isEmpty()) c.hint else c.ink, lines = 2) }
+                                Field(ui.onScreen, wide) { Body(seen.label(), c.ink) }
+                            } else Body(ui.about, c.muted, lines = 3)
                             Spacer(Modifier.height(24.dp))
-                            Primary(if (inCall) "End the meeting" else "Start a meeting", if (inCall) onEnd else onStart)
+                            Primary(if (inCall) ui.endMeeting else ui.startMeeting, if (inCall) onEnd else onStart)
                         }
                     }
                     Spacer(Modifier.height(32.dp))
                     // Tall enough for the sample's two options to open upward clear of the label.
                     Box(Modifier.fillMaxWidth().heightIn(min = 252.dp).clip(RoundedCornerShape(16.dp)).background(c.fill).padding(bottom = 20.dp), Alignment.BottomCenter) {
-                        if (!live) BasicText("Sample", Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 14.dp), type(12f, 16f, 500, color = c.hint))
+                        if (!live) BasicText(ui.sample, Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 14.dp), type(12f, 16f, 500, color = c.hint))
                         MoleBar(bar, if (live) onPick else onSample, theme = theme)
                     }
-                    Section("Things to say", "Commands act at once. A pick by meaning is announced first.") {
-                        for ((what, lines) in SAY) Field(what, wide) {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { for (l in lines) Body("“$l”", c.ink) }
+                    Section(ui.thingsToSay, ui.thingsNote) {
+                        for ((what, lines) in ui.sayLabels.zip(SAY)) Field(what, wide) {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { for (l in lines) Body(ui.quote(l), c.ink) }
                         }
                     }
-                    Section("Settings") { Choices(settings, choose, wide) }
+                    Section(ui.settings) { Choices(settings, choose, wide) }
                     Column(Modifier.padding(top = 56.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         val quiet = type(13f, 18f, 400, -.039f, c.hint)
-                        BasicText("Runs on this Mac. Two small models inside the app, no server.", style = quiet)
-                        BasicText(if (call == null) "Your phone connects during a meeting." else if (phoned) "Phone connected." else "No phone connected.", style = quiet)
+                        BasicText(ui.runsHere, style = quiet)
+                        BasicText(if (call == null) ui.phoneLater else if (phoned) ui.phoneOn else ui.phoneOff, style = quiet)
                     }
                 }
             }
@@ -240,26 +248,27 @@ private fun Choices(s: Settings, choose: (File) -> File?, wide: Boolean) {
     }
     val wait by s.window.collectAsState()
     val history by s.history.collectAsState()
-    Field("Decks", wide) {
+    Field(ui.decks, wide) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f), Arrangement.spacedBy(10.dp)) {
                 TooltipArea({ Tip(lib.path.replaceFirst(HOME.path, "~")) }, Modifier.weight(1f, fill = false).alignByBaseline()) { Body(lib.name, c.ink) }
-                BasicText(if (decks == 0) "No PDF here yet" else if (decks == 1) "1 deck" else "$decks decks", Modifier.alignByBaseline(), type(13f, 18f, 400, -.039f, c.muted), softWrap = false, maxLines = 1)
+                BasicText(if (decks == 0) ui.noPdfHere else ui.deckCount(decks), Modifier.alignByBaseline(), type(13f, 18f, 400, -.039f, c.muted), softWrap = false, maxLines = 1)
             }
             Spacer(Modifier.width(16.dp))
-            Secondary("Choose…") { choose(lib)?.let(s::decks) }
+            Secondary(ui.choose) { choose(lib)?.let(s::decks) }
         }
     }
-    Field("Seen recently", wide) { Check("Use browser history", history, s::history) }
-    Field("Wait before showing", wide) { Segments(s.waits, wait.inWholeMilliseconds, s::window) }
-    Field("Theme", wide) { Segments(MoleTheme.entries.map { it.name to it }, s.theme.value, s::theme) }
+    Field(ui.seenRecently, wide) { Check(ui.useHistory, history, s::history) }
+    Field(ui.waitBefore, wide) { Segments(s.waits.map { ui.wait(it) to it }, wait.inWholeMilliseconds, s::window) }
+    Field(ui.themeLabel, wide) { Segments(MoleTheme.entries.map { ui.theme(it) to it }, s.theme.value, s::theme) }
+    Field(ui.language, wide) { Segments(listOf(ui.system to null) + Lang.entries.map { it.own to it }, s.language.value, s::language) }
 }
 
 private fun count(dir: File) = dir.listFiles { f -> f.extension.equals("pdf", ignoreCase = true) }?.size ?: 0
 
 private fun OnScreen.label() = when (val t = target) {
-    null -> "The desktop"
-    is Target.Slide -> "$name, slide ${t.page}"
+    null -> ui.desktop
+    is Target.Slide -> ui.slideOf(name, t.page)
     else -> name
 }
 

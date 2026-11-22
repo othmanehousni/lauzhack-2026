@@ -18,6 +18,7 @@ import ch.lauzhack.app.mole.Home
 import ch.lauzhack.app.mole.HomeWindow
 import ch.lauzhack.app.mole.MoleTheme
 import ch.lauzhack.app.mole.Playground
+import ch.lauzhack.app.mole.SYSTEM
 import ch.lauzhack.app.mole.Settings
 import ch.lauzhack.app.session.Laptop
 import ch.lauzhack.app.session.ANNOUNCE
@@ -127,9 +128,11 @@ fun main(args: Array<String>) {
         "browser history ${if (history.value) "on" else "off"}, " +
         "picks wait up to ${window.value.inWholeMilliseconds} ms")
     if (replay) runBlocking { awaitCancellation() }
+    val language = Lang.entries.firstOrNull { it.name == prefs.get("language", "") } // null follows the system
+    if (typed == null && audio.isEmpty()) lang = language ?: SYSTEM // a scripted run reads English, as its scorers do
 
     application {
-        val settings = remember { Settings(prefs, library, history, window, WAITS, mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System))) }
+        val settings = remember { Settings(prefs, library, history, window, WAITS, mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System)), mutableStateOf(language)) }
         var theme by settings.theme
         // Opens with the app but not for a scripted run, which may run while someone works on this Mac.
         var home by remember { mutableIntStateOf(if (typed == null && audio.isEmpty()) 1 else 0) }
@@ -143,41 +146,46 @@ fun main(args: Array<String>) {
         val wait by window.collectAsState()
         val empty by produceState(false, lib) { while (true) { value = !hasDecks(lib); delay(3.seconds) } }
         MoleFloater(laptop.line, laptop::onPick, ::exitApplication, theme) {
-            Item("Open Molière", onClick = { home++ })
-            if (meeting == null) Item("Start a meeting", onClick = { detector.start("Meeting") })
-            else Item("End the meeting", onClick = detector::stop)
+            Item(ui.openApp, onClick = { home++ })
+            if (meeting == null) Item(ui.startMeeting, onClick = { detector.start("Meeting") })
+            else Item(ui.endMeeting, onClick = detector::stop)
             Separator()
-            if (empty) Item("No PDF in ${lib.name} yet", enabled = false, onClick = {})
-            Item("Open ${lib.name}", onClick = { Desktop.getDesktop().open(lib.also { it.mkdirs() }) })
-            Item("Choose decks folder…", onClick = {
+            if (empty) Item(ui.noPdfIn(lib.name), enabled = false, onClick = {})
+            Item(ui.openFolder(lib.name), onClick = { Desktop.getDesktop().open(lib.also { it.mkdirs() }) })
+            Item(ui.chooseFolder, onClick = {
                 chooseFolder(lib)?.let {
                     library.value = it
                     prefs.put("decks", it.path)
                     prefs.flush()
                 }
             })
-            CheckboxItem("Use browser history", checked = browsing, onCheckedChange = {
+            CheckboxItem(ui.useHistory, checked = browsing, onCheckedChange = {
                 history.value = it
                 prefs.putBoolean("history", it)
                 prefs.flush()
             })
-            Menu("Wait before showing") {
-                for ((label, ms) in WAITS) CheckboxItem(label, checked = wait.inWholeMilliseconds == ms, onCheckedChange = {
+            Menu(ui.waitBefore) {
+                for (ms in WAITS) CheckboxItem(ui.wait(ms), checked = wait.inWholeMilliseconds == ms, onCheckedChange = {
                     window.value = ms.milliseconds
                     prefs.putLong("window", ms)
                     prefs.flush()
                 })
             }
             Separator()
-            Menu("Theme") {
-                for (t in MoleTheme.entries) CheckboxItem(t.name, checked = t == theme, onCheckedChange = { // a tray menu has no radio items
+            Menu(ui.themeLabel) {
+                for (t in MoleTheme.entries) CheckboxItem(ui.theme(t), checked = t == theme, onCheckedChange = { // a tray menu has no radio items
                     theme = t
                     prefs.put("theme", t.name)
                     prefs.flush()
                 })
             }
+            Menu(ui.language) {
+                val chosen = settings.language.value
+                CheckboxItem(ui.system, checked = chosen == null, onCheckedChange = { settings.language(null) })
+                for (l in Lang.entries) CheckboxItem(l.own, checked = l == chosen, onCheckedChange = { settings.language(l) })
+            }
             Separator()
-            Item("Quit Molière", onClick = ::exitApplication)
+            Item(ui.quit, onClick = ::exitApplication)
         }
     }
 }
@@ -204,7 +212,7 @@ private fun checkFlags(args: Array<String>) {
 
 private fun Array<String>.after(flag: String) = getOrNull(indexOf(flag).takeIf { it >= 0 }?.plus(1) ?: -1)
 
-private val WAITS = listOf("Up to 2.5 seconds" to 2500L, "Up to 1.5 seconds" to 1500L, "None" to 0L) // a sure pick is shown at once
+private val WAITS = listOf(2500L, 1500L, 0L) // a sure pick is shown at once
 
 /** The files after --audio, up to the next flag; a folder is every audio file in it, by name. */
 private fun audio(args: Array<String>): List<File> =
@@ -216,7 +224,7 @@ private fun audio(args: Array<String>): List<File> =
 private fun chooseFolder(start: File): File? {
     System.setProperty("apple.awt.fileDialogForDirectories", "true")
     runCatching { Desktop.getDesktop().requestForeground(true) } // a tray app is not in front, and its dialog would open behind
-    val dialog = FileDialog(null as Frame?, "Choose the folder of your decks").apply {
+    val dialog = FileDialog(null as Frame?, ui.chooseFolderTitle).apply {
         directory = start.parent
         file = start.name
         isVisible = true

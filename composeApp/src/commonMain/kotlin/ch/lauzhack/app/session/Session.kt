@@ -10,6 +10,7 @@ import ch.lauzhack.app.ON_STAGE
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.ext
+import ch.lauzhack.app.ui
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -111,9 +112,9 @@ class Session(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun run(): Nothing = coroutineScope {
-        mole.on(Event.Hello("Hi. I'm listening."))
+        mole.on(Event.Hello(ui.titles.getValue(MoleState.Hello)))
         val leads = phoneLeads.distinctUntilChanged()
-        launch { leads.drop(1).collect { mole.on(Event.Hello(if (it) "On your phone now." else "Back on the laptop.")) } }
+        launch { leads.drop(1).collect { mole.on(Event.Hello(if (it) ui.onPhone else ui.onLaptop)) } }
         launch { leads.flatMapLatest { (if (it) phone else laptop).onStart { switched() } }.collect(::hear) }
         launch { for (i in taps) turn.withLock { if (i < 0) stop() else offered().getOrNull(i)?.let { show(it, said = "", pick = i) } } }
         launch {
@@ -214,7 +215,7 @@ class Session(
     }
 
     private suspend fun CoroutineScope.ask(options: List<Target>, said: String, doubt: Double) {
-        picks[options.toSet()]?.let { return show(it, said, first = "Same as before: ${name(it)}.") }
+        picks[options.toSet()]?.let { return show(it, said, first = ui.sameAsBefore(name(it))) }
         if (options.size > 1) {
             if (offered() == options) return
             coming = null
@@ -225,12 +226,12 @@ class Session(
         if (same(t, coming?.target) || same(t, onScreen.value.target)) return
         val turnedDown = refused?.let { (r, at) -> same(r, t) && at.elapsedNow() <= UNDO } == true
         val most = window.value
-        if (most <= Duration.ZERO || doubt <= 0 && !turnedDown) return show(t, said, first = "Showing ${name(t)}")
+        if (most <= Duration.ZERO || doubt <= 0 && !turnedDown) return show(t, said, first = ui.showing(name(t)))
         val w = (most * if (turnedDown) 1.0 else doubt).coerceIn(minOf(FLOOR, most), most)
         val c = Coming(t, said)
         coming = c
         offer = emptyList()
-        mole.on(Event.Coming(choice(t), "Showing ${name(t)}", c.said, card(t), w.inWholeMilliseconds))
+        mole.on(Event.Coming(choice(t), ui.showing(name(t)), c.said, card(t), w.inWholeMilliseconds))
         launch {
             delay(w)
             turn.withLock { if (coming === c) show(t, c.said) }
@@ -304,7 +305,7 @@ class Session(
 }
 
 private fun plain(e: Exception): String =
-    (e as? NotThere)?.message?.let { it.replaceFirstChar(Char::uppercase) + "." } ?: "The shared screen didn't answer."
+    (e as? NotThere)?.message?.let { it.replaceFirstChar(Char::uppercase) + "." } ?: ui.noAnswer
 
 private fun same(a: Target?, b: Target?) = if (a is Target.Slide && b is Target.Slide) a.deck == b.deck && a.page == b.page else a == b
 
@@ -312,7 +313,7 @@ private fun same(a: Target?, b: Target?) = if (a is Target.Slide && b is Target.
 internal fun inFront(t: Target?) = t != null && t !is Target.Slide && !(t is Target.File && t.ext in ON_STAGE)
 
 internal fun name(t: Target): String = when (t) {
-    is Target.Slide -> "slide ${t.page}"
+    is Target.Slide -> ui.slide(t.page)
     is Target.File -> t.path.substringAfterLast('/').substringBeforeLast('.')
     is Target.Site -> t.name.ifEmpty { host(t.url) }
     is Target.App -> t.name
@@ -320,16 +321,12 @@ internal fun name(t: Target): String = when (t) {
 
 private fun host(url: String) = url.substringAfter("://").substringBefore('/')
 
-private fun String.cap() = replaceFirstChar(Char::uppercase)
-
-private val ORDINALS = listOf("first", "second", "third", "fourth", "fifth")
-
 private fun showing(t: Target, pick: Int?, of: Int, first: String?) = Change(
-    working = if (t is Target.Slide) "Finding slide ${t.page}…" else "Opening ${name(t)}…",
-    retrying = "Trying ${name(t)} again…",
-    ready = if (t is Target.Slide) "Slide ${t.page} is ready." else "${name(t).cap()} is on screen.",
-    failed = "Couldn't show ${name(t)}.",
-    first = first ?: pick?.let { if (of > 1 && it < ORDINALS.size) "Opening the ${ORDINALS[it]} one…" else "Opening ${name(t)}…" },
+    working = if (t is Target.Slide) ui.findingSlide(t.page) else ui.opening(name(t)),
+    retrying = ui.tryingAgainWith(name(t)),
+    ready = if (t is Target.Slide) ui.slideReady(t.page) else ui.isOnScreen(name(t)),
+    failed = ui.couldntShow(name(t)),
+    first = first ?: pick?.let { (if (of > 1) ui.openingNth(it) else null) ?: ui.opening(name(t)) },
     card = card(t),
     pick = pick,
 )
@@ -337,21 +334,21 @@ private fun showing(t: Target, pick: Int?, of: Int, first: String?) = Change(
 private fun card(t: Target) = if (t is Target.Slide) t.page.toString().padStart(2, '0') else ""
 
 private fun undoing(back: Target?) = Change(
-    working = back?.let { "Putting ${name(it)} back…" } ?: "Taking it down…",
-    retrying = "Trying again…",
-    ready = "${back?.let { name(it).cap() } ?: "The desktop"} is back.",
-    failed = "Couldn't take it back.",
-    first = "Okay, taking it back.",
+    working = back?.let { ui.puttingBack(name(it)) } ?: ui.takingDown,
+    retrying = ui.tryingAgain,
+    ready = ui.isBack(back?.let(::name)),
+    failed = ui.couldntTakeBack,
+    first = ui.takingBack,
 )
 
-private fun controlling(name: String) = Change("On it…", "Trying again…", ready = null, failed = "Couldn't ${name.replace(':', ' ')}.")
+private fun controlling(name: String) = Change(ui.titles.getValue(MoleState.Tunneling), ui.tryingAgain, ready = null, failed = ui.couldntControl(name.replace(':', ' ')))
 
 /** A row of the choosing panel: what the target is called, where it is, and its kind. */
 internal fun choice(t: Target): Choice = when (t) {
-    is Target.Slide -> Choice(t.title.ifEmpty { "Slide ${t.page}" }, "${t.deck.replace('_', ' ')}, slide ${t.page}", Choice.Kind.Slides)
+    is Target.Slide -> Choice(t.title.ifEmpty { ui.slideTitle(t.page) }, ui.slideOf(t.deck.replace('_', ' '), t.page), Choice.Kind.Slides)
     is Target.File -> Choice(t.path.substringAfterLast('/'), t.path.substringBeforeLast('/', "").substringAfterLast('/'), kind(t))
     is Target.Site -> Choice(t.name.ifEmpty { host(t.url) }, host(t.url), Choice.Kind.Site)
-    is Target.App -> Choice(t.name, "App", Choice.Kind.Other)
+    is Target.App -> Choice(t.name, ui.app, Choice.Kind.Other)
 }
 
 private fun kind(f: Target.File) = when (f.ext) {

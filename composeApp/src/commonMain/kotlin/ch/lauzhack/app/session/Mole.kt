@@ -3,6 +3,7 @@ package ch.lauzhack.app.session
 import ch.lauzhack.app.Choice
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.MoleState
+import ch.lauzhack.app.ui
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -74,7 +75,7 @@ private fun step(m: Machine, e: Event): Machine? {
         is Event.Unsure -> just(MoleState.Unsure, heard = e.said)
         is Event.Offer -> Machine(MoleLine(MoleState.Choosing, heard = e.said, options = e.options))
         is Event.Coming -> Machine(MoleLine(MoleState.Retrieving, e.title, e.said, listOf(e.option), card = e.card, timeoutMs = e.ms))
-        Event.Dismiss -> if (l.state == MoleState.Choosing || l.state == MoleState.Retrieving) just(MoleState.Back, "Okay, not shown.") else null
+        Event.Dismiss -> if (l.state == MoleState.Choosing || l.state == MoleState.Retrieving) just(MoleState.Back, ui.notShown) else null
         is Event.Start -> Machine(
             if (e.change.pick != null) MoleLine(MoleState.Picked, e.change.first, e.said, l.options, e.change.pick)
             else MoleLine(MoleState.Heard, e.change.first, e.said, card = e.change.card),

@@ -25,7 +25,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 
-internal val WAITS = listOf("2.5 seconds" to 2500L, "1.5 seconds" to 1500L, "None" to 0L) // Main.kt's
+internal val WAITS = listOf(2500L, 1500L, 0L) // Main.kt's
 
 /** Preferences in memory, so no test writes the user's. */
 internal class MemoryPrefs : AbstractPreferences(null, "") {

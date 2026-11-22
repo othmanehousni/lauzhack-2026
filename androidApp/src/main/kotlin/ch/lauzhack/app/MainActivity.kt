@@ -22,7 +22,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        phone = Phone(this, lifecycleScope)
+        lang = Lang.of(java.util.Locale.getDefault().language)
+        phone =Phone(this, lifecycleScope)
         phone.manual = intent.getStringExtra("laptop") // adb shell am start -n ch.lauzhack.app/.MainActivity -e laptop 192.168.1.20
         lifecycleScope.launch {
             phone.state.map { it.connected }.distinctUntilChanged().collect { paired ->

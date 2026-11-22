@@ -12,6 +12,7 @@ import ch.lauzhack.app.link.Link
 import ch.lauzhack.app.link.PORT
 import ch.lauzhack.app.link.PhoneServer
 import ch.lauzhack.app.log
+import ch.lauzhack.app.ui
 import ch.lauzhack.app.stage.AgentDesktop
 import ch.lauzhack.app.stage.Ear
 import ch.lauzhack.app.stage.HOME
@@ -100,11 +101,11 @@ class Laptop(
         work.launch {
             if (downloads != null) {
                 try {
-                    downloads.collect { (_, done) -> mole.on(Event.Setup("Downloading models, ${(done * 100).roundToInt()}%")) }
+                    downloads.collect { (_, done) -> mole.on(Event.Setup(ui.downloading((done * 100).roundToInt()))) }
                 } catch (e: Exception) {
                     currentCoroutineContext().ensureActive()
                     log("download failed: $e")
-                    mole.on(Event.Failed("Couldn't download the models.", first(e)))
+                    mole.on(Event.Failed(ui.couldntDownload, first(e)))
                 }
                 mole.on(Event.Sleep)
             }
@@ -130,14 +131,14 @@ class Laptop(
                     } catch (e: Exception) { // whatever broke, the next call must still start
                         currentCoroutineContext().ensureActive() // a call that ended cancels this block: not a failure
                         log("meeting failed: $e")
-                        mole.on(Event.Failed("Something went wrong in this meeting.", first(e)))
+                        mole.on(Event.Failed(ui.wentWrong, first(e)))
                     }
                 }
         }
     }
 
     private suspend fun empty(lib: File) {
-        mole.on(Event.Setup("Put your PDF slides in ${lib.path.removePrefix("$HOME/")}."))
+        mole.on(Event.Setup(ui.putPdfs(lib.path.removePrefix("$HOME/"))))
         delay(6.seconds)
         mole.on(Event.Sleep)
     }
@@ -159,17 +160,17 @@ class Laptop(
         } catch (e: Exception) {
             ensureActive()
             log("shared screen failed: $e")
-            mole.on(Event.Failed("Couldn't get the shared screen ready.", first(e)))
+            mole.on(Event.Failed(ui.couldntReady, first(e)))
             awaitCancellation()
         }
         val (agent, names) = try {
             if (!warm.await()) brain.warm()
-            mole.on(Event.Setup("Reading your decks and files…"))
+            mole.on(Event.Setup(ui.reading))
             brain.meet(desk, this)
         } catch (e: Exception) {
             ensureActive()
             log("models failed: $e")
-            mole.on(Event.Failed("Couldn't load the models.", first(e)))
+            mole.on(Event.Failed(ui.couldntLoad, first(e)))
             awaitCancellation()
         }
         val ear = Ear().takeIf { typed == null }
@@ -183,7 +184,7 @@ class Laptop(
                 } catch (e: Exception) { // the phone may still hear
                     ensureActive()
                     log("ear failed: $e")
-                    mole.on(Event.Failed("Couldn't listen on this Mac.", first(e)))
+                    mole.on(Event.Failed(ui.couldntListen, first(e)))
                 }
             }
         }
@@ -231,7 +232,7 @@ class Laptop(
 
     /** The shared screen up. */
     private suspend fun ready(desk: AgentDesktop) {
-        mole.on(Event.Setup("Getting the shared screen ready…"))
+        mole.on(Event.Setup(ui.gettingReady))
         val t = TimeSource.Monotonic.markNow()
         for (note in desk.up()) {
             log("shared screen: $note")

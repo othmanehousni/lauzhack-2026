@@ -76,20 +76,15 @@ import ch.lauzhack.app.Choice
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.MoleState.*
+import ch.lauzhack.app.ui
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-internal val TITLES = mapOf(
-    Hidden to "", Idle to "You're driving.", Heard to "I've got it.", Working to "Searching…", Retrieving to "Found it.",
-    Ready to "Ready to show.", Back to "Back to you.", Unsure to "Didn't catch that.", Thinking to "Thinking…", Waiting to "Go on…",
-    Tunneling to "On it…", Failed to "Couldn't do that.", Hello to "Hi. I'm listening.", Choosing to "Which one?", Picked to "Opening it…",
-)
 private val OPEN = setOf(Choosing, Picked) // states that show the options panel above the bar
 private val NEEDS_YOU = setOf(Unsure, Waiting, Failed, Choosing) // the only states with the red dot
 private val NUMBERS = listOf("one", "two", "three", "four", "five")
 private const val HEARD_MAX = 44 // a live transcript keeps its newest words
-private const val SAY_NO = "Say “no” to stop"
 private const val ANNOUNCE_MS = 2500L
 
 internal class Span(val text: String, val id: Int, enter: Boolean, val shift: Float, val blur: Float) {
@@ -133,7 +128,7 @@ internal class Words {
         pick = line.pick
         if (line.card.isNotEmpty()) label = line.card
         else if (line.state == Picked && line.pick != null) label = "${line.pick + 1}"
-        swap(line.title ?: if (announce) line.options[0].name else TITLES.getValue(line.state), animate = prev != Hidden, reduce)
+        swap(line.title ?: if (announce) line.options[0].name else ui.titles.getValue(line.state), animate = prev != Hidden, reduce)
         oneLine = line.heard.isEmpty()
         if (line.heard.isNotEmpty()) heard = if (line.heard.length > HEARD_MAX) "…" + line.heard.takeLast(HEARD_MAX - 1).trimStart() else line.heard
     }
@@ -260,14 +255,14 @@ internal fun Stop(w: Words, phone: Boolean, enabled: Boolean, onPick: (Int) -> U
         Alignment.Center,
     ) {
         Box(Modifier.then(if (phone) Modifier.fillMaxWidth() else Modifier).height(height).background(c.wash, pill).padding(horizontal = 14.dp), Alignment.Center) {
-            BasicText("Stop", style = label, softWrap = false, maxLines = 1)
+            BasicText(ui.stop, style = label, softWrap = false, maxLines = 1)
         }
         Box(
             Modifier.matchParentSize().padding(vertical = if (phone) 0.dp else 4.dp)
                 .drawWithContent { clipRect(right = size.width * left.value) { this@drawWithContent.drawContent() } }
                 .background(c.ink, pill),
             Alignment.Center,
-        ) { BasicText("Stop", style = label.copy(color = c.paper), softWrap = false, maxLines = 1) }
+        ) { BasicText(ui.stop, style = label.copy(color = c.paper), softWrap = false, maxLines = 1) }
     }
 }
 
@@ -330,11 +325,11 @@ internal fun Heard(w: Words, style: TextStyle, say: TextStyle, modifier: Modifie
     val heard = animateFloatAsState(if (w.oneLine || w.announce) 0f else 1f, css(200))
     val sayNo = animateFloatAsState(if (w.announce) 1f else 0f, css(200))
     Box(modifier.fillMaxWidth()) {
-        for ((text, alpha, look) in listOf(Triple("“${w.heard}”", heard, style), Triple(SAY_NO, sayNo, say))) BasicText(
+        for ((text, alpha, look) in listOf(Triple(ui.quote(w.heard), heard, style), Triple(ui.sayNo, sayNo, say))) BasicText(
             text,
             Modifier.fillMaxWidth().graphicsLayer { this.alpha = alpha.value },
             look.copy(textAlign = align),
-            overflow = if (text == SAY_NO) TextOverflow.Ellipsis else TextOverflow.StartEllipsis, // the newest words stay where supported (Android); desktop ends them
+            overflow = if (text == ui.sayNo) TextOverflow.Ellipsis else TextOverflow.StartEllipsis, // the newest words stay where supported (Android); desktop ends them
             softWrap = false,
             maxLines = 1,
         )
@@ -382,8 +377,7 @@ internal fun Options(w: Words, phone: Boolean, enabled: Boolean, onPick: (Int) -
 
 private fun say(n: Int): String {
     if (n < 2) return ""
-    val words = NUMBERS.take(n).map { "“$it”" }
-    return "Say ${words.dropLast(1).joinToString(", ")} or ${words.last()}"
+    return ui.sayOneOf(NUMBERS.take(n))
 }
 
 @Composable
