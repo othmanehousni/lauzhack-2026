@@ -207,7 +207,7 @@ private fun Hero(inCall: Boolean, seen: OnScreen, onClick: () -> Unit, color: Co
         }
         Spacer(Modifier.width(16.dp))
         CompositionLocalProvider(LocalMoleColors provides MoleColors.Dark) {
-            MolePuppet(MoleState.Idle, null, "", "", Modifier.size(148.dp, 110.dp))
+            MolePuppet(MoleState.Retrieving, null, "07", "", Modifier.size(148.dp, 110.dp)) // the mole with a slide in its paw
         }
     }
 }
