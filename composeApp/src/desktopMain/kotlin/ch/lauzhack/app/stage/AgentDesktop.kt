@@ -75,7 +75,7 @@ class AgentDesktop(
     }
 
     /** Checks what the shared screen needs, starts the VM if it is stopped and sets it up (Vm.setup) if it cannot show
-     * the stage, renders the decks and brings up the stage on the desktop picture. Returns notes for the presenter, one
+     * the stage or its host is not yet a part of Molière (accessory), renders the decks and brings up the stage on the desktop picture. Returns notes for the presenter, one
      * actionable line each, such as the fallback to a window on this Mac; throws with them when the shared screen cannot
      * come up. */
     suspend fun up(): List<String> = serial {
@@ -100,9 +100,9 @@ class AgentDesktop(
             }
         }
         stage = Stage(vm, data, if (vm != null) TUNNEL_PORT else hostPort, dry)
-        if (vm != null && !dry && !vm.ready(stage.page)) {
+        if (vm != null && !dry && (!accessory() || !vm.ready(stage.page))) {
             val did = try { vm.setup() } catch (e: CancellationException) { throw e } catch (e: Exception) { fail("setting up the sandbox VM $sandbox failed: ${e.message}") }
-            notes += "the VM could not read ${stage.page} or had no Chrome, so the app set it up: ${did.joinToString("; ")}"
+            notes += "the VM was an app of its own, could not read ${stage.page} or had no Chrome, so Molière set it up: ${did.joinToString("; ")}"
             if (!vm.ready(stage.page)) fail("the VM still cannot read ${stage.page} after its setup: keep the app's data under ${FOLDERS.joinToString { "~/$it" }}, which the VM mounts")
         }
         if (vm == null && !File("/Applications/Google Chrome.app").exists()) fail("Google Chrome is not installed on this Mac: https://www.google.com/chrome/")

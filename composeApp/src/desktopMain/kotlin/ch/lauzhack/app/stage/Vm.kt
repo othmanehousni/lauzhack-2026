@@ -37,21 +37,37 @@ for (let i = 0; i < screens.count; i++) if (url) ws.setDesktopImageURLForScreenO
 ws.desktopImageURLForScreen($.NSScreen.mainScreen).absoluteString.js"""
 
 /** The lines setup() changes in agent-desktop's VM host, keyed by how each starts: your folders shared beside its own
- * files, and a display with this Mac's main screen's pixels and density, so the VM looks the same at the same size. */
+ * files, a display with this Mac's main screen's pixels and density, so the VM looks the same at the same size, and
+ * the window as part of Molière (ACCESSORY). */
 fun vmhostLines(width: Int, height: Int, ppi: Int, home: File = HOME): Map<String, String> {
     val folders = FOLDERS.joinToString(", ") { "\"$it\": VZSharedDirectory(url: URL(fileURLWithPath: \"${File(home, it)}\"), readOnly: true)" }
     return mapOf(
         "share.share = " to "share.share = VZMultipleDirectoryShare(directories: [\"agent-desktop\": VZSharedDirectory(url: inputs.bundle.share, readOnly: true), $folders])",
         "graphics.displays = " to "graphics.displays = [VZMacGraphicsDisplayConfiguration(widthInPixels: $width, heightInPixels: $height, pixelsPerInch: $ppi)]",
-    )
+    ) + ACCESSORY
 }
 
-/** vmhost.swift with the line that starts like each key of lines replaced by its value. */
+/** The VM host as a part of Molière, not an app of its own: no Dock icon, menu bar or place in the app switcher; its
+ * window put in front without taking the keyboard from the call, and titled as Molière's however the VM was started. */
+val ACCESSORY = mapOf(
+    "application.setActivationPolicy(" to "application.setActivationPolicy(.accessory)",
+    "application.activate(" to "window.orderFrontRegardless()",
+    "window.title = " to "window.title = title ?? \"$TITLE\"",
+)
+
+/** vmhost.swift with the line that starts like each key of lines, or is its value already, replaced by its value. */
 fun patchVmhost(text: String, lines: Map<String, String>): String = lines.entries.fold(text) { t, (start, line) ->
-    val old = t.lines().map { it.trim() }.firstOrNull { it.startsWith(start) }
+    val old = t.lines().map { it.trim() }.firstOrNull { it.startsWith(start) || it == line }
         ?: error("agent-desktop's VM host has no line starting \"$start\" any more: update vmhostLines in Vm.kt")
     t.replace(old, line)
 }
+
+private val PROVIDERS = File(HOME, ".agent-desktop/providers/macos")
+
+/** Whether every copy of agent-desktop's VM host has ACCESSORY. One without it was built before Molière took the window
+ * as its own, and shows the VM as an app beside it until setup() patches and rebuilds it. */
+fun accessory(providers: File = PROVIDERS): Boolean = providers.listFiles().orEmpty().map { File(it, "vmhost.swift") }.filter { it.isFile }
+    .all { f -> f.readText().let { text -> ACCESSORY.values.all { it in text } } }
 
 /** Shell lines that copy this Mac's appearance and Dock settings into the VM user's preferences. */
 private fun lookScript(): String = LOOK.flatMap { (domain, keys) ->
@@ -145,7 +161,7 @@ class Vm(val sandbox: String, private val ad: String, private val dry: Boolean =
 
     private var resolved: String? = null  // forgotten on a restart, which may give the VM another address
     private val address: String get() = resolved ?: run {
-        val vmhost = File(AD, "providers/macos").listFiles().orEmpty().filter { it.name.startsWith("build-") }
+        val vmhost = PROVIDERS.listFiles().orEmpty().filter { it.name.startsWith("build-") }
             .map { File(it, "vmhost") }.filter { it.canExecute() }.maxByOrNull { it.lastModified() }
             ?: error("agent-desktop's VM host is not built: agent-desktop sandbox install macos")
         val ip = Json.parseToJsonElement(exec(listOf(vmhost.path, "ip", File(box, "vm").path))).jsonObject["ip"]!!.jsonPrimitive.content
@@ -185,8 +201,8 @@ class Vm(val sandbox: String, private val ad: String, private val dry: Boolean =
         val user = File(box, "guest_user").readText().trim()
         if (user != HOME.name) did += "the VM user is $user, not ${HOME.name}, so paths under $HOME will not match inside the VM"
         val rebuilt = patchVmhosts()
-        did += if (rebuilt) "patched agent-desktop's VM host to share your folders at your screen's size, and rebuilt it"
-        else "agent-desktop's VM host shares your folders at your screen's size already"
+        did += if (rebuilt) "patched agent-desktop's VM host to share your folders at your screen's size in a window of Molière's, and rebuilt it"
+        else "agent-desktop's VM host shares your folders at your screen's size in a window of Molière's already"
         if (up().state != "running" && !dry) error("sandbox $sandbox is not running: finish the One-time VM setup in README.md")
         did += if (guest("$CHROME && echo yes", check = false).trim() == "yes") "Google Chrome is in the VM already" else {
             // The VM's user is an admin, so it can copy into /Applications without a password.
@@ -212,7 +228,7 @@ class Vm(val sandbox: String, private val ad: String, private val dry: Boolean =
 
     /** Rewrites vmhostLines into every copy of agent-desktop's VM host and rebuilds it. True when it changed, which
      * takes a VM restart. */
-    internal fun patchVmhosts(providers: File = File(AD, "providers/macos")): Boolean {
+    internal fun patchVmhosts(providers: File = PROVIDERS): Boolean {
         val (width, height, mm) = exec(listOf("osascript", "-l", "JavaScript", "-e", SCREEN_JS)).trim().split(" ")
         val lines = vmhostLines(width.toInt(), height.toInt(), Math.rint(width.toInt() / (mm.toDouble() / 25.4)).toInt())  // rint: Python's round
         val changed = providers.listFiles().orEmpty().map { File(it, "vmhost.swift") }.filter { it.isFile }.filter { source ->
