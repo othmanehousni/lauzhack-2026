@@ -86,7 +86,7 @@ private fun JsonElement.str(key: String) = jsonObject[key]!!.jsonPrimitive.conte
 class Stage(private val vm: Vm?, data: File, private val port: Int, private val dry: Boolean = false) {
     val page: File = File(data, "stage.html")
     val wallpaper: File by lazy { wallpaper(data) }
-    private val profile = File(HOME, "Library/Application Support/Mole/Chrome")
+    private val profile = File(HOME, "Library/Application Support/Moliere/Chrome")
     private val client = HttpClient(CIO) { install(WebSockets) }
     private val sockets = mutableMapOf<String, DefaultClientWebSocketSession>()
     private val tabs = mutableMapOf<String, String>()  // what a tab shows (a URL) -> its DevTools target id

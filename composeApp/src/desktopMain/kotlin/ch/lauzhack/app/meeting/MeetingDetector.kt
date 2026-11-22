@@ -142,7 +142,7 @@ internal val PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>ch.lauzhack.mole.meet</string>
-<key>NSCalendarsFullAccessUsageDescription</key><string>The Mole shows the title of the meeting you are in, from your calendar.</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>Molière shows the title of the meeting you are in, from your calendar.</string>
 </dict></plist>
 """
 
@@ -150,7 +150,7 @@ internal val PLIST = """<?xml version="1.0" encoding="UTF-8"?>
  *  Info.plist, which names the permissions it may ask for. */
 internal fun built(name: String, plist: String): Path {
     val source = MeetingDetector::class.java.getResource("/$name.swift")!!.readBytes()
-    val cache = Path(System.getProperty("user.home"), "Library", "Caches", "The Mole").createDirectories()
+    val cache = Path(System.getProperty("user.home"), "Library", "Caches", "Moliere").createDirectories()
     val exe = cache / "$name-%08x".format((source.decodeToString() + plist).hashCode())
     if (exe.exists()) return exe
     (cache / "$name.swift").writeBytes(source)

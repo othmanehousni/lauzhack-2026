@@ -63,12 +63,12 @@ internal fun ApplicationScope.MoleFloater(lines: StateFlow<MoleLine>, onPick: (I
     if (isTraySupported) {
         Tray(
             icon = MoleTrayIcon,
-            tooltip = "The Mole",
+            tooltip = "Molière",
             onAction = resetPosition,
             menu = {
                 Item("Reset floater position", onClick = resetPosition)
                 Separator()
-                Item("Quit The Mole", onClick = onQuit)
+                Item("Quit Molière", onClick = onQuit)
             },
         )
     }
@@ -77,7 +77,7 @@ internal fun ApplicationScope.MoleFloater(lines: StateFlow<MoleLine>, onPick: (I
         onCloseRequest = onQuit,
         state = state,
         visible = visible,
-        title = "The Mole",
+        title = "Molière",
         undecorated = true,
         transparent = true,
         resizable = false,
@@ -91,7 +91,7 @@ internal fun ApplicationScope.MoleFloater(lines: StateFlow<MoleLine>, onPick: (I
             items = {
                 listOf(
                     ContextMenuItem("Reset floater position", resetPosition),
-                    ContextMenuItem("Quit The Mole", onQuit),
+                    ContextMenuItem("Quit Molière", onQuit),
                 )
             },
         ) {
