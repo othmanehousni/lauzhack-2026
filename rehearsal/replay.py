@@ -143,7 +143,7 @@ def utterances(path, at=None):
         if e := EAR.match(b):
             kind, text = e[1].strip(), e[2]
             if not us or us[-1]['ended']: us.append(dict(n=len(us) + 1, words='', partials=set(), ended=False, done=False, before=screen, slide=slide,
-                                                         t=t, decisions=[], cands=[], picks=[], announced=[], stopped=[], calls=[]))
+                                                         t=t, decisions=[], cands=[], picks=[], announced=[], asks=[], stopped=[], calls=[]))
             u = us[-1]
             u['partials'].add(text)
             if kind == 'final': u['words'], u['ended'] = text, True
@@ -155,15 +155,16 @@ def utterances(path, at=None):
             u['decisions'].append((not d[2], d[3], d[4]))
             if not d[2]: u['done'] = True
             if d[3] != 'Nothing': last = u
-            a = re.match(r'Ask\(options=\[(.*)\]\)$', d[3])
+            a = re.match(r'Ask\(options=\[(.*)\](?:, doubt=[\d.]+)?\)$', d[3])
             if a and len(re.findall(r'(?:Slide|Site|File|App)\(', a[1])) == 1:  # one option: an announce; more are a choice
                 if pend: pend[0]['stopped'].append(pend[1])
                 pend = (u, target(a[1]))
                 u['announced'].append(pend[1])
+                u['asks'].append((d[4] or '', d[3]))
                 k = re.match(r'show (\d+)$', d[4] or '')
-                if k and u['cands']:  # the pick's score and the best one's, in the candidates of this decision
-                    cs = u['cands'][-1][1]
-                    u['picks'].append((pend[1], cs[int(k[1]) - 1][1], max(s for _, s in cs), int(k[1])))
+                if k and u['cands']:  # the pick's score, the best one's and its lead over the others, in the candidates of this decision
+                    cs, i = u['cands'][-1][1], int(k[1]) - 1
+                    u['picks'].append((pend[1], cs[i][1], max(s for _, s in cs), cs[i][1] - max((s for j, (_, s) in enumerate(cs) if j != i), default=0)))
         elif b.startswith('mole    back  Okay, not shown') and pend:
             pend[0]['stopped'].append(pend[1]); pend = None
         elif b.startswith('call    '):
