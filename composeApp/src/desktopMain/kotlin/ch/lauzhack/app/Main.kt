@@ -3,6 +3,7 @@ package ch.lauzhack.app
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -14,8 +15,11 @@ import ch.lauzhack.app.decider.ModelBrain
 import ch.lauzhack.app.engine.desktopEngines
 import ch.lauzhack.app.meeting.MeetingDetector
 import ch.lauzhack.app.mole.Demo
+import ch.lauzhack.app.mole.Home
+import ch.lauzhack.app.mole.HomeWindow
 import ch.lauzhack.app.mole.MoleTheme
 import ch.lauzhack.app.mole.Playground
+import ch.lauzhack.app.mole.Settings
 import ch.lauzhack.app.session.Laptop
 import ch.lauzhack.app.session.ANNOUNCE
 import ch.lauzhack.app.session.RulesBrain
@@ -119,13 +123,21 @@ fun main(args: Array<String>) {
         "announces wait ${window.value.inWholeMilliseconds} ms")
 
     application {
-        var theme by remember { mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System)) }
+        val settings = remember { Settings(prefs, library, history, window, WAITS, mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System))) }
+        var theme by settings.theme
+        // Opens with the app but not for a scripted run, which may run while someone works on this Mac.
+        var home by remember { mutableIntStateOf(if (typed == null && audio.isEmpty()) 1 else 0) }
+        if (home > 0) HomeWindow(home, { home = 0 }, theme) { demo ->
+            Home(detector.meeting, { detector.start("Meeting") }, detector::stop, laptop.line, laptop::onPick, demo.lines, demo::pick,
+                laptop.onScreen, laptop.phone, if (model) 2 else 1, settings, ::chooseFolder)
+        }
         val meeting by detector.meeting.collectAsState()
         val lib by library.collectAsState()
         val browsing by history.collectAsState()
         val wait by window.collectAsState()
         val empty by produceState(false, lib) { while (true) { value = !hasDecks(lib); delay(3.seconds) } }
         MoleFloater(laptop.line, laptop::onPick, ::exitApplication, theme) {
+            Item("Open Molière", onClick = { home++ })
             if (meeting == null) Item("Start a meeting", onClick = { detector.start("Meeting") })
             else Item("End the meeting", onClick = detector::stop)
             Separator()

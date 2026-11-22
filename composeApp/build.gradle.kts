@@ -66,7 +66,8 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "ch.lauzhack.app.MainKt"
-        // Menus follow dark mode; no Dock icon, the tray and the floater are the app.
+        // Menus follow dark mode. No Dock icon: the mole in the menu bar opens the window, an accessory app does not come
+        // forward when the floater shows over the call, and the unattended runs of rehearsal/ and latency/ stay out of the Dock.
         jvmArgs("-Dapple.awt.application.appearance=system", "-Dapple.awt.UIElement=true")
         nativeDistributions {
             packageName = "Moliere" // codesign fails on the bundle when it is named Molière

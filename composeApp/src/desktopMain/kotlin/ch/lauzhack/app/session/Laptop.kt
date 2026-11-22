@@ -4,6 +4,7 @@ import ai.koog.embeddings.base.Embedder
 import ch.lauzhack.app.Agent
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleLine
+import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.agent.Catalog
 import ch.lauzhack.app.agent.Embeddings
@@ -90,6 +91,15 @@ class Laptop(
     private val session = MutableStateFlow<Session?>(null)
 
     val line: StateFlow<MoleLine> = mole.line
+
+    private val seen = MutableStateFlow(OnScreen())
+    private val phoned = MutableStateFlow(false)
+
+    /** What the audience sees; the bare desktop outside a call. */
+    val onScreen: StateFlow<OnScreen> = seen
+
+    /** Whether a phone is connected; never outside a call. */
+    val phone: StateFlow<Boolean> = phoned
 
     fun onPick(index: Int) {
         session.value?.pick(index)
@@ -191,10 +201,11 @@ class Laptop(
             val s = Session(logged(agent), desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone }, window = window)
             session.value = s
             launch { phones.picks.collect(s::pick) }
-            launch { phones.connected.collect { log(if (it) "phone connected" else "no phone") } }
+            launch { phones.connected.collect { phoned.value = it; log(if (it) "phone connected" else "no phone") } }
             launch {
                 s.onScreen.collectLatest { shown -> // again once a tab that just opened has drawn
                     log("screen  ${shown.target ?: "the desktop"}  ${shown.name}")
+                    seen.value = shown
                     repeat(2) {
                         val thumb = quietly { desk.thumbnail() }
                         screen.value = Link.Screen(shown.name, thumb)
@@ -206,6 +217,8 @@ class Laptop(
             s.run()
         } finally {
             session.value = null
+            seen.value = OnScreen()
+            phoned.value = false
             phones.stop()
             log("meeting over")
         }
