@@ -29,6 +29,9 @@
     pdf: `<path d="M3.5 1.5h6l3 3v10h-9z"/><path class="g-line" d="M9.5 1.5v3h3M5.5 8h5M5.5 10.5h5M5.5 13h3"/>`,
     slides: `<rect x="1.5" y="3.5" width="13" height="9" rx="1"/><path class="g-line" d="M4 7h6M4 9.5h8"/>`,
     sheet: `<path d="M3.5 1.5h9v13h-9z"/><path class="g-line" d="M3.5 5.5h9M3.5 9.5h9M8 5.5v9"/>`,
+    site: `<rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path class="g-line" d="M1.5 5.5h13M4 8.5h8M4 11h5"/>`,
+    image: `<rect x="1.5" y="2.5" width="13" height="11" rx="1"/><path class="g-line" d="M1.5 12l4-4 3 3 2-2 4 4M9.75 5.5a1.25 1.25 0 1 0 2.5 0a1.25 1.25 0 1 0-2.5 0"/>`,
+    other: `<path d="M3.5 1.5h6l3 3v10h-9z"/><path class="g-line" d="M9.5 1.5v3h3"/>`,
   };
   const CHECK = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.6 6.3l2.2 2.2 4.6-4.9"/></svg>`;
   const HEARD_MAX = 44; // a live transcript keeps its newest words
@@ -352,7 +355,7 @@
       );
     }
 
-    // options: [{ name, meta, kind: "pdf" | "slides" | "sheet" }], kept until new ones arrive. pick: the row to mark (-1 for none).
+    // options: [{ name, meta, kind: "pdf" | "slides" | "sheet" | "site" | "image" | "other" }], kept until new ones arrive. pick: the row to mark (-1 for none).
     // card: what the slide card says ("07"); kept until changed. While choosing, the two fanned cards read 1 and 2.
     function set(state, { title: t, heard: h, timeout, options, pick, card } = {}) {
       if (!(state in TITLES)) throw new Error(`unknown mole state: ${state}`);
