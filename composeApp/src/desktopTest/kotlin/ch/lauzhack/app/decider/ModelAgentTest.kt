@@ -316,17 +316,19 @@ class ModelAgentTest {
     }
 
     @Test
-    fun aSentenceWithMoreAfterItActsAsWhenTheVoiceStopsAndIsNeverDecidedAsDone() = runBlocking {
+    fun aSentenceWithMoreAfterItActsOnWhatItsWordsWereDecidedAndIsNeverDecidedAsDone() = runBlocking {
         val asked = mutableListOf<Pair<String, String?>>()
-        val answers = ArrayDeque(listOf("next", "nothing", "nothing"))
+        val answers = ArrayDeque(listOf("next", "next", "nothing"))
         val agent = ModelAgent(catalog, Flat, { p, g -> asked += p to g; answers.removeFirst() })
         fun now() = asked.last().first.lines().first { it.startsWith("now") } to asked.last().second
+        assertEquals(Move.Nothing, agent.anythingToDo(Heard("Next slide", false, 1), OnScreen(slide(1).target)))
         assertEquals(Move.Show(slide(2).target), agent.anythingToDo(Heard("Next slide.", true, 1, more = true), OnScreen(slide(1).target)))
-        assertEquals("now (speaking): Next slide." to null, now())
-        assertEquals(Move.Nothing, agent.anythingToDo(Heard("The robot learns from five.", true, 2, listOf("Next slide."), more = true), OnScreen(slide(2).target)))
-        assertEquals("now (speaking): The robot learns from five." to null, now())
-        agent.anythingToDo(Heard("photos.", true, 3, listOf("Next slide.", "The robot learns from five.")), OnScreen(slide(2).target))
-        assertEquals("now (done): The robot learns from five photos.", now().first)
+        assertEquals("now (speaking): Next slide" to null, now(), "the model not asked again")
+        assertEquals(Move.Nothing, agent.anythingToDo(Heard("Sorry, sorry.", true, 2, listOf("Next slide."), more = true), OnScreen(slide(2).target)),
+            "a new answer acts only as two partials agreeing would")
+        assertEquals("now (speaking): Sorry, sorry." to null, now())
+        agent.anythingToDo(Heard("photos.", true, 3, listOf("Next slide.", "Sorry, sorry.")), OnScreen(slide(2).target))
+        assertEquals("now (done): Sorry, sorry photos.", now().first)
     }
 
     @Test

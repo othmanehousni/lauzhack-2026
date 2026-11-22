@@ -144,7 +144,7 @@ class ModelAgent(
         u.words = words
         val move = move(said, s, cat)
         if (!done) {
-            val agreed = stopped || move == u.guess
+            val agreed = heard.quiet || move == u.guess // the model reads "next" into "Sorry, sorry." even as words go on
             u.said = said
             u.guess = move
             return early(said, move, heard.n, cat, agreed).also { if (heard.ended) over() }
