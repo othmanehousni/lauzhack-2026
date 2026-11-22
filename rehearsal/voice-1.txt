@@ -1,0 +1,30 @@
+# chatter that must not act
+Hi everyone, thanks for joining, can you all hear me okay? || keep
+# a request after filler
+Okay, so, um, yeah, let's open up the company slides. || slide Company_Overview 1
+# a pause before the last word
+So today we will be talking about warehouse [[slnc 1400]] robots. || keep
+The robot learns every new item from just five [[slnc 1300]] photos. || keep
+Maybe we can have a look at the next [[slnc 1300]] slide. || slide Company_Overview 2
+Can you go to slide [[slnc 1300]] four? || slide Company_Overview 4
+# a request at the end of a long sentence
+So that is roughly how the robot works in a real warehouse with real people around it, and now let's go to the next slide. || slide Company_Overview 5
+# a request after filler
+Sorry, sorry, wait. Okay. So, um, previous slide please. || slide Company_Overview 4
+# soft last words
+And it learns new items from a few [[volm 0.25]] photos. || keep
+Let's go back to slide [[volm 0.3]] two. || slide Company_Overview 2
+# rapid commands
+Next slide. [[slnc 750]] Next slide. || slide Company_Overview 4
+Previous slide. [[slnc 750]] Previous slide. || slide Company_Overview 2
+# chatter that must not act
+I will send the company overview to everyone after the call. || keep
+Last time we talked about the market size for this year. || keep
+# misheard names
+Wait, wait, wait. Open up get hub. || site github.com
+Close that. || slide Company_Overview 2
+So, um, could you open you tube for a second? || site youtube.com
+Close it. || slide Company_Overview 2
+# a pause before the object
+Now let's switch to the [[slnc 1500]] Q3 financials. || slide Q3_2026_Financials 1
+Show me the gross [[slnc 1300]] margin slide. || slide Q3_2026_Financials 3
