@@ -38,7 +38,7 @@ class AgentDesktop(
     private val hostPort: Int = HOST_PORT,
     history: Boolean = true,
     private val cache: File = CACHE,
-    private val files: Files = Files(),  // lists in the background from now on
+    private val files: Files = Files(roots = FOLDERS.map { File(HOME, it) }),  // lists in the background from now on
     browsers: File = File(HOME, "Library/Application Support"),
 ) {
     private val lock = Mutex()
@@ -58,7 +58,10 @@ class AgentDesktop(
     var onScreen = OnScreen(); private set
 
     init {
-        drawer.execute { runCatching { readyDecks(files.recent()) } }  // from now on, so that the first recents() finds them read
+        // from now on, so that the first recents() finds them read; again after the first walk, for those Spotlight lacked
+        val ready = Runnable { runCatching { readyDecks(files.recent()) } }
+        drawer.execute(ready)
+        files.walked.thenRun { drawer.execute(ready) }
     }
 
     @Volatile private var shooting: Job? = null // a thumbnail being taken, which gives way to any other call
@@ -184,8 +187,8 @@ class AgentDesktop(
         Recents(pages.await(), used.map { UsedFile(it.path, Instant.ofEpochMilli(it.seen())) }, decks)
     }
 
-    /** The RECENT_DECKS most recent PDFs outside the library that may be decks, by Spotlight's count and size of their
-     * pages, as decks once their text is read. The others are read, and their first DRAWN_AHEAD pages drawn, in the
+    /** The RECENT_DECKS most recent PDFs outside the library that may be decks, by the count and size of their pages
+     * (Spotlight's, or the walk's), as decks once their text is read. The others are read, and their first DRAWN_AHEAD pages drawn, in the
      * background, for a later call. Only these decks' pictures are kept. */
     internal fun readyDecks(spots: List<Spot>): List<RecentDeck> {
         val names = library.listFiles { f -> f.extension.lowercase() == "pdf" }.orEmpty().map { it.nameWithoutExtension }.toMutableSet()

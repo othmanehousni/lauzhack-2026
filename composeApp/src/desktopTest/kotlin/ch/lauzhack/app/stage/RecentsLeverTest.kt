@@ -11,6 +11,7 @@ import java.net.ServerSocket
 import java.net.URI
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,8 +21,9 @@ import kotlin.time.TimeSource
  *
  *   MOLE_RECENTS=1 ./gradlew :composeApp:desktopTest --tests '*RecentsLeverTest*' -i
  *
- * Skipped without MOLE_RECENTS. The real run reads the browsers' history and Spotlight and draws recent decks into a
- * temporary folder; it prints counts and timings only, never a title, an address or a file's name. */
+ * Skipped without MOLE_RECENTS. The real run reads the browsers' history and Spotlight, walks Desktop, Documents and
+ * Downloads as the app does when Spotlight lacks files, and draws recent decks into a temporary folder; it prints counts
+ * and timings only, never a title, an address or a file's name. */
 class RecentsLeverTest {
     private inline fun <T> timed(block: () -> T): Pair<T, Long> {
         val t = TimeSource.Monotonic.markNow()
@@ -99,6 +101,47 @@ class RecentsLeverTest {
             val off = AgentDesktop(library, sandbox = null, data = File(tmp, "data"), cache = File(tmp, "cache"), history = false, files = files)
             val (o, oms) = timed { off.recents() }
             println("recents() with history off: ${o.pages.size} pages, ${o.files.size} files, ${o.decks.size} decks, $oms ms")
+        } finally {
+            tmp.deleteRecursively()
+        }
+    }
+
+    /** The same without Spotlight, from the app's own walk of the folders; no browser history is read. */
+    @Test
+    fun realMacWithoutSpotlight() = runBlocking {
+        System.getenv("MOLE_RECENTS") ?: return@runBlocking println("recents lever skipped: set MOLE_RECENTS")
+        System.setProperty("java.awt.headless", "true")
+        val tmp = tmp("mole-recents-walk")
+        try {
+            val roots = FOLDERS.map { File(HOME, it) }
+            val said = mutableListOf<String>()
+            val spotlight = Files().also { it.newest() }  // once Spotlight's list is in
+            val spotlit = spotlight.recent()
+            val (_, s2) = timed { spotlight.recent() }
+            println("Spotlight alone: ${spotlit.size} files of 14 days, warm recent() $s2 ms")
+            val (alone, w1) = timed { Files(roots, note = { said += it }) { "" }.also { it.walked.get(2, TimeUnit.MINUTES) } }
+            val (again, w2) = timed { alone.walk() }  // the next tick is 20 s away
+            println("walk without Spotlight: first $w1 ms, again $w2 ms, ${again.size} files (${again.count { it.used > 0 }} with a last-use date, ${again.count { it.pages >= 3 }} PDFs of 3 pages or more)")
+            val (lone, l1) = timed { alone.recent() }
+            val (_, l2) = timed { alone.recent() }
+            println("  recent(): ${lone.size} files, $l1 ms, again $l2 ms")
+            val a = spotlit.map { it.path }.toSet()
+            val b = lone.map { it.path }.toSet()
+            println("  of the 14 days' files: ${(a intersect b).size} in both, ${(a - b).size} from Spotlight only, ${(b - a).size} from the walk only")
+            println("  Spotlight's only, by kind: ${(a - b).groupingBy { (if (File(it).isDirectory) "folder " else "") + it.substringAfterLast('.').lowercase() }.eachCount()}")
+            val top = lone.filter { alone.wanted(it.path) }.take(300)
+            println("  the 300 newest files recents() offers: ${top.count { it.path !in a }} not in Spotlight's answer; by kind ${top.groupingBy { it.path.substringAfterLast('.').lowercase() }.eachCount()}; by folder ${top.groupingBy { p -> roots.first { p.path.startsWith(it.path) }.name }.eachCount()}; oldest ${(System.currentTimeMillis() - top.last().seen()) / 60_000} min ago")
+            val both = Files(roots, note = { said += it }).also { it.newest() }
+            val joined = both.recent()
+            val warm = List(5) { timed { both.recent() }.second }
+            println("  Spotlight and the walk together: ${joined.size} files, warm recent() $warm ms; Spotlight alone again ${List(5) { timed { spotlight.recent() }.second }} ms")
+            said.forEach { println("  said: $it") }
+            val desk = AgentDesktop(File(tmp, "library"), sandbox = null, data = File(tmp, "data"), cache = File(tmp, "cache"), history = false, files = alone)
+            val (_, settle) = timed { desk.settled() }
+            repeat(3) {
+                val (r, ms) = timed { desk.recents() }
+                println("recents() without Spotlight, warm: ${r.files.size} files, ${r.decks.size} decks (${r.decks.sumOf { it.pages.size }} pages), $ms ms (settled in $settle ms)")
+            }
         } finally {
             tmp.deleteRecursively()
         }
