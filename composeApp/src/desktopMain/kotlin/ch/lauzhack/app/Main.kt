@@ -47,6 +47,7 @@ import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
 import java.util.prefs.Preferences
+import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -69,6 +70,7 @@ import kotlin.time.Duration.Companion.seconds
  *                 follows the moves: no VM, Chrome, phone, window, log file, nor this Mac's files and pages (rehearsal/replay.py)
  */
 fun main(args: Array<String>) {
+    checkFlags(args)
     if ("--playground" in args || "--demo" in args) return application {
         val scope = rememberCoroutineScope()
         val demo = remember { Demo(scope) }
@@ -178,6 +180,26 @@ fun main(args: Array<String>) {
             Item("Quit Molière", onClick = ::exitApplication)
         }
     }
+}
+
+private val SWITCHES = setOf("--playground", "--demo", "--typed", "--paced", "--host", "--no-history", "--replay")
+private val VALUED = setOf("--window", "--library", "--models")
+
+/** Stops on a flag without its value or a --window that is not milliseconds; warns of a flag it does not know, which
+ * may be a typo of one it does (--no-histroy would read the history). */
+private fun checkFlags(args: Array<String>) {
+    fun stop(why: String): Nothing {
+        System.err.println("Molière: $why. The flags are listed above fun main in Main.kt.")
+        exitProcess(2)
+    }
+    var i = 0
+    while (i < args.size) when (val a = args[i++]) {
+        in SWITCHES -> Unit
+        in VALUED -> if (args.getOrNull(i++)?.startsWith("--") != false) stop("$a needs a value")
+        "--audio" -> while (i < args.size && !args[i].startsWith("--")) i++
+        else -> System.err.println("Molière: unknown flag $a, ignored")
+    }
+    if ("--window" in args && args.after("--window")?.toLongOrNull() == null) stop("--window takes milliseconds")
 }
 
 private fun Array<String>.after(flag: String) = getOrNull(indexOf(flag).takeIf { it >= 0 }?.plus(1) ?: -1)

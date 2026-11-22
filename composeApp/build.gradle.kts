@@ -40,9 +40,11 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.kotlinx.coroutines.get()}")
+            implementation(libs.kotlinx.coroutines.test)
         }
         val desktopMain by getting {
+            // The model engine (package engine) runs on the laptop only: the phone decides nothing and loads no model.
+            kotlin.srcDir("src/litert/kotlin")
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutines.swing)
@@ -50,16 +52,15 @@ kotlin {
                 implementation(libs.ktor.server.cio)
                 implementation(libs.ktor.server.websockets)
                 implementation(libs.pdfbox)
+                implementation(libs.litertlm.jvm)
+                // litertlm asks for kotlin-reflect 2.4.0, which lifts kotlin-stdlib past this compiler; only its unused ToolSet API reflects.
+                implementation("org.jetbrains.kotlin:kotlin-reflect:${libs.versions.kotlin.get()}!!")
             }
         }
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.ktor.client.okhttp)
         }
-        // The model engine (package engine) runs on the laptop only: the phone decides nothing and loads no model.
-        desktopMain.kotlin.srcDir("src/litert/kotlin")
-        // litertlm asks for kotlin-reflect 2.4.0, which lifts kotlin-stdlib past this compiler; only its unused ToolSet API reflects.
-        desktopMain.dependencies { implementation(libs.litertlm.jvm); implementation("org.jetbrains.kotlin:kotlin-reflect:${libs.versions.kotlin.get()}!!") }
     }
 }
 
