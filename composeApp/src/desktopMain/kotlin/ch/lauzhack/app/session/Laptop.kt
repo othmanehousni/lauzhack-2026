@@ -122,7 +122,16 @@ class Laptop(
             if (!hasDecks(library.value)) empty(library.value)
             val title = meeting.map { it.orEmpty() }.stateIn(this, SharingStarted.Eagerly, "")
             combine(meeting.map { it != null }, library, history) { on, lib, h -> (lib to h).takeIf { on } }.distinctUntilChanged()
-                .collectLatest { if (it != null) meet(title, it, warm) else mole.on(Event.Sleep) }
+                .collectLatest { wants ->
+                    if (wants == null) return@collectLatest mole.on(Event.Sleep)
+                    try {
+                        meet(title, wants, warm)
+                    } catch (e: Exception) { // whatever broke, the next call must still start
+                        currentCoroutineContext().ensureActive() // a call that ended cancels this block: not a failure
+                        log("meeting failed: $e")
+                        mole.on(Event.Failed("Something went wrong in this meeting.", first(e)))
+                    }
+                }
         }
     }
 
@@ -180,8 +189,8 @@ class Laptop(
         val laptopDb = ear?.level?.map { 20 * log10(maxOf(it, 1e-5f)) }?.stateIn(this, SharingStarted.Eagerly, -100f) ?: MutableStateFlow(-100f)
         val screen = MutableStateFlow(Link.Screen())
         val phones = PhoneServer(mole.line, screen, title, laptopDb, port = if (dry) 0 else PORT, host = if (dry) "127.0.0.1" else "0.0.0.0", beacon = !dry)
-        phones.start()
         try {
+            phones.start() // inside the try: a port another app holds fails this meeting, and stop() still runs
             val s = Session(logged(agent), if (dry) DryScreen() else desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone }, window = window)
             session.value = s
             launch { phones.picks.collect(s::pick) }
