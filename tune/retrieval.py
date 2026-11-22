@@ -30,7 +30,8 @@ def lines(script: Path):
 def main() -> None:
     path = next((a for a in sys.argv[1:] if not a.startswith("--")), "/tmp/eval_vectors.npz")
     z = np.load(path)
-    ids, docs = list(z["ids"]), z["docs"]
+    ids = list(z["ids"])
+    docs = z["docs"][:len(ids)]  # embed_eval saves the name documents after the main ones; alt_docs has them by owner
     q = dict(zip(z["keys"], z["queries"]))
     decks = np.array([i.rsplit(" p", 1)[0] if " p" in i and not i.startswith("/") and not i.startswith("http") else "" for i in ids])
     owner = [ids.index(o.rsplit("|", 1)[0]) for o in z["alt_owner"]] if "alt_owner" in z else []
