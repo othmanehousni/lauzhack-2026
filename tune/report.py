@@ -105,7 +105,7 @@ def main() -> None:
     for k, t in part.items():
         print(f"{k:22} {pct(t['ok'], t['n']):>12} {pct(t['fa'], t['empty']):>10} {t['sw']:>9}")
     if run.get("cases"):
-        accept = {json.loads(l)["family"]: json.loads(l)["accept"] for l in (ROOT / "eval/cases/rehearsal.jsonl").read_text().splitlines()}
+        accept = {json.loads(l)["family"]: json.loads(l)["accept"] for p in (ROOT / "eval/cases").glob("*.jsonl") for l in p.read_text().splitlines()}
         print("\nrehearsal cases (typed | no final mark | plain)")
         by = defaultdict(dict)
         for f, _, got in run["cases"]:

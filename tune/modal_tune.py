@@ -443,9 +443,9 @@ def score_dev(model: str, data: str, start: int, stop: int, families: str = "", 
 
 @app.local_entrypoint()
 def evaluate(name: str, scripts: str = "", dev: int = 3000, convert_first: bool = False, prefix: str = "decider", families: str = "",
-             mode: str = "constrained", text: str = "say", cases: str = ""):
+             mode: str = "constrained", text: str = "say", cases: str = "", tag: str = ""):
     """Score /vol/<name>/<prefix>_q8_ekv1024.litertlm on eval scripts (all by default; "none" for none), as said or as heard
-    (text=heard: eval/heard), the first `dev` dev rows (of the given families only, if any) and the rows of eval/<cases>."""
+    (text=heard: eval/heard), the first `dev` dev rows (of the given families only, if any) and the rows of each eval/<cases> (a,b)."""
     if convert_first:
         convert_run.remote(name, prefix)
     model = f"/vol/{name}/{prefix}_q8_ekv1024.litertlm"
@@ -453,10 +453,10 @@ def evaluate(name: str, scripts: str = "", dev: int = 3000, convert_first: bool 
     constrained = mode == "constrained"
     calls = [score_script.spawn(model, s, constrained, text == "heard") for s in names]
     chunks = [(model, f"/vol/{name}/data/dev.jsonl", i, min(dev, i + 150), families, constrained) for i in range(0, dev, 150)]
-    case_rows = score_dev.spawn(model, f"/root/eval/{cases}", 0, 10 ** 6, "", constrained) if cases else None
+    case_rows = [score_dev.spawn(model, f"/root/eval/{c}", 0, 10 ** 6, "", constrained) for c in cases.split(",") if c]
     devs = [x for part in score_dev.starmap(chunks) for x in part] if dev else []
-    out = {"scripts": {s: c.get() for s, c in zip(names, calls)}, "dev": devs, "cases": case_rows.get() if case_rows else []}
-    tag = name + ("" if prefix == "decider" else "_" + prefix) + ("" if constrained else "_free") + ("_heard" if text == "heard" else "")
+    out = {"scripts": {s: c.get() for s, c in zip(names, calls)}, "dev": devs, "cases": [x for c in case_rows for x in c.get()]}
+    tag = tag or name + ("" if prefix == "decider" else "_" + prefix) + ("" if constrained else "_free") + ("_heard" if text == "heard" else "")
     Path(f"/tmp/score_{tag}.json").write_text(json.dumps(out))
     print(f"wrote /tmp/score_{tag}.json")
 
