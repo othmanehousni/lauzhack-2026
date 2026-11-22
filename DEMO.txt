@@ -24,12 +24,13 @@ MOLIÈRE: READ THIS BEFORE GOING ON STAGE
     So what was the real issue?                    slide 5, error-prone manual work under stress
     Next slide please.                             slide 6, Introducing Molière
     Go to slide 8.                                 slide 8, Not just AI agent talk
+    Show the diagram.                              the bar offers three diagrams and waits
+    The second one.                                Moliere decision loop.png
     Let me show you the architecture diagram.      Moliere architecture diagram.png
     And here is our tech stack.                    Moliere tech stack.png
-    Open the Molière system components.            Moliere system components.png
-    Open the Molière decision loop.                Moliere decision loop.png
-    Open the Molière models.                       Moliere models.png
-    Open the Molière fine-tuning.                  Moliere fine-tuning.png
+    Show me the system components diagram.         Moliere system components.png
+    Show me the models diagram.                    Moliere models.png
+    Show me the fine-tuning diagram.               Moliere fine-tuning.png
     Go back to slide 8.                            slide 8 again
     Show me the notetakers slide.                  slide 9, works live, in any software
     I'm happy to take questions at the end.        nothing changes
@@ -42,6 +43,9 @@ MOLIÈRE: READ THIS BEFORE GOING ON STAGE
   A wrong thing is announced:     say "no" while it announces (or press Stop on the bar or the phone).
   A wrong screen is shown:        say "no, go back" within 20 seconds.
   Nothing happens:                say it again, slower.
+  The shared screen is black      say the line again: Molière puts its screen back at the next thing it shows.
+  or shows a desktop:
+  Never click or type in the "Molière screen" window: the keys go into the VM and can minimize its browser.
   The microphone fails:           quit Molière and type the lines instead, Return after each one,
                                   once it says "Hi. I'm listening.":
     ~/Desktop/lauzhack-2026/composeApp/build/compose/binaries/main/app/Moliere.app/Contents/MacOS/Moliere --typed --library ~/Desktop/lauzhack-2026/pitch --no-history
@@ -52,6 +56,7 @@ MOLIÈRE: READ THIS BEFORE GOING ON STAGE
   "Close that." after a diagram: it goes to the desktop, not the deck. Say "Go back to slide 8." instead.
   Statements as picks ("We asked six people...", "The real problem is...") are taken as talk.
   "Show me the slide on tech failures" picked slide 1.
+  "Open the Molière system components." picked a slide. Say "Show me the system components diagram." instead.
 
 
 5. MIME MODE
