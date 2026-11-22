@@ -4,7 +4,10 @@ import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -58,7 +61,12 @@ class AgentDesktop(
         drawer.execute { runCatching { readyDecks(files.recent()) } }  // from now on, so that the first recents() finds them read
     }
 
-    private suspend fun <T> serial(block: suspend () -> T): T = lock.withLock { withContext(Dispatchers.IO) { block() } }
+    @Volatile private var shooting: Job? = null // a thumbnail being taken, which gives way to any other call
+
+    private suspend fun <T> serial(block: suspend () -> T): T {
+        shooting?.cancel()
+        return lock.withLock { withContext(Dispatchers.IO) { block() } }
+    }
 
     /** Checks what the shared screen needs, starts the VM if it is stopped and sets it up (Vm.setup) if it cannot show
      * the stage, renders the decks and brings up the stage on the desktop picture. Returns notes for the presenter, one
@@ -144,8 +152,18 @@ class AgentDesktop(
         onScreen
     }
 
-    /** A small JPEG of what the audience sees now, or null when an app covers the stage. */
-    suspend fun thumbnail(): ByteArray? = serial { stage.thumbnail() }
+    /** A small JPEG of what the audience sees now, or null when an app covers the stage or another call came first:
+     * Chrome may not answer a screenshot of a tab that is still loading, and no call for the presenter waits for one. */
+    suspend fun thumbnail(): ByteArray? = coroutineScope {
+        val shot = async { lock.withLock { withContext(Dispatchers.IO) { stage.thumbnail() } } }
+        shooting = shot
+        try {
+            shot.await()
+        } catch (e: CancellationException) {
+            ensureActive()
+            null
+        }
+    }
 
     /** The n showable files in Desktop, Documents and Downloads the presenter used most recently. */
     suspend fun newestFiles(n: Int = 1500): List<String> = withContext(Dispatchers.IO) { files.newest(n) }
