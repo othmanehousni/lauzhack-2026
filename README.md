@@ -100,7 +100,7 @@ The shared screen is a macOS VM that `agent-desktop` runs. Set it up once:
 6. In the guest, finish Setup Assistant. Give the account the same short name as your Mac account (`cat ~/.agent-desktop/sandboxes/base/guest_user`). Turn on automatic login in System Settings > Users & Groups.
 7. In the guest, open Terminal and run `sh "/Volumes/My Shared Files/guest-setup.sh"`.
 8. In the guest, turn on Remote Login in System Settings > General > Sharing.
-9. In the guest, allow Accessibility for `sshd-keygen-wrapper` when macOS asks, or turn it on in System Settings > Privacy & Security > Accessibility. Molière drives apps in the VM over SSH, which needs it. The Python prototype's screen agent also needs Screen & System Audio Recording.
+9. In the guest, allow Accessibility for `sshd-keygen-wrapper` when macOS asks, or turn it on in System Settings > Privacy & Security > Accessibility. Molière drives apps in the VM over SSH, which needs it.
 10. On the host, `agent-desktop sandbox status base` answers `running` when setup is complete.
 
 Molière does the rest itself at the start of a meeting, whenever the VM cannot read the app's files or has no Chrome. `Vm.setup` in `Vm.kt` shares your Desktop, Documents and Downloads with the VM, read only and at the same paths. It gives the VM your screen's size and density, copies your wallpaper, dark mode and Dock settings, installs Google Chrome and restarts the VM. To share the folders, it patches the VM host of `agent-desktop`, so it runs again after you update `agent-desktop`. From then on, Molière starts the VM by itself when it is stopped. If you rerun step 7 later, the script is at `/Volumes/My Shared Files/agent-desktop/guest-setup.sh`.
@@ -137,7 +137,7 @@ modal run tune/modal_tune.py::evaluate --name mine
 modal volume get decider mine/decider_q8_ekv1024.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
 ```
 
-`evaluate` replays every script in `eval/` and the dev split through the converted model, the way the app runs it. `mise exec -- modal run eval/modal_decider.py` replays the scripts through the Kotlin `ModelAgent` itself. `tune/report.py` prints a run's scores beside the Python prototype's.
+`evaluate` replays every script in `eval/` and the dev split through the converted model, the way the app runs it. `mise exec -- modal run eval/modal_decider.py` replays the scripts through the Kotlin `ModelAgent` itself. `tune/report.py` prints a run's scores.
 
 ## Where things are
 
@@ -168,9 +168,4 @@ The scores were 17 of 17 on the demo lines and 37 of 45 on the harder set. The o
 
 ## The earlier Python prototype
 
-Before Molière was one Kotlin app, it was a Python prototype: an intent classifier trained on the example sentences in `intents.py`, rules around it, and models served by Ollama. Its files are `copilot.py`, `brain.py`, `intents.py`, `ear.py`, `hear.swift`, `stage.py`, `stage.html`, `vm.py`, `lipread/` and `pyproject.toml`. It is not the product. It stays in the repo as the baseline that the evals compare against, and `--rules` runs a Kotlin port of its rules. To score it on every script in `eval/` with the sample decks in `library/`, pull its embedding model into Ollama and run its eval. `modal run eval/modal_eval.py` runs the same eval on Modal.
-
-```sh
-ollama pull embeddinggemma-2:270m
-uv run copilot.py --router none eval eval/*.jsonl
-```
+Before Molière was one Kotlin app, it was a Python prototype with an intent classifier, hand written rules and models served by Ollama, and its files left the repository once the fine tuned decider beat its rules on the evals.

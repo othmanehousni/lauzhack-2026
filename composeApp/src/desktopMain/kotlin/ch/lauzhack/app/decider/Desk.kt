@@ -29,7 +29,7 @@ import kotlin.concurrent.Volatile
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource
 
-/** The presenter's bookmarks: the websites brain.py offered. */
+/** The presenter's bookmarks: well-known websites, always in the catalog. */
 val BOOKMARKS = listOf(
     "YouTube" to "https://www.youtube.com", "GitHub" to "https://github.com", "Google" to "https://www.google.com",
     "Gmail" to "https://mail.google.com", "Google Maps" to "https://www.google.com/maps", "Google Drive" to "https://drive.google.com",

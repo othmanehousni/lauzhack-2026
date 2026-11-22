@@ -22,7 +22,7 @@ import kotlin.test.assertTrue
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 
-/** The equivalent of `uv run stage.py`, against a headless Chrome on this Mac, so nothing shows on screen:
+/** The shared screen timed step by step (slides, a website, files, controls, tabs), against a headless Chrome on this Mac, so nothing shows on screen:
  *
  *   MOLE_LIBRARY=<folder of PDFs> ./gradlew :composeApp:desktopTest --tests '*LeverTest*' -i
  *
