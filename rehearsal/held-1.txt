@@ -1,0 +1,60 @@
+# chatter that must not act
+Morning everyone, let me know when you can see my screen. || keep
+Sophie, how was the trip to Lisbon in the end? || keep
+# decks by name
+Let's start with the financial review for the third quarter. || slide Q3_2026_Financials 1
+Next one. || slide Q3_2026_Financials 2
+Next slide. || slide Q3_2026_Financials 3
+Back one please. || slide Q3_2026_Financials 2
+Skip to slide 6. || slide Q3_2026_Financials 6
+Go to slide number seven. || slide Q3_2026_Financials 7
+# by meaning, same deck
+Remind me what we brought in this quarter. || slide Q3_2026_Financials 2 announce
+What are we expecting for the fourth quarter? || slide Q3_2026_Financials 8 announce
+Where does all our spending go? || slide Q3_2026_Financials 4 announce
+# mentions that must not act
+I'll send the spreadsheet round after the call. || keep
+We can talk about the roadmap another day. || keep
+I wanted to show you LinkedIn but we're short on time. || keep
+# other decks
+Okay, over to the company overview. || slide Company_Overview 1
+What problem are we solving here? || slide Company_Overview 2 announce
+How much are we raising, and what for? || slide Company_Overview 10 announce
+Now the product roadmap please. || slide Product_Roadmap 1
+What is new in the next gripper? || slide Product_Roadmap 2 announce
+How do we plan picks across the whole fleet? || slide Product_Roadmap 4 announce
+# sites and controls
+Let's go to Wikipedia. || site wikipedia.org
+Scroll down please. || site wikipedia.org
+Back to my slides. || slide Product_Roadmap 4
+Can you bring up LinkedIn? || site linkedin.com
+Close it. || slide Product_Roadmap 4
+Open python.org please. || site python.org
+Close it. || slide Product_Roadmap 4
+Look up suction gripper suppliers. || site google.com/search
+Close it. || slide Product_Roadmap 4
+# veto inside the window
+@1.2
+Let me show you the live demo. || announce
+@6
+No, don't show that. || slide Product_Roadmap 4 stopped
+# veto after it is shown
+Show me the timeline slide. || slide Product_Roadmap 6
+No, take that down. || slide Product_Roadmap 4
+# mishearings
+Next lied please. || slide Product_Roadmap 5
+Go to slide tree. || slide Product_Roadmap 3
+Open you tube. || site youtube.com
+Close it. || slide Product_Roadmap 3
+# a request at the end of a long sentence
+Before we wrap up I want to come back to what Lina asked earlier about whether customers can plug the robots into the warehouse software they already run so let me pull up the integrations slide. || slide Product_Roadmap 5
+# out of range and unknown
+Go to slide 42. || keep
+Open the spreadsheet with the llama grooming rota. || keep
+# correction in one breath
+Show the team slide, no wait, the competition slide. || slide Company_Overview 8
+# seen recently
+Let me bring up the orchard survey slides from last week. || slide orchard 1 announce
+Go to the next one. || slide orchard 2
+Can you show the choir rehearsal schedule? || file Choir rehearsal announce
+Close it. || slide orchard 2

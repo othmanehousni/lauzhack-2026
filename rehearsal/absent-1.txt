@@ -1,0 +1,15 @@
+# a deck on screen
+Let's open the company slides. || slide Company_Overview 1
+# requests for what is not on this Mac
+Open the quarterly penguin migration report. || keep
+Show me the slide about our Mars colony. || keep
+Pull up the spreadsheet of my chess club dues. || keep
+Open my notes from the dentist appointment. || keep
+Let's look at the photo of the purple giraffe. || keep
+Bring up the deck about underwater basket weaving. || keep
+Play the video from the unicorn parade. || keep
+Open the Zorblax app. || keep
+Show me the volcano insurance contract. || keep
+Can you open the invoice from the moon bakery? || keep
+Go to the slide with our submarine fleet. || keep
+Show me the recording of last year's snowball fight. || keep
