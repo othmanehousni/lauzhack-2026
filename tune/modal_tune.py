@@ -76,11 +76,15 @@ def finetune(base: str, pairs: list[tuple[str, str]], out: str, steps: int, batc
     data = [(tok(chat(p), add_special_tokens=False).input_ids, tok(a + "<end_of_turn>", add_special_tokens=False).input_ids) for p, a in pairs]
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0, betas=(0.9, 0.98))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda t: min(1.0, (t + 1) / max(1, steps // 20)) * max(0.0, 1 - t / steps))
-    rng, order, t0 = random.Random(seed), [], time.time()
+    rng, batches, t0 = random.Random(seed), [], time.time()
     for step in range(steps):
-        if len(order) < batch:
-            order += rng.sample(range(len(data)), len(data))
-        rows, order = [data[i] for i in order[:batch]], order[batch:]
+        if not batches:  # an epoch in random batches of similar length, so little of each batch is padding
+            order = rng.sample(range(len(data)), len(data))
+            for i in range(0, len(order), batch * 64):
+                pool = sorted(order[i:i + batch * 64], key=lambda j: len(data[j][0]))
+                batches += [pool[k:k + batch] for k in range(0, len(pool), batch)]
+            rng.shuffle(batches)
+        rows = [data[i] for i in batches.pop()]
         width = max(len(p) + len(a) for p, a in rows)
         ids = torch.zeros(len(rows), width, dtype=torch.long)
         att = torch.zeros(len(rows), width, dtype=torch.long)

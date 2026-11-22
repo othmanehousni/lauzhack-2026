@@ -371,16 +371,6 @@ def pick(rng, xs):
     return rng.choice(xs)
 
 
-def say(rng, opener: str | None, obj: str) -> str:
-    form = pick(rng, OPENER_FORMS)
-    v = opener or pick(rng, OPENERS)
-    return pick(rng, HEDGES) + form.format(v=v, o=obj) + pick(rng, TAILS)
-
-
-def title_words(t: str) -> str:
-    return t.lower() if pick(random.Random(t), [0, 1]) else t
-
-
 def deck_spoken(rng, d: dict) -> str:
     w = re.sub(r"[_\-]+", " ", d["name"]).split()
     if len(w) > 2 and rng.random() < 0.5:
@@ -431,10 +421,11 @@ def request(rng, s: Session, family: str, obj: str, answer: str, target: dict | 
     pre = ""
     if preamble and rng.random() < 0.3:
         pre = pick(rng, PREAMBLES + INTENTS["aside"][:60] + INTENTS["talk"][:60] + BACKGROUND[:10]) + " "
-    verb = pick(rng, HEDGES) + before.format(v=v)
+    hedge, verb = pick(rng, HEDGES), before.format(v=v)
     if noisy:
-        pre, verb, obj = noise(rng, pre), noise(rng, verb), noise(rng, obj, 0.5)
-    segs = [(pre, "nothing"), (verb, "wait" if verb.strip() else "nothing"), (obj, answer), (after.format(v=v) + pick(rng, TAILS), answer)]
+        pre, hedge, verb, obj = noise(rng, pre), noise(rng, hedge), noise(rng, verb), noise(rng, obj, 0.5)
+    segs = [(pre, "nothing"), (hedge, "nothing"), (verb, "wait" if verb.strip() else "nothing"), (obj, answer),
+            (after.format(v=v) + pick(rng, TAILS), answer)]
     c = cands if cands is not None else candidates(rng, s, [target] if target else [], near)
     if target and cands is None and key(target) not in {key(x) for x in c}:
         raise ValueError("target lost")
@@ -698,7 +689,7 @@ def fam_address(rng, s: Session):
         c = candidates(rng, s, [], [])
         answer = f"open {host}"
     v = pick(rng, ["go to", "can you go to", "open", "let's go to", "pull up", "can you open", "head to", "take us to", "type in", "visit"])
-    return utter(rng, "address", [(noise(rng, pick(rng, HEDGES) + v, 0.6), "wait"), (spoken + pick(rng, TAILS), answer)], context(rng, s), c,
+    return utter(rng, "address", [(noise(rng, pick(rng, HEDGES), 0.6), "nothing"), (noise(rng, v, 0.6), "wait"), (spoken + pick(rng, TAILS), answer)], context(rng, s), c,
                  screen=screen, behind=behind)
 
 
@@ -987,17 +978,18 @@ def fam_later(rng, s: Session):
     if screen and key(screen) == key(item):
         return []
     v = pick(rng, OPENERS)
-    segs = [(noise(rng, pick(rng, HEDGES) + v), "wait"), (phrase, f"show {index(c, item)}"), (pick(rng, CANCELS), "nothing")]
+    segs = [(noise(rng, pick(rng, HEDGES)), "nothing"), (noise(rng, v), "wait"), (phrase, f"show {index(c, item)}"), (pick(rng, CANCELS), "nothing")]
     return utter(rng, "cancelled", segs, context(rng, s), c, screen=screen, behind=behind)
 
 
 def fam_wait(rng, s: Session):
     screen, behind = s.screen(pick(rng, ["slide", "slide", "desktop", "front"]))
     if rng.random() < 0.5:
-        text = pick(rng, INTENTS["unfinished"])
+        segs = [(noise(rng, pick(rng, INTENTS["unfinished"])), "wait")]
     else:
-        text = pick(rng, HEDGES) + pick(rng, OPENERS) + pick(rng, ["", " the", " the, um", " our", " the uh", ",", " um", " the... the", " uh,", " that"])
-    return utter(rng, "wait", [(noise(rng, text), "wait")], context(rng, s), candidates(rng, s, [], []), screen=screen, behind=behind)
+        segs = [(noise(rng, pick(rng, HEDGES)), "nothing"),
+                (noise(rng, pick(rng, OPENERS) + pick(rng, ["", " the", " the, um", " our", " the uh", ",", " um", " the... the", " uh,", " that"])), "wait")]
+    return utter(rng, "wait", segs, context(rng, s), candidates(rng, s, [], []), screen=screen, behind=behind)
 
 
 def fam_split(rng, s: Session):
