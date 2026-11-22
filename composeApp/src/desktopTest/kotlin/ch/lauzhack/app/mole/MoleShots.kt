@@ -39,13 +39,14 @@ private class Step(val words: String, val ms: Int)
 private class Shot(val name: String, val phone: Boolean = false, val mic: String = "laptop", val steps: List<Step>)
 
 private val WALL = Color(0xFFDFE6DC) // index.html's sage wallpaper, so the bar's hairline shows
+private val DECK_INK = Color(0xFF1F1C1A)
 
 // A stand-in for the live copy of the shared frame: a slide with the market-size chart.
 private val THUMB = ImageBitmap(176, 99).also {
     val canvas = Canvas(it)
-    canvas.drawRect(0f, 0f, 176f, 99f, Paint().apply { color = Stage })
+    canvas.drawRect(0f, 0f, 176f, 99f, Paint().apply { color = Deck })
     listOf(30f, 42f, 56f, 74f).forEachIndexed { i, h ->
-        canvas.drawRect(16f + i * 24f, 90f - h, 32f + i * 24f, 90f, Paint().apply { color = if (i == 3) Ember else Ink.copy(alpha = .16f) })
+        canvas.drawRect(16f + i * 24f, 90f - h, 32f + i * 24f, 90f, Paint().apply { color = if (i == 3) MoleColors.Light.ember else DECK_INK.copy(alpha = .16f) })
     }
 }
 
@@ -62,35 +63,40 @@ private fun words(key: String): MoleLine = when (key) {
 }
 
 /**
- * Renders every shot in src/desktopTest/shots/shots.json to build/mole-shots/compose/. Where web.sh has rendered the
- * same shot from mole/index.html, writes build/mole-shots/compare/<name>.png (web | compose | difference) and the mean
- * difference to build/mole-shots/report.txt.
+ * Renders every shot in src/desktopTest/shots/shots.json, light as <name> and dark as <name>-dark, to
+ * build/mole-shots/compose/. Where web.sh has rendered the same shot from mole/index.html, writes
+ * build/mole-shots/compare/<name>.png (web | compose | difference) and the mean difference per theme to
+ * build/mole-shots/report.txt.
  */
 class MoleShots {
     @Test
     fun render() {
         val out = File("build/mole-shots")
         val shots = Json.decodeFromString<List<Shot>>(File("src/desktopTest/shots/shots.json").readText())
-        val report = StringBuilder()
+        val report = StringBuilder("%-22s %7s %7s\n".format("", "light", "dark"))
         for (shot in shots) {
-            val png = File(out, "compose/${shot.name}.png").apply { parentFile.mkdirs() }
-            png.writeBytes(shoot(shot))
-            val web = File(out, "web/${shot.name}.png")
-            if (web.exists()) report.appendLine("%-22s %.4f".format(shot.name, compare(web, png, File(out, "compare/${shot.name}.png"))))
+            val scores = listOf(MoleTheme.Light to "", MoleTheme.Dark to "-dark").map { (theme, suffix) ->
+                val name = shot.name + suffix
+                val png = File(out, "compose/$name.png").apply { parentFile.mkdirs() }
+                png.writeBytes(shoot(shot, theme))
+                val web = File(out, "web/$name.png")
+                if (web.exists()) "%.4f".format(compare(web, png, File(out, "compare/$name.png"))) else "-"
+            }
+            report.appendLine("%-22s %7s %7s".format(shot.name, scores[0], scores[1]))
         }
         File(out, "report.txt").writeText(report.toString())
         println(report)
     }
 
-    private fun shoot(shot: Shot): ByteArray {
+    private fun shoot(shot: Shot, theme: MoleTheme): ByteArray {
         val (w, h) = if (shot.phone) 284 to 634 else 364 to 280
         var line by mutableStateOf(words(shot.steps.first().words))
         val scene = ImageComposeScene(w * 2, h * 2, Density(2f)) {
-            if (shot.phone) Column(Modifier.fillMaxSize().background(Paper)) {
+            if (shot.phone) Column(Modifier.fillMaxSize().background(if (theme == MoleTheme.Dark) MoleColors.Dark.paper else MoleColors.Light.paper)) {
                 Spacer(Modifier.height(36.dp)) // the mock's status bar; the app gets real insets instead
-                MolePhone(line, "Market size", THUMB, shot.mic == "phone", "Home insurance review", {})
+                MolePhone(line, "Market size", THUMB, shot.mic == "phone", "Home insurance review", {}, theme = theme)
             } else Box(Modifier.fillMaxSize().background(WALL)) {
-                MoleBar(line, {}, Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 12.dp))
+                MoleBar(line, {}, Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 12.dp), theme)
             }
         }
         var frame = 0L

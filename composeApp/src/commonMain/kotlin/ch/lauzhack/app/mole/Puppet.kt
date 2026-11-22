@@ -78,13 +78,14 @@ internal fun MolePuppet(state: MoleState, timeoutMs: Long?, front: String, back:
             }
         }
     }
+    val c = LocalMoleColors.current
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     // .m-num: 700 15.5px, letter-spacing -0.02em, in px so it can be drawn in mole space like the SVG text.
-    val num = remember(density) {
+    val num = remember(density, c.rim) {
         with(density) {
             TextStyle(
-                color = Ink,
+                color = c.rim,
                 fontWeight = FontWeight.Bold,
                 fontFamily = moleFont(15.5f, 700),
                 fontSynthesis = FontSynthesis.None,
@@ -105,7 +106,7 @@ internal fun MolePuppet(state: MoleState, timeoutMs: Long?, front: String, back:
                 translate((size.width - 154f * s) / 2, (size.height - 114.8f * s) / 2)
                 scale(s, s, ORIGIN)
                 translate(54f, 114f)
-            }) { figure(pose, frontText, backText) }
+            }) { figure(pose, frontText, backText, c) }
         }
     }
 }
@@ -113,7 +114,7 @@ internal fun MolePuppet(state: MoleState, timeoutMs: Long?, front: String, back:
 private val Double.f get() = toFloat()
 private fun unit(n: Double) = n.coerceIn(0.0, 1.0).toFloat()
 
-private fun DrawScope.figure(p: Pose, front: TextLayoutResult, back: TextLayoutResult) {
+private fun DrawScope.figure(p: Pose, front: TextLayoutResult, back: TextLayoutResult, c: MoleColors) {
     withTransform({
         translate(p.bodyX.f, p.bodyY.f)
         rotate(p.bodyRot.f, ORIGIN)
@@ -121,60 +122,60 @@ private fun DrawScope.figure(p: Pose, front: TextLayoutResult, back: TextLayoutR
         rotate(p.lifeRot.f, ORIGIN)
         scale(p.lifeSx.f, p.lifeSy.f, ORIGIN)
     }) {
-        drawPath(BODY, Ink)
+        drawPath(BODY, c.figure)
         withTransform({ translate(18f, -64f); scale(.86f, .86f, ORIGIN); rotate(p.tie.f, ORIGIN) }) {
-            drawPath(TIE, Ember)
-            drawPath(FOLD, EmberDeep)
-            drawRoundRect(EmberLight, Offset(-4.5f, -4.5f), Size(9f, 9f), CornerRadius(2f))
+            drawPath(TIE, c.tie)
+            drawPath(FOLD, c.tieFold)
+            drawRoundRect(c.tieKnot, Offset(-4.5f, -4.5f), Size(9f, 9f), CornerRadius(2f))
         }
         // A profile can't turn its head, so the failed shake foreshortens the snout instead (yaw).
         withTransform({ translate(22f, -80f); rotate((p.head + p.sway).f, ORIGIN); scale(p.yaw.f, 1f, ORIGIN); rotate(p.nose.f, ORIGIN) }) {
-            drawCircle(Ink, 18.5f, ORIGIN)
-            drawPath(SNOUT, Ink)
+            drawCircle(c.figure, 18.5f, ORIGIN)
+            drawPath(SNOUT, c.figure)
             translate(p.specsX.f, p.specsY.f) {
-                drawLine(Lens, Offset(2.9f, -16.3f), Offset(5.3f, -17f), 2.8f, StrokeCap.Round)
-                lens(Offset(-5.8f, -13.9f), 9f)
-                lens(Offset(12f, -18.8f), 7f)
+                drawLine(c.bridge, Offset(2.9f, -16.3f), Offset(5.3f, -17f), 2.8f, StrokeCap.Round)
+                lens(Offset(-5.8f, -13.9f), 9f, c)
+                lens(Offset(12f, -18.8f), 7f, c)
             }
         }
     }
     translate(0f, (14 * (1 - p.stack)).f) {
-        sheet(6f, -6f, 68f)
-        sheet(11f, -12f, 58f)
+        sheet(6f, -6f, 68f, c)
+        sheet(11f, -12f, 58f, c)
     }
-    val c = unit(p.card)
+    val k = unit(p.card)
     val fan = p.fan.f
-    withTransform({ translate(p.cardX.f, p.cardY.f); rotate(p.cardRot.f, ORIGIN); scale(0.9f + 0.1f * c, 0.9f + 0.1f * c, ORIGIN) }) {
-        layer(c) {
-            withTransform({ rotate(16 * fan, PAW); translate(3 * fan, 0f) }) { layer(unit(fan * 4.0)) { card(back) } }
-            rotate(-12 * fan, PAW) { card(front) }
+    withTransform({ translate(p.cardX.f, p.cardY.f); rotate(p.cardRot.f, ORIGIN); scale(0.9f + 0.1f * k, 0.9f + 0.1f * k, ORIGIN) }) {
+        layer(k) {
+            withTransform({ rotate(16 * fan, PAW); translate(3 * fan, 0f) }) { layer(unit(fan * 4.0)) { card(back, c) } }
+            rotate(-12 * fan, PAW) { card(front, c) }
         }
     }
     translate((p.tipX + 6).f, (p.tipY - 1).f) {
-        SCENT.forEachIndexed { i, mark -> drawPath(mark, Ember, unit(p.scent[i]), Stroke(2f, cap = StrokeCap.Round)) }
+        SCENT.forEachIndexed { i, mark -> drawPath(mark, c.ember, unit(p.scent[i]), Stroke(2f, cap = StrokeCap.Round)) }
     }
-    for (speck in p.specks) if (speck.r > 0) drawCircle(Ink, speck.r.f, Offset(speck.x.f, speck.y.f))
-    drawOval(Ink, Offset((p.moundX - 20).f, (p.moundY - 12).f), Size(40f, 24f))
+    for (speck in p.specks) if (speck.r > 0) drawCircle(c.figure, speck.r.f, Offset(speck.x.f, speck.y.f))
+    drawOval(c.figure, Offset((p.moundX - 20).f, (p.moundY - 12).f), Size(40f, 24f))
     // The countdown runs on the stretch of ground right of the mole; the part under it is always hidden.
-    drawLine(Ink, Offset(-54f, 0f), Offset((40 + 60 * p.ground).f, 0f), 1.4f, StrokeCap.Round)
+    drawLine(c.figure, Offset(-54f, 0f), Offset((40 + 60 * p.ground).f, 0f), 1.4f, StrokeCap.Round)
 }
 
-private fun DrawScope.lens(center: Offset, r: Float) {
-    drawCircle(Lens, r, center)
-    drawCircle(Ink, r, center, style = Stroke(1.4f))
+private fun DrawScope.lens(center: Offset, r: Float, c: MoleColors) {
+    drawCircle(c.lens, r, center)
+    drawCircle(c.rim, r, center, style = Stroke(1.4f))
 }
 
-private fun DrawScope.sheet(x: Float, y: Float, w: Float) {
-    drawRoundRect(Pile, Offset(x, y), Size(w, 6f), CornerRadius(1f))
-    drawRoundRect(Ink, Offset(x, y), Size(w, 6f), CornerRadius(1f), Stroke(1.2f))
+private fun DrawScope.sheet(x: Float, y: Float, w: Float, c: MoleColors) {
+    drawRoundRect(c.stack, Offset(x, y), Size(w, 6f), CornerRadius(1f))
+    drawRoundRect(c.rim, Offset(x, y), Size(w, 6f), CornerRadius(1f), Stroke(1.2f))
 }
 
 // The slide card: cream paper, ink edge, a two-bar chart and the slide number. 52 × 31, centred on its origin.
-private fun DrawScope.card(number: TextLayoutResult) {
-    drawRoundRect(Lens, Offset(-26f, -15.5f), Size(52f, 31f), CornerRadius(1.8f))
-    drawRoundRect(Ink, Offset(-26f, -15.5f), Size(52f, 31f), CornerRadius(1.8f), Stroke(1.3f))
-    drawRect(Ember, Offset(-18f, -1f), Size(6.5f, 9.5f))
-    drawRect(Ember, Offset(-9.5f, -10.5f), Size(6.5f, 19f))
+private fun DrawScope.card(number: TextLayoutResult, c: MoleColors) {
+    drawRoundRect(c.lens, Offset(-26f, -15.5f), Size(52f, 31f), CornerRadius(1.8f))
+    drawRoundRect(c.rim, Offset(-26f, -15.5f), Size(52f, 31f), CornerRadius(1.8f), Stroke(1.3f))
+    drawRect(c.ember, Offset(-18f, -1f), Size(6.5f, 9.5f))
+    drawRect(c.ember, Offset(-9.5f, -10.5f), Size(6.5f, 19f))
     drawText(number, topLeft = Offset(11f - number.size.width / 2f, 5.6f - number.firstBaseline))
 }
 

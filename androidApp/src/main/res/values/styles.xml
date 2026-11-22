@@ -1,6 +1,9 @@
 <resources>
+    <!-- mole.css paper, so the launch and the first frame are the screen's own colour; values-night has the dark side. -->
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">#F2EDE4</item>
+        <item name="android:windowSplashScreenBackground">#F2EDE4</item>
     </style>
 </resources>

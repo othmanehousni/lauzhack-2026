@@ -3,6 +3,7 @@
 // renders, and freezes every CSS transition and animation at its age at that moment.
 (() => {
   run++;
+  document.documentElement.dataset.theme = SPEC.theme;
   let now = performance.now();
   const queue = [];
   performance.now = () => now;

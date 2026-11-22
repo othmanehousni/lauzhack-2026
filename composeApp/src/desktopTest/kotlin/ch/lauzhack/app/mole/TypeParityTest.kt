@@ -1,5 +1,6 @@
 package ch.lauzhack.app.mole
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Density
@@ -23,7 +24,7 @@ class TypeParityTest {
             Triple(22f, 600, 660.422),
         )
         for ((size, weight, want) in chrome) {
-            val got = measurer.measure(text, type(size, size, weight)).multiParagraph.intrinsics.maxIntrinsicWidth
+            val got = measurer.measure(text, type(size, size, weight, color = Color.Black)).multiParagraph.intrinsics.maxIntrinsicWidth
             assertTrue(abs(got - want) < 1, "$size px / $weight: Compose $got, Chrome $want")
         }
     }

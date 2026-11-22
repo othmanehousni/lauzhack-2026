@@ -140,7 +140,8 @@ internal fun rememberWords(line: MoleLine, reduce: Boolean): Words {
 
 /** The 340 dp overlay bar of mole/mole.css .mole-bar: the mole and its words, and the options panel growing upward above them. */
 @Composable
-fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier, theme: MoleTheme = MoleTheme.System) = Themed(theme) {
+    val c = LocalMoleColors.current
     val reduce = reduceMotion()
     val words = rememberWords(line, reduce)
     val hidden = words.state == Hidden
@@ -159,9 +160,9 @@ fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier
             .width(340.dp)
             .drawBehind { // box-shadow: 0 0 0 1px, a hairline ring just outside the bar
                 val o = 1.dp.toPx()
-                drawRoundRect(Ink.copy(alpha = .1f), Offset(-o, -o), Size(size.width + 2 * o, size.height + 2 * o), CornerRadius(24.dp.toPx() + o))
+                drawRoundRect(c.hairline, Offset(-o, -o), Size(size.width + 2 * o, size.height + 2 * o), CornerRadius(24.dp.toPx() + o))
             }
-            .background(Paper, RoundedCornerShape(24.dp)),
+            .background(c.paper, RoundedCornerShape(24.dp)),
     ) {
         Options(words, phone = false, enabled = !hidden, onPick)
         Row(Modifier.height(76.dp).padding(start = 10.dp, end = 22.dp), Arrangement.spacedBy(6.dp), Alignment.CenterVertically) {
@@ -173,6 +174,7 @@ fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier
 
 @Composable
 private fun BarWords(w: Words, modifier: Modifier) {
+    val c = LocalMoleColors.current
     val reduce = reduceMotion()
     val away = w.state == Idle || w.state == Back
     val dx = animateDpAsState(if (away) (-16).dp else 0.dp, if (reduce) snap() else css(260))
@@ -180,21 +182,22 @@ private fun BarWords(w: Words, modifier: Modifier) {
     Box(modifier) {
         Dot(w.state, dy)
         Column(Modifier.graphicsLayer { translationX = dx.value.toPx(); translationY = dy.value.toPx() }.padding(start = 16.dp)) {
-            Title(w, type(15f, 20f, tracking = -.15f), TextAlign.Start)
-            Heard(w, type(12.5f, 16f, tracking = -.15f, color = Ink.copy(alpha = .55f)), Modifier.padding(top = 1.dp).height(16.dp), TextAlign.Start)
+            Title(w, type(15f, 20f, tracking = -.15f, color = c.ink), TextAlign.Start)
+            Heard(w, type(12.5f, 16f, tracking = -.15f, color = c.heard), Modifier.padding(top = 1.dp).height(16.dp), TextAlign.Start)
         }
     }
 }
 
 @Composable
 private fun Dot(state: MoleState, dy: State<Dp>) {
+    val c = LocalMoleColors.current
     val reduce = reduceMotion()
     val away = state == Idle || state == Back
     val alpha = animateFloatAsState(if (away) 0f else 1f, css(160))
     val scale = animateFloatAsState(if (away) .4f else 1f, if (reduce) snap() else css(220))
     // Unsure and failed are ember; asking you, not driving, is plum.
     val color = animateColorAsState(
-        when (state) { Unsure, Failed -> Ember; Choosing -> Plum; else -> Sage },
+        when (state) { Unsure, Failed -> c.ember; Choosing -> c.plum; else -> c.sage },
         if (reduce) snap() else css(200, easing = Ease),
     )
     val pulse = clock(state in PULSE)
@@ -287,11 +290,12 @@ internal fun Heard(w: Words, style: TextStyle, modifier: Modifier, align: TextAl
 // The options panel: rows open like grid-template-rows 0fr → 1fr, content pinned to the top and clipped.
 @Composable
 internal fun Options(w: Words, phone: Boolean, enabled: Boolean, onPick: (Int) -> Unit) {
+    val c = LocalMoleColors.current
     val reduce = reduceMotion()
     val open = w.open
     val grow = animateFloatAsState(if (open) 1f else 0f, if (reduce) snap() else css(320))
     val fade = animateFloatAsState(if (open) 1f else 0f, if (open) css(220, 90) else css(140))
-    val hint = type(12f, 16f, tracking = -.15f, color = Ink.copy(alpha = .5f))
+    val hint = type(12f, 16f, tracking = -.15f, color = c.hint)
     Box(
         Modifier
             .clipToBounds()
@@ -312,11 +316,11 @@ internal fun Options(w: Words, phone: Boolean, enabled: Boolean, onPick: (Int) -
             }
             Column(
                 Modifier
-                    .then(if (phone) Modifier else Modifier.drawBehind { drawRect(Ink.copy(alpha = .08f), Offset(0f, size.height - 1.dp.toPx()), Size(size.width, 1.dp.toPx())) })
+                    .then(if (phone) Modifier else Modifier.drawBehind { drawRect(c.rule, Offset(0f, size.height - 1.dp.toPx()), Size(size.width, 1.dp.toPx())) })
                     .padding(bottom = if (phone) 8.dp else 9.dp),
                 Arrangement.spacedBy(2.dp),
             ) {
-                w.options.forEachIndexed { i, c -> Option(i, c, on = w.pick == i, picked = w.state == Picked, phone, enabled, onPick) }
+                w.options.forEachIndexed { i, choice -> Option(i, choice, on = w.pick == i, picked = w.state == Picked, phone, enabled, onPick) }
             }
         }
     }
@@ -329,11 +333,12 @@ private fun say(n: Int): String {
 }
 
 @Composable
-private fun Option(i: Int, c: Choice, on: Boolean, picked: Boolean, phone: Boolean, enabled: Boolean, onPick: (Int) -> Unit) {
+private fun Option(i: Int, choice: Choice, on: Boolean, picked: Boolean, phone: Boolean, enabled: Boolean, onPick: (Int) -> Unit) {
+    val c = LocalMoleColors.current
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     var focused by remember { mutableStateOf(false) }
-    val bg = animateColorAsState(Ink.copy(alpha = if (on) .06f else if (hovered) .04f else 0f), css(150, easing = Ease))
+    val bg = animateColorAsState(if (on) c.wash else if (hovered) c.hover else c.ink.copy(alpha = 0f), css(150, easing = Ease))
     val dim = animateFloatAsState(if (picked && !on) .35f else 1f, css(200))
     // The bar's 24 dp corner minus the panel's 10 dp inset, so the curves stay concentric.
     val shape = RoundedCornerShape(14.dp)
@@ -344,7 +349,7 @@ private fun Option(i: Int, c: Choice, on: Boolean, picked: Boolean, phone: Boole
             .graphicsLayer { alpha = dim.value }
             .clip(shape)
             .drawBehind { drawRect(bg.value) }
-            .then(if (focused) Modifier.border(2.dp, Ink, shape) else Modifier)
+            .then(if (focused) Modifier.border(2.dp, c.ink, shape) else Modifier)
             .onFocusChanged { focused = it.isFocused }
             .clickable(interaction, indication = null, enabled = enabled, role = Role.Button) { onPick(i) }
             .padding(start = 8.dp, end = 12.dp),
@@ -352,20 +357,20 @@ private fun Option(i: Int, c: Choice, on: Boolean, picked: Boolean, phone: Boole
     ) {
         Key(i, on, check = picked && on)
         Spacer(Modifier.width(10.dp))
-        Glyph(c.kind)
+        Glyph(choice.kind)
         Spacer(Modifier.width(10.dp))
-        val name = type(14f, 20f, tracking = -.15f)
-        val meta = type(12f, 20f, tracking = -.15f, color = Ink.copy(alpha = .5f))
+        val name = type(14f, 20f, tracking = -.15f, color = c.ink)
+        val meta = type(12f, 20f, tracking = -.15f, color = c.hint)
         if (phone) {
             // On two versions of one file the end of the name is the difference, so the date drops under it.
             Column(Modifier.weight(1f)) {
-                BasicText(c.name, style = name, overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
-                BasicText(c.meta, style = meta, softWrap = false, maxLines = 1)
+                BasicText(choice.name, style = name, overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                BasicText(choice.meta, style = meta, softWrap = false, maxLines = 1)
             }
         } else {
-            BasicText(c.name, Modifier.weight(1f), name, overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+            BasicText(choice.name, Modifier.weight(1f), name, overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
             Spacer(Modifier.width(10.dp))
-            BasicText(c.meta, style = meta, softWrap = false, maxLines = 1)
+            BasicText(choice.meta, style = meta, softWrap = false, maxLines = 1)
         }
     }
 }
@@ -374,12 +379,13 @@ private val CHECK = svg("M2.6 6.3l2.2 2.2 4.6-4.9")
 
 @Composable
 private fun Key(i: Int, on: Boolean, check: Boolean) {
-    val bg = animateColorAsState(if (on) Ink else Ink.copy(alpha = .06f), css(150, easing = Ease))
-    val fg = animateColorAsState(if (on) Paper else Ink, css(150, easing = Ease))
+    val c = LocalMoleColors.current
+    val bg = animateColorAsState(if (on) c.ink else c.wash, css(150, easing = Ease))
+    val fg = animateColorAsState(if (on) c.paper else c.ink, css(150, easing = Ease))
     Box(Modifier.size(20.dp).drawBehind { drawRoundRect(bg.value, cornerRadius = CornerRadius(6.dp.toPx())) }, Alignment.Center) {
         if (check) Canvas(Modifier.size(12.dp)) {
             scale(size.width / 12f, Offset.Zero) { drawPath(CHECK, fg.value, style = Stroke(1.6f, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
-        } else BasicText("${i + 1}", style = type(11f, 11f, 600, -.15f, mono = true).copy(color = fg.value))
+        } else BasicText("${i + 1}", style = type(11f, 11f, 600, -.15f, fg.value, mono = true))
     }
 }
 
@@ -398,11 +404,14 @@ private val GLYPHS = mapOf(
 )
 
 @Composable
-private fun Glyph(kind: Choice.Kind) = Canvas(Modifier.size(16.dp)) {
-    val g = GLYPHS.getValue(kind)
-    scale(size.width / 16f, Offset.Zero) {
-        drawPath(g.paper, Lens)
-        drawPath(g.paper, Ink, style = Stroke(1.1f, join = StrokeJoin.Round))
-        drawPath(g.lines, Ink, alpha = .45f, style = Stroke(1.1f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+private fun Glyph(kind: Choice.Kind) {
+    val c = LocalMoleColors.current
+    Canvas(Modifier.size(16.dp)) {
+        val g = GLYPHS.getValue(kind)
+        scale(size.width / 16f, Offset.Zero) {
+            drawPath(g.paper, c.lens)
+            drawPath(g.paper, c.rim, style = Stroke(1.1f, join = StrokeJoin.Round))
+            drawPath(g.lines, c.rim, alpha = .45f, style = Stroke(1.1f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
     }
 }
