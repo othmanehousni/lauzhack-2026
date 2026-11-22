@@ -307,7 +307,7 @@ class ModelAgentTest {
             return asked.last().lines().filter { it.startsWith("heard") || it.startsWith("now") }.joinToString(" | ")
         }
         assertEquals("now (done): The robot learns from five.", say("The robot learns from five.", 0.seconds))
-        assertEquals("now (done): The robot learns from five. photos", say("photos", 1.seconds))
+        assertEquals("now (done): The robot learns from five photos", say("photos", 1.seconds))
         assertEquals("heard: The robot learns from five. | heard: photos | now (done): Open up, um", say("Open up, um", 3.seconds))
         assertEquals("heard: The robot learns from five. | heard: photos | now (done): Open up, um the plan", say("the plan", 5.seconds), "after a wait, longer")
         assertEquals("heard: photos | now (done): Open up, um the plan I mean", say("I mean", 0.seconds))
@@ -326,7 +326,7 @@ class ModelAgentTest {
         assertEquals(Move.Nothing, agent.anythingToDo(Heard("The robot learns from five.", true, 2, listOf("Next slide."), more = true), OnScreen(slide(2).target)))
         assertEquals("now (speaking): The robot learns from five." to null, now())
         agent.anythingToDo(Heard("photos.", true, 3, listOf("Next slide.", "The robot learns from five.")), OnScreen(slide(2).target))
-        assertEquals("now (done): The robot learns from five. photos.", now().first)
+        assertEquals("now (done): The robot learns from five photos.", now().first)
     }
 
     @Test

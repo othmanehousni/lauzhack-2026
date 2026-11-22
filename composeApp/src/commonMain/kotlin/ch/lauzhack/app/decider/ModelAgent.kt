@@ -231,7 +231,7 @@ class ModelAgent(
             shown = shown?.takeIf { n - shownAt in 1..2 },
         )
         val slide = landing.takeIf { moving != null } as? Item.Slide
-        val before = if (joins) listOf(was.before, was.text).filter(String::isNotBlank).joinToString(" ") else ""
+        val before = if (joins) listOf(was.before, was.text.trimEnd('.', '?', '!')).filter(String::isNotBlank).joinToString(" ") else "" // one sentence: the pause's mark goes
         u = Utterance(n, start, offered, slide ?: stage as? Item.Slide, slide ?: last, before, if (joins) was.parts + 1 else 0, moving)
     }
 
