@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 
 /**
@@ -35,7 +36,7 @@ import kotlinx.coroutines.withContext
 class Phone(context: Context, scope: CoroutineScope) {
     private val app = context.applicationContext
     private val client = LaptopClient(
-        scope,
+        scope + Dispatchers.Default, // each frame's JSON, Base64 and JPEG decode off the main thread
         HttpClient(OkHttp) {
             engine { config { pingInterval(2, TimeUnit.SECONDS) } } // the WebSockets plugin's own ping does not apply to OkHttp
             install(WebSockets)
