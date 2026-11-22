@@ -70,7 +70,7 @@ fun vocabulary(items: List<Item>): List<String> {
 private val REBUILD = 1.minutes  // a page opened a minute ago is a candidate
 
 /**
- * The model decides: [ModelAgent] over the desk's decks and apps, the bookmarks and what the presenter saw lately
+ * The model decides: [ModelAgent] over the desk's decks, documents and apps, the bookmarks and what the presenter saw lately
  * (AgentDesktop.recents), of which only the files used or changed in the last 14 days, not the Mac's newest 1500
  * (tune/CONTRACT.md, Candidates at real scale). A call starts on what is quick to have: the library, the apps, the bookmarks and whatever was
  * embedded before; the rest is embedded in the background, and the catalog is rebuilt every [REBUILD] of the call.
@@ -99,15 +99,15 @@ class ModelBrain(private val engines: Engines) : Brain {
 
     override suspend fun meet(desk: AgentDesktop, scope: CoroutineScope): Pair<Agent, List<String>> {
         val recents = desk.recents()
-        val all = items(desk.decks, desk.apps, emptyList(), recents = recents)
-        val base = items(desk.decks, desk.apps, emptyList())
+        val all = items(desk.decks, desk.apps, desk.documents, recents = recents)
+        val base = items(desk.decks, desk.apps, desk.documents)
         val quick = base.toSet()
         val meeting = desk.decks.map { it.deck }.toSet()
         val agent = ModelAgent(build(all.filter { it in quick || Catalog.docs(it).all(known::containsKey) }, meeting, recents, whole = false), embedder, model, note = ::log)
         scope.launch(Dispatchers.Default) {
             var seen = recents
             while (true) {
-                agent.catalog = build(items(desk.decks, desk.apps, emptyList(), recents = seen), meeting, seen, whole = true)
+                agent.catalog = build(items(desk.decks, desk.apps, desk.documents, recents = seen), meeting, seen, whole = true)
                 delay(REBUILD)
                 seen = desk.recents()
             }

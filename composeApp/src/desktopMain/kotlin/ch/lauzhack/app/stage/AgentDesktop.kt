@@ -52,6 +52,9 @@ class AgentDesktop(
     /** Every page of the decks in the library, after up(). */
     var decks: List<DeckPage> = emptyList(); private set
 
+    /** The library's files that are not decks, the meeting's own as its decks are, not things seen lately. */
+    val documents: List<String> get() = documents(library)
+
     /** The apps on the shared screen, after up(). */
     var apps: List<String> = emptyList(); private set
 
@@ -182,7 +185,7 @@ class AgentDesktop(
         val pages = async { history?.pages().orEmpty() }
         val spots = files.recent()
         val decks = readyDecks(spots)
-        val listed = decks.map { it.path }.toSet() + pages.await().map { it.url.substringBefore('#') }
+        val listed = decks.map { it.path }.toSet() + pages.await().map { it.url.substringBefore('#') } + documents
         val used = spots.filter { it.path !in listed && uri(File(it.path)) !in listed && files.wanted(it.path) }.take(MOST_FILES)
         Recents(pages.await(), used.map { UsedFile(it.path, Instant.ofEpochMilli(it.seen())) }, decks)
     }
