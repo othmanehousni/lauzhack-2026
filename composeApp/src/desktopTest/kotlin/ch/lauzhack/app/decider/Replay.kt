@@ -15,6 +15,7 @@ import org.junit.Assume.assumeTrue
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.TimeSource
 
 /**
@@ -53,6 +54,9 @@ class Replay {
         val decide = decider(client)
         mark = TimeSource.Monotonic.markNow()
         println("engine started and first answer \"${decide("hello", null)}\" in ${mark.elapsedNow()}")
+        val forced = decide("hello", "nothing|wait")
+        println("the same prompt under the grammar nothing|wait: \"$forced\"")
+        assertTrue(forced == "nothing" || forced == "wait", "the answer follows the grammar")
 
         var answer: String? = null
         val modelMs = mutableListOf<Pair<Boolean, Long>>()
