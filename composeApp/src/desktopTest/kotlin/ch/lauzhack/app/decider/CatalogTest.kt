@@ -121,6 +121,8 @@ class CatalogTest {
         assertEquals("Calculator", named("calculater"))
         for (absent in listOf("google meet", "zorblax", "chess club", "the photos", "key note", "dentist", "jidhub"))
             assertEquals(null, named(absent), "\"$absent\" is too far from any name")
-        assertEquals(null, named("gitub.com"), "an address is taken as spelled")
+        assertEquals("Hugging Face", named("hoggingface.co"), "an address, by the bookmarks' addresses")
+        assertEquals("LauzHack", named("lawshack.com"))
+        for (address in listOf("example.com", "python.org", "gitlab.com", "loshack.com")) assertEquals(null, named(address), address)
     }
 }
