@@ -152,7 +152,7 @@ def convert(ckpt: str, outdir: str, name: str) -> str:
     return out
 
 
-@app.function(image=gpu, gpu="L4", timeout=4 * 3600, volumes={"/vol": vol})
+@app.function(image=gpu, gpu=["L4", "A10G"], timeout=4 * 3600, volumes={"/vol": vol})
 def train(name: str, seed: int = 0, n: int = 60000, epochs: float = 2.0, lr: float = 1e-4, batch: int = 32, base: str = BASE) -> None:
     """Build the data in the container, fine-tune the base on it, and score the checkpoint on the dev split (greedy, unconstrained)."""
     from huggingface_hub import snapshot_download
