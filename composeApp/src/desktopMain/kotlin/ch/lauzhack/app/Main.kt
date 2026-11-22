@@ -59,7 +59,8 @@ import kotlin.time.Duration.Companion.seconds
  *   --paced       with --typed, each line comes as speech does: word by word at 150 words a minute, then finished
  *   --audio FILE… the ear hears these audio files (or every one in a folder), in order, instead of the microphone;
  *                 starts a meeting, and keeps the screens as --typed does
- *   --window MS   how long an announce waits before it is shown, for this run (the tray's Wait before showing)
+ *   --window MS   the longest a pick waits before it is shown, for a guess; a sure one is shown at once, for this
+ *                 run (the tray's Wait before showing)
  *   --library DIR the decks for this run instead of the chosen folder
  *   --host        a Chrome window on this Mac as the shared screen instead of the VM
  *   --rules       the rules decide even when decider.litertlm is in the models folder
@@ -120,7 +121,7 @@ fun main(args: Array<String>) {
     log("Molière: decks in ${library.value}, ${if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, " +
         "${if (typed != null) "typed lines" else if (audio.isNotEmpty()) "${audio.size} audio files" else "the microphone"}, " +
         "${if (model) "the model decides" else "the rules decide"}, browser history ${if (history.value) "on" else "off"}, " +
-        "announces wait ${window.value.inWholeMilliseconds} ms")
+        "picks wait up to ${window.value.inWholeMilliseconds} ms")
 
     application {
         val settings = remember { Settings(prefs, library, history, window, WAITS, mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System))) }
@@ -178,7 +179,7 @@ fun main(args: Array<String>) {
 
 private fun Array<String>.after(flag: String) = getOrNull(indexOf(flag).takeIf { it >= 0 }?.plus(1) ?: -1)
 
-private val WAITS = listOf("2.5 seconds" to 2500L, "1.5 seconds" to 1500L, "None" to 0L)
+private val WAITS = listOf("Up to 2.5 seconds" to 2500L, "Up to 1.5 seconds" to 1500L, "None" to 0L) // a sure pick is shown at once
 
 /** The files after --audio, up to the next flag; a folder is every audio file in it, by name. */
 private fun audio(args: Array<String>): List<File> =

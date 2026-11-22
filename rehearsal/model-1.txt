@@ -9,20 +9,20 @@ Go back one. || slide Company_Overview 2
 Go to slide 7. || slide Company_Overview 7
 Jump to slide nine. || slide Company_Overview 9
 # by meaning, same deck
-So how big is this market really? || slide Company_Overview 5 announce
-Let me show you who we are up against. || slide Company_Overview 8 announce
-And what does it cost? || slide Company_Overview 6 announce
+So how big is this market really? || slide Company_Overview 5 pick
+Let me show you who we are up against. || slide Company_Overview 8 pick
+And what does it cost? || slide Company_Overview 6 pick
 # mentions that must not act
 I sent the PDF to Marc this morning. || keep
 We will come back to the financials later, not now. || keep
 I had planned to show you GitHub, maybe another time. || keep
 # other decks
 Now let's switch to the Q3 financials. || slide Q3_2026_Financials 1
-How much cash do we have left? || slide Q3_2026_Financials 5 announce
-What about churn? || slide Q3_2026_Financials 6 announce
+How much cash do we have left? || slide Q3_2026_Financials 5 pick
+What about churn? || slide Q3_2026_Financials 6 pick
 Let's look at the product roadmap. || slide Product_Roadmap 1
-Tell me about the cold storage robot. || slide Product_Roadmap 3 announce
-Which systems do we integrate with? || slide Product_Roadmap 5 announce
+Tell me about the cold storage robot. || slide Product_Roadmap 3 pick
+Which systems do we integrate with? || slide Product_Roadmap 5 pick
 # sites and controls
 Open GitHub. || site github.com
 Scroll down a bit. || site github.com
@@ -35,7 +35,7 @@ Search for warehouse robot grippers. || site google.com/search
 Close that. || slide Product_Roadmap 5
 # veto inside the window
 @1.2
-Here is the team behind all this. || announce
+Here is the team behind all this. || pick
 @6
 No, not that one. || slide Product_Roadmap 5 stopped
 # veto after it is shown
@@ -54,7 +54,7 @@ Open the quarterly penguin migration report. || keep
 # correction in one breath
 Show the revenue slide, sorry, I mean the hiring plan. || slide Q3_2026_Financials 7
 # seen recently
-Can we pull up the deck about the mountain hut renovation? || slide Alpine 1 announce
+Can we pull up the deck about the mountain hut renovation? || slide Alpine 1 pick
 Next slide. || slide Alpine 2
-Open the ferry timetable I had up this morning. || file Ferry timetable announce
+Open the ferry timetable I had up this morning. || file Ferry timetable pick
 Close that. || slide Alpine 2

@@ -42,7 +42,13 @@ import kotlinx.serialization.Serializable
  * [Show] of the target they resolve to; close is `Control("close")`. */
 sealed interface Move {
     data class Show(val target: Target) : Move
-    data class Ask(val options: List<Target>) : Move   // one option is a suggestion, several a choice
+
+    /** One option is a suggestion, several a choice. A suggestion waits [doubt] of the presenter's window before it is
+     * shown: 0 when the agent is sure, 1 for a guess. Two asks of the same options are the same move, however sure. */
+    data class Ask(val options: List<Target>, val doubt: Double = 1.0) : Move {
+        override fun equals(other: Any?) = other is Ask && other.options == options
+        override fun hashCode() = options.hashCode()
+    }
     data class Control(val name: String) : Move   // scroll, zoom, play, pause, close… on what is on screen
     data object Wait : Move     // a request is under way, its object not said yet
     data object Unsure : Move   // a request was made, nothing fits it

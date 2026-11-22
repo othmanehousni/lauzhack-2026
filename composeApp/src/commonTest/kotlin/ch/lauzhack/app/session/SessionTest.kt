@@ -192,7 +192,7 @@ class SessionTest {
         assertEquals(MoleLine(MoleState.Picked, "Opening the second one…", "", choosing.options, pick = 1), picked)
         assertEquals(currentTime, rig.screen.calls.last().first)
         assertEquals("show Home offer — revised", rig.screen.calls.last().second)
-        assertEquals("It's on screen.", rig.until(MoleState.Ready).title)
+        assertEquals("Home offer — revised is on screen.", rig.until(MoleState.Ready).title)
         rig.until(MoleState.Hidden)
 
         // back at the laptop: a request the agent takes long over, on a slow screen
@@ -866,5 +866,103 @@ class SessionTest {
         assertEquals(listOf(risks to "show slide 10", rig.decided("no, not that") to "show slide 9"), rig.screen.calls.drop(2))
         assertEquals(2, rig.lines.count { it.second.state == MoleState.Retrieving }, "no announce without a window")
         assertEquals(slide(9), rig.session.onScreen.value.target)
+    }
+
+    @Test
+    fun aPickWaitsAsLongAsTheAgentDoubtsItAndASureOneGoesUpAtOnce() = runTest {
+        val rig = Rig(this, slide(7)) { h, _ ->
+            if (!h.ended) return@Rig Move.Nothing
+            when (h.text) {
+                "which brings us to the margin" -> Move.Ask(listOf(slide(8)), doubt = 0.0)
+                "and the costs" -> Move.Ask(listOf(slide(9)), doubt = 0.5)
+                "and the risks" -> Move.Ask(listOf(slide(10)), doubt = 1.0)
+                "and the team" -> Move.Ask(listOf(slide(11)), doubt = 0.5)
+                else -> Move.Nothing
+            }
+        }
+        rig.start()
+        delay(3.seconds)
+        rig.say("which brings us to the margin")
+        rig.until(MoleState.Hidden)
+        assertEquals(listOf(rig.decided("which brings us to the margin") to "show slide 8"), rig.screen.calls, "sure: at once, like a command")
+        assertEquals(listOf(MoleState.Heard, MoleState.Ready, MoleState.Back, MoleState.Hidden), rig.states().dropWhile { it != MoleState.Heard })
+        assertEquals("Showing slide 8" to "08", rig.line(MoleState.Heard).let { it.title to it.card }, "the bar says what went up")
+
+        for ((said, ms) in listOf("and the costs" to 1250L, "and the risks" to 2500L)) {
+            val at = rig.announced(said)
+            assertEquals(ms, rig.mole.line.value.timeoutMs, "the bar's and the phone's Stop drain over the wait itself")
+            rig.until(MoleState.Hidden)
+            assertEquals(at + ms, rig.screen.calls.last().first)
+        }
+        rig.window.value = 1500.milliseconds
+        val team = rig.announced("and the team")
+        assertEquals(1000L, rig.mole.line.value.timeoutMs, "half of 1.5 s is too short to stop: the floor")
+        rig.until(MoleState.Hidden)
+        assertEquals(team + 1000, rig.screen.calls.last().first)
+    }
+
+    @Test
+    fun aSurePickSaysWhatWentUpAndANoTakesItBack() = runTest {
+        val rig = Rig(this, slide(7)) { h, _ ->
+            if (!h.ended) return@Rig Move.Nothing
+            when (h.text) {
+                "here is the robot" -> Move.Ask(listOf(youtube), doubt = 0.0)
+                "no, go back" -> Move.Undo
+                else -> Move.Nothing
+            }
+        }
+        rig.start()
+        delay(3.seconds)
+        rig.say("here is the robot")
+        rig.until(MoleState.Hidden)
+        assertEquals(listOf("Showing Robot gripper demo", "Robot gripper demo is on screen."),
+            rig.lines.filter { it.second.state == MoleState.Heard || it.second.state == MoleState.Ready }.map { it.second.title })
+        delay(10.seconds)
+        rig.say("no, go back")
+        assertEquals("Slide 7 is back.", rig.until(MoleState.Ready).title)
+        assertEquals(listOf("show Robot gripper demo", "close"), rig.screen.calls.map { it.second })
+        assertEquals(slide(7), rig.session.onScreen.value.target)
+    }
+
+    @Test
+    fun aPickTurnedDownIsAnnouncedAgainHoweverSure() = runTest {
+        val rig = Rig(this, slide(7)) { h, _ ->
+            if (!h.ended) return@Rig Move.Nothing
+            when (h.text) {
+                "and the risks" -> Move.Ask(listOf(slide(10)))
+                "the risks again" -> Move.Ask(listOf(slide(10)), doubt = 0.0)
+                "here is the robot" -> Move.Ask(listOf(youtube), doubt = 0.0)
+                "no", "no, go back" -> Move.Undo
+                else -> Move.Nothing
+            }
+        }
+        rig.start()
+        delay(3.seconds)
+        rig.announced("and the risks")
+        rig.say("no")
+        rig.until(MoleState.Hidden)
+        val again = rig.announced("the risks again") // stopped a moment ago: the whole window
+        assertEquals(2500L, rig.mole.line.value.timeoutMs)
+        rig.until(MoleState.Hidden)
+
+        rig.say("here is the robot")
+        rig.until(MoleState.Hidden)
+        val first = rig.decided("here is the robot")
+        rig.say("no, go back")
+        rig.until(MoleState.Hidden)
+        val taken = rig.decided("no, go back")
+        val robot = rig.announced("here is the robot") // taken back a moment ago: the whole window too
+        assertEquals(2500L, rig.mole.line.value.timeoutMs)
+        rig.until(MoleState.Hidden)
+        rig.say("no, go back")
+        rig.until(MoleState.Hidden)
+        delay(UNDO)
+        rig.say("here is the robot") // long enough ago: sure again
+        rig.until(MoleState.Hidden)
+        assertEquals(
+            listOf(again + 2500 to "show slide 10", first to "show Robot gripper demo", taken to "close", robot + 2500 to "show Robot gripper demo",
+                rig.decided("no, go back") to "close", rig.decided("here is the robot") to "show Robot gripper demo"),
+            rig.screen.calls,
+        )
     }
 }
