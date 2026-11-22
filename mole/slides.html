@@ -105,7 +105,24 @@
   .ledge .sprite { right: 0; bottom: 0; width: 200px; }
   .trio { margin-top: 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 32px; }
   .slots { margin-top: 40px; display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
-  .slots div { display: grid; place-items: center; border-radius: 16px; background: var(--fill); color: var(--grey); }
+  .slots > figure { display: grid; grid-template-rows: auto 1fr; row-gap: 14px; padding: 20px 24px; border-radius: 16px; background: var(--fill); }
+  .slots figcaption { display: flex; justify-content: space-between; gap: 16px; font: 500 15px/1 var(--sans); color: var(--grey); }
+  /* Architecture: the four steps from voice to screen in a row, and under the decider the bar and the phone that stop it. */
+  .flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: auto auto; column-gap: 20px; row-gap: 22px; align-content: start; }
+  .flow ol { display: contents; list-style: none; }
+  .flow li, .hold { position: relative; display: grid; align-content: start; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg); outline: 1.5px solid var(--fg); }
+  .flow li + li::before { content: "→"; position: absolute; left: -17px; top: 50%; translate: 0 -50%; font: 500 16px/1 var(--sans); }
+  .flow b { font: 650 17px/1.15 var(--sans); letter-spacing: -0.01em; }
+  .flow span { font: 400 14px/1.25 var(--sans); color: var(--grey); text-wrap: balance; }
+  .flow .ours { outline-color: var(--red); }
+  .flow .ours b { color: var(--red); }
+  .hold { grid-column: 3 / 5; grid-row: 2; display: flex; align-items: baseline; gap: 10px; }
+  .hold::before { content: ""; position: absolute; left: calc((100% - 20px) / 4 - 0.75px); top: -22px; height: 22px; border-left: 1.5px solid var(--fg); }
+  /* Tech stack: what each part is built with, JetBrains first; our model in the one red. */
+  .stack dl { display: grid; grid-template-columns: auto 1fr; column-gap: 14px; row-gap: 8px; align-content: start; margin: 0; font: 400 15px/1.3 var(--sans); }
+  .stack dt { color: var(--grey); font-weight: 500; }
+  .stack dd { margin: 0; }
+  .stack .ours { color: var(--red); font-weight: 600; }
 
   .vs { grid-column: 1 / 10; align-self: end; border-collapse: collapse; font-size: 24px; line-height: 1.4; }
   .vs th, .vs td { padding: 16px 0; text-align: start; vertical-align: top; border-top: 1px solid var(--line); }
@@ -217,8 +234,30 @@
       <li>Work is done in the background.</li>
       <li>The presenter can cancel whenever he doesn’t agree with the assistant.</li>
     </ul>
-    <div class="slots body"><div>[Architecture]</div><div>[Tech stack]</div></div>
-    <aside class="notes"><p>(Show the architecture, tech stack.) I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn’t disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn’t agree with the assistant.</p></aside>
+    <div class="slots">
+      <figure class="arch">
+        <figcaption>Architecture<span>All on the laptop · voice to screen in 1.5–1.8 s</span></figcaption>
+        <div class="flow">
+          <ol>
+            <li><b>Ear</b><span>Apple speech, on device</span></li>
+            <li><b>Retrieval</b><span>EmbeddingGemma, 8 candidates</span></li>
+            <li class="ours"><b>Decider</b><span>Gemma 3 270M, fine-tuned by us</span></li>
+            <li><b>Shared screen</b><span>Chrome in a macOS VM</span></li>
+          </ol>
+          <p class="hold"><b>Bar + phone</b><span>announce · Stop · undo</span></p>
+        </div>
+      </figure>
+      <figure class="stack">
+        <figcaption>Tech stack</figcaption>
+        <dl>
+          <dt>JetBrains</dt><dd>Kotlin&nbsp;Multiplatform&nbsp;· Ktor&nbsp;· Koog&nbsp;· Compose&nbsp;Multiplatform</dd>
+          <dt>Models</dt><dd><span class="ours">Gemma&nbsp;3&nbsp;270M, ours</span>&nbsp;· EmbeddingGemma&nbsp;· LiteRT-LM</dd>
+          <dt>Training</dt><dd>Python on Modal</dd>
+          <dt>Mac</dt><dd>Apple speech&nbsp;· Chrome&nbsp;· VM</dd>
+        </dl>
+      </figure>
+    </div>
+    <aside class="notes"><p>Molière hears you with Apple’s on-device speech recognizer, EmbeddingGemma finds eight candidates, and our fine-tuned Gemma 3 270M decides what to show on the shared screen, Chrome in a macOS VM. All of it runs on the laptop: a command reaches the screen 1.5 to 1.8 seconds after you stop speaking. It is one Kotlin Multiplatform app, with Compose for the bar and the phone, Ktor for the link between them, and Koog with LiteRT-LM for the models. I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn’t disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn’t agree with the assistant.</p></aside>
   </section>
 
   <section class="slide s-comp" data-section="Who are the competitors?">

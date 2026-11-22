@@ -95,11 +95,15 @@ While presenting, press N to open the notes in their own window and F for full s
   - Our UI is minimal and doesn't disrupt the presenter.
   - Work is done in the background.
   - The presenter can cancel whenever he doesn't agree with the assistant.
-- Empty boxes:
-  - [Architecture]
-  - [Tech stack]
+- Two diagrams, side by side:
+  - Architecture (wide), headed "All on the laptop · voice to screen in 1.5–1.8 s": Ear (Apple speech, on device) → Retrieval (EmbeddingGemma, 8 candidates) → Decider (Gemma 3 270M, fine-tuned by us; in red) → Shared screen (Chrome in a macOS VM). Under the Decider: Bar + phone (announce · Stop · undo).
+  - Tech stack (narrow):
+    - JetBrains: Kotlin Multiplatform · Ktor · Koog · Compose Multiplatform
+    - Models: Gemma 3 270M, ours (in red) · EmbeddingGemma · LiteRT-LM
+    - Training: Python on Modal
+    - Mac: Apple speech · Chrome · VM
 - Visual: the mole with the pickaxe, beside the title, standing on the line under it
-- Notes: (Show the architecture, tech stack.) I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn't disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn't agree with the assistant.
+- Notes: Molière hears you with Apple's on-device speech recognizer, EmbeddingGemma finds eight candidates, and our fine-tuned Gemma 3 270M decides what to show on the shared screen, Chrome in a macOS VM. All of it runs on the laptop: a command reaches the screen 1.5 to 1.8 seconds after you stop speaking. It is one Kotlin Multiplatform app, with Compose for the bar and the phone, Ktor for the link between them, and Koog with LiteRT-LM for the models. I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn't disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn't agree with the assistant.
 
 
 ## 9. Competitors
