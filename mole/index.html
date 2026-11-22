@@ -74,21 +74,21 @@
   .screen[data-slide=offer] .z-slide[data-name=offer], .screen[data-slide=video] .z-slide[data-name=video] { opacity: 1; }
 
   .z-deck { padding: 4.2cqw 4.4cqw; box-sizing: border-box; display: flex; flex-direction: column; }
-  .z-kicker { font: 600 .95cqw/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: oklch(from var(--deck-ink) l c h / .45); }
+  .z-kicker { font: 600 .95cqw/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: oklch(from var(--deck-ink) l c h / .6); }
   .z-deck h3 { font: 600 3.4cqw/1.1 var(--sans); letter-spacing: -0.022em; margin: 1cqw 0 0; }
-  .z-page { position: absolute; right: 2.4cqw; bottom: 1.8cqw; font: 600 1.1cqw/1 var(--sans); font-variant-numeric: tabular-nums; color: oklch(from var(--deck-ink) l c h / .5); }
+  .z-page { position: absolute; right: 2.4cqw; bottom: 1.8cqw; font: 600 1.1cqw/1 var(--sans); font-variant-numeric: tabular-nums; color: oklch(from var(--deck-ink) l c h / .6); }
   .z-points { list-style: none; margin: 3cqw 0 0; padding: 0; display: grid; gap: 1.4cqw; font-size: 1.7cqw; }
   .z-points b { color: var(--ember); margin-right: 1.2cqw; font-size: 1.2cqw; font-weight: 600; font-variant-numeric: tabular-nums; }
   .z-chart { margin-top: auto; height: 17cqw; display: flex; align-items: flex-end; gap: 2.4cqw; padding-left: .4cqw; border-bottom: .12cqw solid oklch(from var(--deck-ink) l c h / .3); }
   .z-chart i { width: 6.5cqw; background: oklch(from var(--deck-ink) l c h / .16); position: relative; border-radius: .2cqw .2cqw 0 0; }
   .z-chart i:last-child { background: var(--ember); }
-  .z-chart i::after { content: attr(data-year); position: absolute; left: 0; right: 0; top: 100%; margin-top: .6cqw; text-align: center; font: 500 .95cqw/1 var(--sans); font-variant-numeric: tabular-nums; color: oklch(from var(--deck-ink) l c h / .5); }
+  .z-chart i::after { content: attr(data-year); position: absolute; left: 0; right: 0; top: 100%; margin-top: .6cqw; text-align: center; font: 500 .95cqw/1 var(--sans); font-variant-numeric: tabular-nums; color: oklch(from var(--deck-ink) l c h / .6); }
 
   .z-pdf { background: var(--pdf); }
   .z-pdf header { display: flex; justify-content: space-between; padding: .7cqw 1.6cqw .7cqw 15cqw; background: var(--pdf-bar); border-bottom: 1px solid oklch(from var(--deck-ink) l c h / .1); font-size: 1cqw; color: oklch(from var(--deck-ink) l c h / .6); }
   .z-sheet { position: absolute; left: 50%; translate: -50% 0; top: 4.4cqw; width: 30cqw; height: 40cqw; padding: 2.6cqw 2.8cqw; box-sizing: border-box; background: var(--white); }
   .z-sheet h4 { font: 600 1.9cqw/1.2 var(--sans); letter-spacing: -0.018em; margin: 0; }
-  .z-sheet p { margin: .5cqw 0 2cqw; font-size: .95cqw; color: oklch(from var(--deck-ink) l c h / .5); }
+  .z-sheet p { margin: .5cqw 0 2cqw; font-size: .95cqw; color: oklch(from var(--deck-ink) l c h / .6); }
   .z-row { display: flex; justify-content: space-between; align-items: center; padding: .9cqw 0; border-top: 1px solid oklch(from var(--deck-ink) l c h / .08); font-size: 1cqw; }
   .z-row i { width: 7cqw; height: .8cqw; border-radius: .4cqw; background: oklch(from var(--deck-ink) l c h / .12); }
   .z-row.z-hot i { background: var(--ember); }
@@ -188,7 +188,9 @@
   .now > div > b { display: block; font: 500 15px/20px var(--sans); letter-spacing: -0.009em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* A live copy of the shared frame: its slides are laid out in cqw of a 896px screen, so a container 88 / .64 px wide
      makes the frame (64cqw) exactly as wide as the thumbnail. */
-  .thumb { position: relative; height: 49.5px; border-radius: 12px; overflow: hidden; outline: 1px solid var(--outline); outline-offset: -1px; }
+  .thumb { position: relative; height: 49.5px; border-radius: 12px; overflow: hidden; }
+  /* The edge sits over the copied slide, whose positioned layers would paint over an outline. */
+  .thumb::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--outline); }
   .thumb-cq { width: 137.5px; container-type: inline-size; }
   .thumb-stage { position: relative; width: 64cqw; height: 36cqw; background: var(--deck); font: 1.2cqw/1.3 var(--sans); letter-spacing: 0; color-scheme: light; }
   .thumb .z-slide { opacity: 1; }
@@ -222,7 +224,7 @@
   .ticks i, .sw { aspect-ratio: 1; border-radius: 3px; background: oklch(from var(--ink) l c h / .08); transition: background-color calc(200ms * var(--slow)) ease; }
   .legend { white-space: nowrap; }
   .sw { display: inline-block; width: 9px; margin: 0 2px 0 6px; border-radius: 2px; }
-  .ticks [data-did=acted], .sw[data-did=acted] { background: oklch(from var(--ink) l c h / .45); }
+  .ticks [data-did=acted], .sw[data-did=acted] { background: oklch(from var(--ink) l c h / .5); }
   .ticks [data-did=asked], .sw[data-did=asked] { background: var(--ember); }
   .ticks [data-now] { background: var(--ink); }
   pre { margin: 20px 0 0; padding: 16px 20px; border-radius: 12px; background: var(--fill); font: 13px/20px var(--mono); letter-spacing: 0; overflow-x: auto; }
