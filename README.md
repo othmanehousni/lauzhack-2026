@@ -109,6 +109,34 @@ All of it runs on the laptop, and a request reaches the shared screen 1.5 to 1.8
 
 Molière is one Kotlin Multiplatform app, with Compose Multiplatform for the bar and the phone, Ktor for the link between them, and Koog with LiteRT-LM for the models. We train the decider in Python on Modal.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/system-components-dark.png">
+  <img src="docs/readme/system-components.png" alt="System components: macOS helpers, the Molière app, the shared screen, the models and the phone." width="692">
+</picture>
+
+The system components: Swift helpers on macOS (meet, hear) feed MeetingDetector and Ear, a Session in the Kotlin app drives AgentDesktop, ModelAgent and Mole, and these reach Chrome in the VM over DevTools and ssh, load the two models, and talk to the Android phone over a WebSocket.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/decision-loop-dark.png">
+  <img src="docs/readme/decision-loop.png" alt="Decision loop: Heard, word gate, retrieve, decide, move, then act now, announce or nothing." width="672">
+</picture>
+
+The decision loop: every 2 words, at a pause and at the end, the words go to EmbeddingGemma 2 for 8 candidates, the decider gets the prompt and answers, and a move made mid-sentence needs two answers that agree before Molière acts now, announces and waits, or does nothing.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/models-dark.png">
+  <img src="docs/readme/models.png" alt="Models: EmbeddingGemma 2 finds 8 candidates, the decider Gemma 3 270M picks one." width="692">
+</picture>
+
+The models: EmbeddingGemma 2 (270M, int4, by Google) turns the words said into a vector 768 wide whose dot product with the catalog gives 8 candidates, and the decider (Gemma 3 270M, fine-tuned, int8, 18 layers of which 3 are global) reads the prompt under a grammar mask and answers, for example show 3.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/fine-tuning-dark.png">
+  <img src="docs/readme/fine-tuning.png" alt="Fine-tuning: build.py, fine-tune, convert and evaluate on Modal, then LiteRT-LM loads decider.litertlm on the Mac." width="692">
+</picture>
+
+Fine-tuning: on a Modal GPU, build.py writes 60k rows of synthetic calls, gemma-3-270m-it is fully fine-tuned for 2 epochs, converted to int8 with a KV cache of 1024 and evaluated, and on the Mac LiteRT-LM loads the resulting decider.litertlm with the prompt from Prompt.kt.
+
 ## Run it
 
 <picture>

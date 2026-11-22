@@ -1,0 +1,79 @@
+<!doctype html><html class="dark"><head><meta charset="utf-8"><style>/* Figure palette. Neutrals share the site's warm sand hue. Every tone has the
+   same four roles: a tint fill, a line (borders), a solid (strokes) and an ink
+   (text on the tint and the canvas, >= 4.5:1 and APCA Lc >= 60). Per role all
+   hues share one lightness and one share of their sRGB chroma ceiling at that
+   lightness, the ceiling capped at the median across hues so green near white
+   and violet at mid lightness do not shout. Hue is constant across roles. Dark
+   is screen-only so print stays light. */
+
+:root {
+  --dg-canvas: var(--color-bg);
+  --dg-panel: oklch(0.968 0.003 100);
+  --dg-panel-edge: oklch(0.925 0.004 100);
+  --dg-surface: oklch(1 0 0);
+  --dg-rule: oklch(0.86 0.005 100);
+  --dg-ink: oklch(0.245 0.007 100);
+  --dg-text: oklch(0.4 0.006 100);
+  --dg-muted: oklch(0.53 0.006 100);
+  --dg-faint: oklch(0.8 0.004 100);
+  --dg-line: oklch(0.7 0.006 100);
+  --dg-hatch: oklch(0.93 0.004 100);
+
+  --dg-blue-tint: oklch(0.935 0.028 255);
+  --dg-blue-line: oklch(0.8 0.077 255);
+  --dg-blue-solid: oklch(0.63 0.146 255);
+  --dg-blue-ink: oklch(0.5 0.132 255);
+  --dg-teal-tint: oklch(0.935 0.03 195);
+  --dg-teal-line: oklch(0.8 0.086 195);
+  --dg-teal-solid: oklch(0.63 0.077 195);
+  --dg-teal-ink: oklch(0.5 0.068 195);
+  --dg-green-tint: oklch(0.935 0.03 138);
+  --dg-green-line: oklch(0.8 0.086 138);
+  --dg-green-solid: oklch(0.63 0.14 138);
+  --dg-green-ink: oklch(0.5 0.124 138);
+  --dg-purple-tint: oklch(0.935 0.03 290);
+  --dg-purple-line: oklch(0.8 0.081 290);
+  --dg-purple-solid: oklch(0.63 0.146 290);
+  --dg-purple-ink: oklch(0.5 0.132 290);
+  --dg-red-tint: oklch(0.935 0.029 22);
+  --dg-red-line: oklch(0.8 0.086 22);
+  --dg-red-solid: oklch(0.63 0.146 22);
+  --dg-red-ink: oklch(0.5 0.132 22);
+}
+
+@media screen {
+  html.dark {
+    --dg-panel: oklch(0.215 0.003 100);
+    --dg-panel-edge: oklch(0.265 0.004 100);
+    --dg-surface: oklch(0.178 0.002 100);
+    --dg-rule: oklch(0.36 0.005 100);
+    --dg-ink: oklch(0.945 0.004 100);
+    --dg-text: oklch(0.83 0.005 100);
+    --dg-muted: oklch(0.7 0.006 100);
+    --dg-faint: oklch(0.36 0.004 100);
+    --dg-line: oklch(0.52 0.006 100);
+    --dg-hatch: oklch(0.25 0.004 100);
+
+    --dg-blue-tint: oklch(0.28 0.051 255);
+    --dg-blue-line: oklch(0.46 0.076 255);
+    --dg-blue-solid: oklch(0.7 0.112 255);
+    --dg-blue-ink: oklch(0.84 0.073 255);
+    --dg-teal-tint: oklch(0.28 0.026 195);
+    --dg-teal-line: oklch(0.46 0.039 195);
+    --dg-teal-solid: oklch(0.7 0.084 195);
+    --dg-teal-ink: oklch(0.84 0.079 195);
+    --dg-green-tint: oklch(0.28 0.048 138);
+    --dg-green-line: oklch(0.46 0.071 138);
+    --dg-green-solid: oklch(0.7 0.119 138);
+    --dg-green-ink: oklch(0.84 0.079 138);
+    --dg-purple-tint: oklch(0.28 0.051 290);
+    --dg-purple-line: oklch(0.46 0.076 290);
+    --dg-purple-solid: oklch(0.7 0.119 290);
+    --dg-purple-ink: oklch(0.84 0.077 290);
+    --dg-red-tint: oklch(0.28 0.051 22);
+    --dg-red-line: oklch(0.46 0.076 22);
+    --dg-red-solid: oklch(0.7 0.119 22);
+    --dg-red-ink: oklch(0.84 0.079 22);
+  }
+}
+ :root{--color-bg:#111110} body{margin:16px;background:var(--color-bg);font-family:Inter,system-ui,sans-serif} .diagram{margin:0;width:fit-content} .diagram__canvas--narrow{display:none} .diagram__caption{font-size:14px;color:gray}</style></head><body><figure class="diagram"><div class="diagram__canvas"><svg width="730" viewBox="0 0 730 198" role="img" aria-label="Tech stack: JetBrains, Models, Training, Laptop" font-family="var(--font-sans, ui-sans-serif, system-ui, sans-serif)" style="max-width:100%;height:auto;display:block;color:var(--dg-ink)"><path d="M10,10 L720,10 L720,188 L10,188 Z" style="fill:none;stroke:var(--dg-line);stroke-width:1;stroke-dasharray:4 4;stroke-linecap:round;stroke-linejoin:round"/><text x="22" y="29" dominant-baseline="central" font-size="12.5" font-weight="600" style="fill:var(--dg-ink)">Tech stack</text><text x="22" y="61" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">JetBrains</text><rect x="100" y="48" width="156.0" height="26" style="fill:var(--dg-panel);stroke:var(--dg-panel-edge);stroke-width:1"/><text x="178.0" y="61" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-ink)">Kotlin Multiplatform</text><rect x="262.0" y="48" width="50.4" height="26" style="fill:var(--dg-panel);stroke:var(--dg-panel-edge);stroke-width:1"/><text x="287.2" y="61" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-ink)">Ktor</text><rect x="318.4" y="48" width="50.4" height="26" style="fill:var(--dg-panel);stroke:var(--dg-panel-edge);stroke-width:1"/><text x="343.59999999999997" y="61" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-ink)">Koog</text><rect x="374.79999999999995" y="48" width="162.6" height="26" style="fill:var(--dg-panel);stroke:var(--dg-panel-edge);stroke-width:1"/><text x="456.09999999999997" y="61" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-ink)">Compose Multiplatform</text><text x="22" y="95" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Models</text><rect x="100" y="82" width="142.8" height="26" style="fill:var(--dg-red-tint);stroke:var(--dg-red-line);stroke-width:1"/><text x="171.4" y="95" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-red-ink)">Gemma 3 270M, ours</text><rect x="248.8" y="82" width="116.4" height="26" style="fill:var(--dg-teal-tint);stroke:var(--dg-teal-line);stroke-width:1"/><text x="307.0" y="95" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-teal-ink)">EmbeddingGemma</text><rect x="371.20000000000005" y="82" width="83.4" height="26" style="fill:var(--dg-panel);stroke:var(--dg-panel-edge);stroke-width:1"/><text x="412.90000000000003" y="95" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-ink)">LiteRT-LM</text><text x="22" y="129" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Training</text><rect x="100" y="116" width="123.0" height="26" style="fill:var(--dg-panel);stroke:var(--dg-panel-edge);stroke-width:1"/><text x="161.5" y="129" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-ink)">Python on Modal</text><text x="22" y="163" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Laptop</text><rect x="100" y="150" width="116.4" height="26" style="fill:var(--dg-teal-tint);stroke:var(--dg-teal-line);stroke-width:1"/><text x="158.2" y="163" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-teal-ink)">Speech to text</text><rect x="222.4" y="150" width="70.2" height="26" style="fill:var(--dg-teal-tint);stroke:var(--dg-teal-line);stroke-width:1"/><text x="257.5" y="163" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-teal-ink)">Browser</text><rect x="298.6" y="150" width="50" height="26" style="fill:var(--dg-panel);stroke:var(--dg-panel-edge);stroke-width:1"/><text x="323.6" y="163" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-ink)">VM</text><rect x="580" y="55" width="22" height="12" style="fill:var(--dg-red-tint);stroke:var(--dg-red-line);stroke-width:1"/><text x="610" y="61" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Molière</text><rect x="580" y="79" width="22" height="12" style="fill:var(--dg-teal-tint);stroke:var(--dg-teal-line);stroke-width:1"/><text x="610" y="85" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Apple and Google</text><rect x="580" y="103" width="22" height="12" style="fill:var(--dg-panel);stroke:var(--dg-panel-edge);stroke-width:1"/><text x="610" y="109" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">library</text></svg></div></figure></body></html>
