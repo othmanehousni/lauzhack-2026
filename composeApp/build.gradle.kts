@@ -73,6 +73,7 @@ compose.desktop {
             modules("java.instrument", "java.management", "java.prefs", "java.sql", "jdk.unsupported") // suggestRuntimeModules
             macOS {
                 bundleID = "ch.lauzhack.moliere"
+                entitlementsFile.set(project.file("entitlements.plist"))
                 // The helpers (hear, meet, ssh) are this app's children, so macOS asks on this app's behalf, in these words.
                 infoPlist {
                     extraKeysRawXml = """
