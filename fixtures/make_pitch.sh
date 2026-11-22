@@ -1,6 +1,6 @@
 #!/bin/sh
 # make_pitch.sh: the pitch/ folder Molière presents from, built from mole/slides.html with headless Chrome:
-# "Moliere pitch.pdf" (one slide a page, text kept as text) and slide 8's two boxes as PNGs, also copied to docs/readme/.
+# "Moliere pitch.pdf" (one slide a page, text kept as text) and slide 8's two boxes as PNGs.
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/pitch}
@@ -24,6 +24,3 @@ shot() { # name, box to keep, box to hide, its width in the deck, zoom
 shot "Moliere architecture diagram" arch stack 725 1.55
 shot "Moliere tech stack" stack arch 560 1.9
 
-mkdir -p "$ROOT/docs/readme"
-cp "$OUT/Moliere architecture diagram.png" "$ROOT/docs/readme/architecture.png"
-cp "$OUT/Moliere tech stack.png" "$ROOT/docs/readme/tech-stack.png"
