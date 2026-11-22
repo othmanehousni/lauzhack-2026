@@ -65,6 +65,30 @@ class LeadTest {
     }
 
     @Test
+    fun aPhoneThatStartsFarAwayCanLeadBeforeCalibration() {
+        var walk = Walk()
+        repeat(CALIBRATION) { walk = walk.next(-75f, 8f) }
+        assertTrue(walk.lead.phone)
+        assertEquals(null, walk.gain)
+        repeat(CALIBRATION) { walk = walk.next(-30f, 8f) }
+        assertFalse(walk.lead.phone)
+        assertEquals(38f, walk.gain)
+    }
+
+    @Test
+    fun aRecognizerWithoutRmsCanHandOffInBothDirections() {
+        var walk = Walk()
+        repeat(7) { walk = walk.next(-70f, null) }
+        assertFalse(walk.lead.phone)
+        walk = walk.next(-70f, null)
+        assertTrue(walk.lead.phone)
+        repeat(20) { walk = walk.next(-48f, null) }
+        assertTrue(walk.lead.phone)
+        repeat(8) { walk = walk.next(-30f, null) }
+        assertFalse(walk.lead.phone)
+    }
+
+    @Test
     fun standingAtTheEdgeDoesNotFlap() {
         for (seed in 1..5) {
             val room = Room(-40f, -55f, seed).calibrated()

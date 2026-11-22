@@ -1,15 +1,24 @@
 package ch.lauzhack.app.stage
 
 import ch.lauzhack.app.Heard
+import ch.lauzhack.app.session.inputDecibels
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.milliseconds
 
 class EarTest {
@@ -31,6 +40,24 @@ class EarTest {
         assertEquals(true, said.await().last().stopped.elapsedNow() >= 1400.milliseconds)
         assertEquals(listOf(0f, 0.0031622776f, 0.08f, 0.21f, 1e-5f), levels.await())
         assertEquals(listOf("getting Apple's English speech model ready", "listening... (ctrl-c to stop)"), notes.await())
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun aMutedMacStillDeliveringSamplesExpiresAndRecovers() = runTest {
+        val rms = MutableSharedFlow<Float>()
+        val db = rms.inputDecibels().stateIn(backgroundScope, SharingStarted.Eagerly, null)
+        runCurrent()
+        rms.emit(0.1f)
+        runCurrent()
+        assertEquals(-20f, db.value)
+        repeat(10) { rms.emit(0f); advanceTimeBy(100) }
+        assertEquals(-20f, db.value)
+        repeat(6) { rms.emit(1e-6f); advanceTimeBy(100) }
+        assertNull(db.value)
+        rms.emit(0.01f)
+        runCurrent()
+        assertEquals(-40f, db.value)
     }
 
     @Test

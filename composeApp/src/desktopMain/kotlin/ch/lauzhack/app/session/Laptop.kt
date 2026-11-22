@@ -15,6 +15,7 @@ import ch.lauzhack.app.log
 import ch.lauzhack.app.stage.AgentDesktop
 import ch.lauzhack.app.stage.Ear
 import ch.lauzhack.app.stage.HOME
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -172,13 +175,14 @@ class Laptop(
             mole.on(Event.Failed("Couldn't load the models.", first(e)))
             awaitCancellation()
         }
+        val vocabulary = names.filter { it.split(' ').size <= 4 }.take(NAMES)
         val ear = Ear().takeIf { typed == null }
         if (ear != null) {
             launch { ear.notes.collect { log("ear: $it") } }
             launch { ear.said.collect { log("ear     ${if (it.heard.ended) "final" else if (it.heard.quiet) "quiet" else "live "}  \"${it.heard.text}\"  unchanged ${it.ago.inWholeMilliseconds} ms") } }
             launch {
                 try {
-                    ear.listen(names.filter { it.split(' ').size <= 4 }.take(NAMES).also { log("ear expects ${it.size} of ${names.size} names") }, audio)
+                    ear.listen(vocabulary.also { log("ear expects ${it.size} of ${names.size} names") }, audio)
                     if (audio.isNotEmpty()) log("ear: heard every file")
                 } catch (e: Exception) { // the phone may still hear
                     ensureActive()
@@ -187,12 +191,20 @@ class Laptop(
                 }
             }
         }
-        val laptopDb = ear?.level?.map { 20 * log10(maxOf(it, 1e-5f)) }?.stateIn(this, SharingStarted.Eagerly, -100f) ?: MutableStateFlow(-100f)
+        val laptopDb = ear?.level?.inputDecibels()?.stateIn(this, SharingStarted.Eagerly, null) ?: MutableStateFlow<Float?>(null)
         val screen = MutableStateFlow(Link.Screen())
-        val phones = PhoneServer(mole.line, screen, title, laptopDb, port = if (dry) 0 else PORT, host = if (dry) "127.0.0.1" else "0.0.0.0", beacon = !dry)
+        val phones = PhoneServer(mole.line, screen, title, laptopDb, port = if (dry) 0 else PORT, host = if (dry) "127.0.0.1" else "0.0.0.0", beacon = !dry,
+            usePhoneMic = typed == null && audio.isEmpty()) { pcm, words ->
+            coroutineScope {
+                val phoneEar = Ear()
+                val transcripts = launch(start = CoroutineStart.UNDISPATCHED) { phoneEar.heard.collect(words) }
+                try { phoneEar.listen(vocabulary, pcm = pcm) } finally { transcripts.cancel() }
+            }
+        }
         try {
             phones.start() // inside the try: a port another app holds fails this meeting, and stop() still runs
-            val s = Session(logged(agent), if (dry) DryScreen() else desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone }, window = window)
+            val words = microphoneWords(typed ?: ear!!.heard, phones.words, phones::usesPhoneMic)
+            val s = Session(logged(agent), if (dry) DryScreen() else desk.asScreen(), mole, words, phones.lead.map { it.phone }, window = window)
             session.value = s
             launch { phones.picks.collect(s::pick) }
             launch { phones.connected.collect { phoned.value = it; log(if (it) "phone connected" else "no phone") } }
@@ -241,6 +253,15 @@ class Laptop(
         log("shared screen up in ${t.elapsedNow().inWholeMilliseconds} ms")
     }
 }
+
+/** A stopped helper or sustained digital silence expires the last audible sample, even if the phone sends no levels. */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+internal fun Flow<Float>.inputDecibels(): Flow<Float?> =
+    filter { it.isFinite() && it > 1e-5f }.transformLatest { rms ->
+        emit(20 * log10(rms))
+        delay(1500.milliseconds)
+        emit(null)
+    }
 
 /** Whether [dir] holds a PDF to present. */
 fun hasDecks(dir: File) = !dir.listFiles { f -> f.extension.equals("pdf", ignoreCase = true) }.isNullOrEmpty()

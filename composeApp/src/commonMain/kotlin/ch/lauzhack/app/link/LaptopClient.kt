@@ -31,6 +31,7 @@ data class PhoneState(
     val metres: Float = SEATED_M,
     val meeting: String = "",
     val connected: Boolean = false,
+    val acceptsAudio: Boolean = false,
     val trouble: String? = null, // why the phone cannot reach the laptop, in words the presenter can act on
 )
 
@@ -66,9 +67,14 @@ class LaptopClient(
         }
     }
 
+    internal fun audio(bytes: ByteArray) {
+        if (state.value.acceptsAudio) session?.outgoing?.trySend(Frame.Binary(true, bytes))
+    }
+
     fun pick(index: Int) = send(Link.Pick(index))
     fun words(heard: Heard) = send(Link.Words(heard))
-    fun level(db: Float, speech: Boolean) = send(Link.Level(db, speech))
+    fun mic(ready: Boolean) = send(Link.Mic(ready))
+    fun level(db: Float?, speech: Boolean) = send(Link.Level(db, speech))
 
     private fun send(message: Link) {
         session?.outgoing?.trySend(Frame.Text(message.encode()))
@@ -107,11 +113,12 @@ class LaptopClient(
         val thumbnail = (message as? Link.Screen)?.thumbnail?.let(::decodeImage)
         _state.update {
             when (message) {
+                Link.AcceptAudio -> it.copy(acceptsAudio = true)
                 is Link.Line -> it.copy(line = message.line)
                 is Link.Screen -> it.copy(onScreenName = message.name, thumbnail = thumbnail)
                 is Link.Lead -> it.copy(phoneLeads = message.phone, metres = message.metres)
                 is Link.Meeting -> it.copy(meeting = message.title)
-                is Link.Level, is Link.Words, is Link.Pick -> it
+                is Link.Level, is Link.Mic, is Link.Words, is Link.Pick -> it
             }
         }
     }

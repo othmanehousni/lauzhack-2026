@@ -302,18 +302,23 @@ class Stage(private val vm: Vm?, data: File, private val port: Int, private val 
     }
 }
 
-private fun small(image: BufferedImage, width: Int = 480): ByteArray {
+private fun small(image: BufferedImage, maxDimension: Int = 1080): ByteArray {
+    val longest = maxOf(image.width, image.height)
+    val scale = minOf(1.0, maxDimension.toDouble() / longest)
+    val width = maxOf(1, (image.width * scale).toInt())
+    val height = maxOf(1, (image.height * scale).toInt())
     var img = image
-    do {  // halving keeps text legible where one bilinear step would skip pixels; the first pass also drops alpha for JPEG
+    do {  // successive halves preserve small text, and converting to RGB also handles transparent PNGs
         val w = maxOf(img.width / 2, width)
-        val next = BufferedImage(w, img.height * w / img.width, BufferedImage.TYPE_INT_RGB)
+        val h = maxOf(img.height / 2, height)
+        val next = BufferedImage(w, h, BufferedImage.TYPE_INT_RGB)
         next.createGraphics().run {
             setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
             drawImage(img, 0, 0, next.width, next.height, null)
             dispose()
         }
         img = next
-    } while (img.width > width)
+    } while (img.width > width || img.height > height)
     return ByteArrayOutputStream().also { ImageIO.write(img, "jpg", it) }.toByteArray()
 }
 

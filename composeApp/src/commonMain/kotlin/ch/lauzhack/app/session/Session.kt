@@ -13,7 +13,6 @@ import ch.lauzhack.app.ext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -29,11 +28,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -43,6 +41,10 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
+
+/** Keep both subscriptions live so the first phone results can both establish readiness and carry a command. */
+internal fun microphoneWords(laptop: Flow<Heard>, phone: Flow<Heard>, usePhone: () -> Boolean): Flow<Heard> =
+    merge(laptop.filter { !usePhone() }, phone.filter { usePhone() })
 
 /** The shared screen as the session drives it: the agent desktop on the laptop, a fake in tests. */
 interface SharedScreen {
@@ -63,7 +65,7 @@ private val SPACE = Regex("\\s+")
 /**
  * One meeting. Each time the words change it asks [given] whether there is anything to do about what the presenter is
  * saying and what the audience sees, and carries the move out on [agentDesktop] at once, telling [mole] what really
- * happens. Words come from [laptop], or from [phone] while [phoneLeads]. Moves reach the screen one at a time, in the
+ * happens. [words] carries speech from the selected microphone. Moves reach the screen one at a time, in the
  * order they were decided, each call failing after [STALL]; the agent keeps deciding meanwhile. An [Move.Ask] of one
  * target is shown at once when the agent is sure, else announced and shown once its doubt of [window] has run (at
  * least [FLOOR]), unless the presenter stops it ([Move.Undo], or [pick] of a negative index); with no window, at once.
@@ -76,8 +78,7 @@ class Session(
     private val given: Agent,
     private val agentDesktop: SharedScreen,
     private val mole: Mole,
-    private val laptop: Flow<Heard>,
-    private val phone: Flow<Heard> = emptyFlow(),
+    private val words: Flow<Heard>,
     private val phoneLeads: Flow<Boolean> = flowOf(false),
     private val time: TimeSource = TimeSource.Monotonic,
     private val window: StateFlow<Duration> = MutableStateFlow(ANNOUNCE),
@@ -109,12 +110,11 @@ class Session(
         taps.trySend(index)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun run(): Nothing = coroutineScope {
         mole.on(Event.Hello("Hi. I'm listening."))
         val leads = phoneLeads.distinctUntilChanged()
-        launch { leads.drop(1).collect { mole.on(Event.Hello(if (it) "On your phone now." else "Back on the laptop.")) } }
-        launch { leads.flatMapLatest { (if (it) phone else laptop).onStart { switched() } }.collect(::hear) }
+        launch { leads.drop(1).collect { switched(); mole.on(Event.Hello(if (it) "On your phone now." else "Back on the laptop.")) } }
+        launch { words.collect(::hear) }
         launch { for (i in taps) turn.withLock { if (i < 0) stop() else offered().getOrNull(i)?.let { show(it, said = "", pick = i) } } }
         launch {
             while (true) {

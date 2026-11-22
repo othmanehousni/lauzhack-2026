@@ -1,10 +1,24 @@
-# Molière
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/microphone-dark.png">
+    <img src="mole/sprites/microphone.png" width="300" alt="The Molière mole, in round spectacles and a red bow tie, holding a microphone">
+  </picture>
+</p>
+
+<h1 align="center">Molière</h1>
+
+<p align="center"><b>Automated co-presenter.</b><br>LauzHack 2026 · Alt+F4</p>
 
 Molière listens to you during a call and puts the right slide, file, website or app on the screen you share. You talk to your audience as usual; Molière works out when you are asking for something and drives the shared screen for you.
 
 It is one Kotlin Compose Multiplatform app: a desktop app on your Mac and an Android companion on the phone in your hand. Speech recognition and both models run on the Mac, inside the app. There is no model server.
 
 ## What the presenter sees
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/stopwatch-dark.png">
+  <img src="mole/sprites/stopwatch.png" width="180" align="right" alt="">
+</picture>
 
 A small bar at the bottom of your screen shows what Molière heard and what it is doing. Commands on what is already on screen act at once: "Next slide please.", "Go to slide 7.", "Scroll down a bit.", "Close that." A request by meaning, such as "So how big is this market really?", is announced first ("Showing slide 5") next to a Stop button that drains for up to 2.5 seconds. Say "no", or press Stop on the bar or the phone, and nothing reaches the shared screen. After something is shown, "no, go back" puts the previous screen back. Chatter does nothing: "I sent the PDF to Marc this morning." is not a request.
 
@@ -13,6 +27,11 @@ The phone shows the same mole and line as the bar, with the same buttons, and bu
 Outside a call, Molière does not listen and has no phone link. It wakes when a call app takes the microphone, or when you choose **Start a meeting** from the mole in the menu bar.
 
 ## How a sentence reaches the screen
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/pickaxe-dark.png">
+  <img src="mole/sprites/pickaxe.png" width="180" align="right" alt="">
+</picture>
 
 1. **Hearing.** Apple's SpeechTranscriber (macOS 26) turns your voice into words on the Mac. `stage/Ear.kt` runs `hear.swift` and tells it which names to expect: your decks, slide titles, sites and apps.
 2. **Session.** `session/Session.kt` passes each new version of the utterance to the agent with what the audience sees now. `Contract.kt` is the contract between ear, agent and screen: `Heard` and `OnScreen` in, a `Move` out.
@@ -24,6 +43,11 @@ Outside a call, Molière does not listen and has no phone link. It wakes when a 
 Only the models interpret speech: no word list or pattern reads what you say. `tune/CONTRACT.md` defines the prompt, the grammar and what each answer does; the training code and the app both follow it.
 
 ## Run it
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/folder-dark.png">
+  <img src="mole/sprites/folder.png" width="180" align="right" alt="">
+</picture>
 
 You need macOS 26 with Xcode's command line tools (`xcode-select --install`), [mise](https://mise.jdx.dev/) and [uv](https://docs.astral.sh/uv/). For the shared screen you need `agent-desktop` (`npm install -g agent-desktop`) and its VM, set up once as described below. Without the VM, `--host` uses a Chrome window on your Mac.
 
@@ -45,7 +69,7 @@ open $APP                                                                   # th
 
 With `--typed`, wait for "Hi. I'm listening.", then type a line and press Return. The log is `~/Library/Logs/Moliere/moliere.log`, and what the audience saw after each change is in `~/Library/Logs/Moliere/screens/`. The flags are listed above `fun main` in `composeApp/src/desktopMain/kotlin/ch/lauzhack/app/Main.kt`.
 
-For the phone, run `mise run android` with the phone connected (or `mise run android:emulator:setup` once, then `mise run android:emulator`). Put the phone and the Mac on the same network, ideally the phone's hotspot. The phone finds the laptop once a meeting runs.
+For the phone, run `mise run android` with the phone connected (or `mise run android:emulator:setup` once, then `mise run android:emulator`). Put the phone and the Mac on the same network, ideally the phone's hotspot. The phone finds the laptop once a meeting runs. During a meeting the phone streams microphone audio to the Mac over the local, unencrypted WebSocket connection, and the Mac transcribes it locally. Leaving the Android app stops the stream.
 
 `DEMO.txt` is the demo runbook: the test lines and what each must do, permissions, the phone, troubleshooting, the measured scores and what Molière still gets wrong.
 
@@ -64,6 +88,11 @@ For the phone, run `mise run android` with the phone connected (or `mise run and
 At each meeting start, `Vm.setup` in `stage/Vm.kt` finishes the job when needed: it shares Desktop, Documents and Downloads read only at the same paths, matches your screen size, wallpaper and appearance, installs Chrome and restarts the VM. It patches `agent-desktop`'s VM host to share the folders, so it runs again after an `agent-desktop` update. It also starts the VM when it is stopped. To rerun step 7 later, the script is at `/Volumes/My Shared Files/agent-desktop/guest-setup.sh`.
 
 ## Test
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/magnifier-dark.png">
+  <img src="mole/sprites/magnifier.png" width="180" align="right" alt="">
+</picture>
 
 ```sh
 mise exec -- ./gradlew :composeApp:desktopTest                   # session, catalog, prompt (byte for byte against tune/golden.jsonl), stage, link, UI
