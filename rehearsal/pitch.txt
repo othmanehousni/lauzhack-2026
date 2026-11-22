@@ -1,4 +1,4 @@
-# the Molière pitch, presented by Molière from pitch/ (fixtures/make_pitch.sh): the deck and slide 8's two diagrams
+# the Molière pitch, presented by Molière from pitch/ (fixtures/make_pitch.sh): the deck and slide 8's six figures
 Hi everyone, can you all hear me okay? || keep
 Let's open the Molière pitch. || slide pitch 1
 Next slide please. || slide pitch 2
@@ -9,6 +9,10 @@ Next slide please. || slide pitch 6
 Go to slide 8. || slide pitch 8
 Let me show you the architecture diagram. || file architecture
 And here is our tech stack. || file tech stack
+Open the Molière system components. || file system components
+Open the Molière decision loop. || file decision loop
+Open the Molière models. || file models
+Open the Molière fine-tuning. || file fine-tuning
 Go back to slide 8. || slide pitch 8
 Show me the notetakers slide. || slide pitch 9 pick
 I'm happy to take questions at the end. || keep

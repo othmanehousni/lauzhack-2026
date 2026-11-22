@@ -1,4 +1,4 @@
-# the lines of DEMO.txt section 1, in order
+# the second scenario of DEMO.txt, with the Acme decks in library/
 Hi everyone, can you all hear me okay? || keep
 Okay, let's open up the company slides. || slide Company_Overview 1
 Next slide please. || slide Company_Overview 2

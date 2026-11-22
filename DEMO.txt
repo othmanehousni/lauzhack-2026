@@ -1,249 +1,71 @@
-MOLIÈRE: DEMO SETUP AND TEST LIST
-Written during the night of 22 November 2026 from commands that were actually run.
-Anything not run by a person is marked NOT VERIFIED BY A PERSON.
-
-Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
+MOLIÈRE: READ THIS BEFORE GOING ON STAGE
 
 
-0. WHAT IS READY ON THIS MAC RIGHT NOW
+1. LAUNCH
 
-  The app bundle is built:
-    composeApp/build/compose/binaries/main/app/Moliere.app
-  Both models are in place:
-    ~/Library/Application Support/Moliere/models/embeddinggemma-2-text-270m.litertlm
-    ~/Library/Application Support/Moliere/models/decider.litertlm   (our fine-tuned Gemma 3 270M)
-  The shared screen (the VM named "base") is up and set up.
-  The Android build exists:
-    androidApp/build/outputs/apk/debug/androidApp-debug.apk
-  Three sample decks are in library/ (company overview, Q3 financials, product roadmap).
+  Quit any open Molière first (menu bar mole, Quit). Then:
+
+    open ~/Desktop/lauzhack-2026/composeApp/build/compose/binaries/main/app/Moliere.app --args --library ~/Desktop/lauzhack-2026/pitch --no-history
+
+  The shared screen is the window "Molière screen". It has no Dock icon: find it with Mission Control
+  (Control and Up arrow). In the call, share that window, then click "Start a meeting".
 
 
-1. TWO-MINUTE CHECK WITHOUT A MICROPHONE
+2. THE PITCH, PRESENTED BY MOLIÈRE (scenario: rehearsal/pitch.txt)
 
-  This proves the whole chain except the microphone: the model, the bar, the shared screen.
+  Talk normally between the lines below; plain talk changes nothing.
 
-    composeApp/build/compose/binaries/main/app/Moliere.app/Contents/MacOS/Moliere --typed --library "$PWD/library" --no-history
-
-  Wait for the line "Hi. I'm listening." (about 5 seconds). The bar appears at the bottom of your screen.
-  Type each line, press Return, and watch the VM window and the bar.
-
-    You type                                   What must happen
-    -----------------------------------------  ---------------------------------------------------------
-    Hi everyone, can you all hear me okay?     Nothing. The mole stays out of the way.
-    Okay, let's open up the company slides.    Company overview, slide 1, at once.
-    Next slide please.                         Slide 2, at once.
-    Go to slide 7.                             Slide 7 (Traction), at once.
-    So how big is this market really?          Bar: "Showing slide 5", Stop drains 2.5 s, then slide 5.
-    I sent the PDF to Marc this morning.       Nothing (a mention is not a request).
-    Now let's switch to the Q3 financials.     Bar announces, then Q3 deck slide 1.
-    What about churn?                          Bar announces, then slide 6 (Customer churn).
-    Open GitHub.                               Bar announces, then github.com in front of the deck.
-    Scroll down a bit.                         The page scrolls.
-    Close that.                                Back to the Q3 slide.
-    Let's look at the product roadmap.         Bar announces, then roadmap slide 1.
-    Tell me about the cold storage robot.      Bar announces, then roadmap slide 3.
-    Show me the gross margin slide.            Bar announces "Showing slide 3". Type the next line within 2 s:
-    No, not that one.                          Bar: "Okay, not shown." Nothing changes on screen.
-    Show me the gross margin slide.            Announced again. Let it show this time (Q3 slide 3). Then:
-    No, go back.                               The roadmap slide returns.
-
-  Stop with Ctrl-C. What the audience saw after each change is saved as pictures in
-  ~/Library/Logs/Moliere/screens/ and the full log is ~/Library/Logs/Moliere/moliere.log.
-
-  These exact lines, typed for you and scored (about 2 minutes). Last run tonight: 17 of 17.
-    rehearsal/run.sh rehearsal/demo.txt .stage/rehearsal/demo 6
-    python3 rehearsal/check.py .stage/rehearsal/demo
-
-  A harder set (45 lines: vague asks, mishearings, things that do not exist; about 5 minutes):
-    rehearsal/run.sh rehearsal/model-1.txt .stage/rehearsal/hard 6
-    python3 rehearsal/check.py .stage/rehearsal/hard
-  Last score tonight: 37 of 45 (the hand rules, since deleted, scored 28 of 41 on the lines both can do).
-  A second set that nothing was tuned on (rehearsal/held-1.txt): 27 of 45.
-  The lines it misses are listed in section 8.
+    SAY THIS                                       THIS APPEARS
+    Hi everyone, can you all hear me okay?         nothing changes
+    Let's open the Molière pitch.                  slide 1, Molière (announced, then shown)
+    Next slide please.                             slide 2
+    Next slide.                                    slide 3, 3 in 4 meetings
+    Go to slide 4.                                 slide 4, We asked 6 people
+    So what was the real issue?                    slide 5, error-prone manual work under stress
+    Next slide please.                             slide 6, Introducing Molière
+    Go to slide 8.                                 slide 8, Not just AI agent talk
+    Let me show you the architecture diagram.      Moliere architecture diagram.png
+    And here is our tech stack.                    Moliere tech stack.png
+    Open the Molière system components.            Moliere system components.png
+    Open the Molière decision loop.                Moliere decision loop.png
+    Open the Molière models.                       Moliere models.png
+    Open the Molière fine-tuning.                  Moliere fine-tuning.png
+    Go back to slide 8.                            slide 8 again
+    Show me the notetakers slide.                  slide 9, works live, in any software
+    I'm happy to take questions at the end.        nothing changes
+    Show me the B2B slide.                         slide 11, We will go B2B
+    Go to slide 12.                                slide 12, Next, we will train Molière
 
 
-2. THE REAL THING, WITH YOUR VOICE
+3. WHEN SOMETHING GOES WRONG
 
-  a. Open the app:   open composeApp/build/compose/binaries/main/app/Moliere.app
-     There is no Dock icon. Look for the mole in the menu bar.
-  b. Decks: the app is set to the repo's library folder (the three sample decks), so it works as it is.
-     For your own decks: menu bar mole, "Choose decks folder...". Any folder under Desktop, Documents or
-     Downloads works (the shared screen can read those three).
-  c. Menu bar mole, "Start a meeting". The first time, macOS asks for: Microphone, Speech Recognition,
-     Local Network (the link to the VM and the phone), and Calendar on the first real call. Allow each.
-     If you missed one: System Settings, Privacy & Security, enable the app under that heading, then
-     "End the meeting" and "Start a meeting" again.
-     NOT VERIFIED BY A PERSON: nobody was awake to click these prompts. Do this once before the demo,
-     and do it AFTER the last rebuild (a rebuild is a new signature, macOS may ask again).
-  d. In the call (Meet, Zoom, Teams), share the VM window, titled "Molière screen".
-  e. Speak the lines of section 1. With a real call the meeting starts by itself about 5 seconds after the
-     call app takes the microphone (NOT VERIFIED BY A PERSON); "Start a meeting" always works.
-
-  What was verified without a person: the packaged app was fed synthesized speech files through Apple's
-  recognizer (no microphone, no sound) and acted on them correctly. Measured from the end of the voice,
-  18 sentences: a command reaches the shared screen in 0.9 seconds (worst 1.4), an announce appears
-  after 1.0 second (worst 1.3). At the start of the night both took 1.6 to 2 seconds.
-  Measure it again (about 2 minutes, no sound):   python3 latency/lever.py .stage/latency
-
-  What to watch for with your real voice (none of this could be tried without a person):
-    The app now acts when your voice goes quiet for half a second, without waiting for the sentence to be
-    declared over. A pause after words that are already a command ("Next slide ... is about pricing")
-    acts at the pause.
-    In a noisy room the voice may never read as quiet. Commands then take about 1.7 seconds, as before.
-    A "no" said in the same breath as the request can be heard as one sentence and not stop it.
-    Say "no" once you see the announce on the bar.
+  A wrong thing is announced:     say "no" while it announces (or press Stop on the bar or the phone).
+  A wrong screen is shown:        say "no, go back" within 20 seconds.
+  Nothing happens:                say it again, slower.
+  The microphone fails:           quit Molière and type the lines instead, Return after each one,
+                                  once it says "Hi. I'm listening.":
+    ~/Desktop/lauzhack-2026/composeApp/build/compose/binaries/main/app/Moliere.app/Contents/MacOS/Moliere --typed --library ~/Desktop/lauzhack-2026/pitch --no-history
 
 
-3. SAY NO OR IT GETS SHOWN
+4. WORDING TO AVOID
 
-  Anything the mole picks by meaning is announced first: the bar says "Showing ..." with a Stop button
-  that drains for 2.5 seconds. Three ways to stop it:
-    say "no" (or "no, not that one") before the Stop runs out     tested in the real app
-    tap Stop on the phone                                         tested on an emulator against the real app
-    click Stop on the bar                                         tested in code only, nobody clicked it
-  Ask again after a stop and it is announced again.
-  After it is shown, "no, go back" within 20 seconds restores the previous screen (tested at 13 seconds).
-  When what you talk about is simply the next slide of the deck on screen, it moves on at once, like a click.
-  Commands on what is already on screen (next, previous, slide 7, scroll, close) act at once.
-  Menu bar mole, "Wait before showing": 2.5 s, 1.5 s, or none. Try all three and keep the one that feels right.
-  NOT VERIFIED BY A PERSON: clicking the tray menu items (they are built and the app runs; nobody clicked).
+  "Close that." after a diagram: it goes to the desktop, not the deck. Say "Go back to slide 8." instead.
+  Statements as picks ("We asked six people...", "The real problem is...") are taken as talk.
+  "Show me the slide on tech failures" picked slide 1.
 
 
-4. THE PHONE
+5. MIME MODE (the lip reader runs on its own today)
 
-  a. Turn on the phone's hotspot and join the Mac to it.
-  b. Plug the phone in once to install:   adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
-  c. Unplug. Open Molière on the phone, allow the microphone. It says "Looking for your laptop..." until a
-     meeting runs on the Mac, then shows the same mole and the same line as the bar.
-  d. If it never connects:   adb shell am start -n ch.lauzhack.app/.MainActivity -e laptop <the Mac's IP>
-  e. Try: an announce (one light tick, a Stop button), a choice between files (a firm double buzz, tap a row),
-     quit the app on the Mac (the phone says so within about 2 s), start it again (reconnects in about 3 s).
-
-  Verified on an Android emulator with no window: every state in light and dark, taps reaching the laptop,
-  the three buzz patterns, reconnects. Rerun that check any time:   androidApp/check.sh
-  NOT VERIFIED BY A PERSON: a real phone. Hearing through the phone, discovery over the hotspot and how the
-  buzz feels can only be tried on the device.
+  Once:    brew install git-lfs && git lfs pull
+           lipreading/setup.sh
+  Run:     cd lipreading && .venv/bin/python lipread.py
+  Keys:    SPACE pauses and resumes, V turns the voice off, Q quits.
 
 
-5. THINGS YOU SAW RECENTLY
+6. SECOND SCENARIO: THE ACME DECKS (scenario: rehearsal/demo.txt)
 
-  Besides the decks folder, the mole can reach files you used lately, slide decks elsewhere on the Mac, and
-  pages from your browser history (Chrome, Arc, Chromium; not Safari). Menu bar mole, "Use browser history"
-  turns the history part off.
-  Try it: open any PDF deck that is not in the decks folder, wait a minute, then ask for it by what it is about.
-  Scored tonight with a deck opened a moment ago and a file used this morning (rehearsal/seen-1.txt): 5 of 5.
-  Spotlight on this Mac stopped answering during the night. The app now also looks through Desktop, Documents
-  and Downloads itself, so it finds recent files and decks either way. A file opened during the meeting is
-  known within about a minute.
-  One caution for a demo: the shared screen's browser has none of your sign-ins. A page that needs one shows
-  a sign-in page.
-
-
-6. IF SOMETHING GOES WRONG DURING THE DEMO
-
-  The bar says "Couldn't get the shared screen ready."   The app starts the VM by itself; if that failed:  agent-desktop sandbox start base --window
-  Nothing happens when you speak.                         Menu bar mole, "End the meeting", "Start a meeting". Check the microphone permission.
-  It picks the wrong thing.                               Say "no". That is the feature.
-  No VM at all.                                           Start with --host (a Chrome window on this Mac is the shared screen).
-  Look at what it heard and decided.                      ~/Library/Logs/Moliere/moliere.log (every word, decision and screen call, timestamped)
-
-  Other ways to start:
-    --demo         the scripted story on the bar, no models, no VM
-    --playground   every state of the mole one click away, light and dark
-    --paced        with --typed: each line arrives word by word, like speech
-    --audio DIR    hears audio files instead of the microphone
-    --window MS    the wait before showing, for one run
-    --models DIR   another folder of models for one run (to try a new decider without replacing the installed one)
-
-
-7. A THREE-MINUTE RUN FOR THE JURY
-
-  1. Start the call, share the VM window, phone in your hand.
-  2. "Hi everyone, can you all hear me okay?"                  Nothing happens. Point at that.
-  3. "Okay, let's open up the company slides."                 Slide 1.
-  4. "Next slide please."  then  "Go to slide 7."              At once.
-  5. "So how big is this market really?"                       The bar announces slide 5. Let it show.
-  6. "Tell me about the cold storage robot."                   Announces a slide of ANOTHER deck. Let it show.
-  7. "Show me the gross margin slide."  then  "No, not that one."   The announce stops. Nothing was shared.
-  8. "Open GitHub."  "Scroll down a bit."  "Close that."       A site in front of the deck, then back.
-  9. Walk away with the phone: tap Stop on an announce, show the buzz.
-  Rehearse lines 5 to 7 once before: they depend on the model and on your wording.
-
-
-8. WHAT IT STILL GETS WRONG (measured, not guessed)
-
-  From the scored scenario tonight, with the model:
-    "Let me show you who we are up against."      went to the Team slide instead of Competition
-    "And what does it cost?"                      nothing (wanted Business model and pricing)
-    "How much cash do we have left?"              nothing (wanted Cash and runway)
-    "Can you open example.com for me?"            opened google.com
-    "Open get hub." (a mishearing of GitHub)      announced a slide
-    "Go to slide 99."  "Go to slide 42."          went to slide 9 and slide 4 (a number beyond the deck is cut short)
-    "Open the quarterly penguin migration report." (does not exist)   announced an unrelated slide; "no" stops it
-    12 requests for things that do not exist      7 did nothing, 5 announced an unrelated slide or app.
-                                                  Say "no", or it is shown when the wait runs out.
-    "Next slide is about pricing." (talk, not a command)   moved to the next slide
-
-
-9. A SECOND MODEL IS READY, YOUR CALL
-
-  Installed: round 4 (r4). It passes all 17 demo lines. A later round (r6b) was trained during the night on
-  what the app and the recognizer showed. It was not installed, because it is better and worse:
-
-                                             r4 (installed)   r6b
-    the 17 demo lines                        17               14   ("Tell me about the cold storage robot." does nothing)
-    hard set, 45 lines                       37               38
-    held-out set, 45 lines                   27               37   (answers many more questions about a slide)
-    12 requests for things that do not exist  7 do nothing     3 do nothing, 9 announce something
-    things seen recently, 5 lines             5                5
-    eval scripts as the recognizer hears them (340 lines, on Modal)   217   237
-
-  r6b acts more: it finds more, and it announces more things nobody asked for. Recommendation: keep r4 for a
-  scripted demo in front of a jury; try r6b if you want it to answer freer questions and you are ready to say "no".
-  Try r6b for one run, nothing replaced (add the flag to any command above):
-    --models "$PWD/.stage/models/try-r6b"
-  Install it for good:
-    cp .stage/models/r6b/decider.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
-  Back to r4:
-    cp .stage/models/r4/decider.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
-
-
-10. REBUILD FROM SOURCE (only if you change code)
-
-    export JAVA_HOME=/Users/admin/Library/Java/JavaVirtualMachines/temurin-21.0.7/Contents/Home ANDROID_HOME=/Users/admin/Library/Android/sdk
-    ./gradlew :composeApp:desktopTest :composeApp:desktopJar :androidApp:assembleDebug :composeApp:createDistributable
-  Tests tonight: 31 suites, 116 tests, 0 failures.
-
-
-11. MARKET FIGURES AND SHEETS BESIDE THE DECKS
-
-  Six made-up Acme documents sit in library/ next to the decks. Their numbers agree with the decks. Each one
-  opens in front of the deck on the shared screen, like a website, and "Close that." brings the slide back.
-  Put them in place (they are not in git, like the decks; the same command rewrites them identically):
-    python3 -I fixtures/make_documents.py library
-
-    Document                         What is on it
-    -------------------------------  ------------------------------------------------------------------
-    Acme market figures 2026         the market by segment and by region, 2026 to 2030, the total as a chart
-    Acme pricing sheet 2026          price per robot a month by fleet size, the contract terms, a chart
-    Acme customer pipeline Q4 2026   ten open deals: 444 robots, $724,500 a month
-    Acme competitor comparison       Acme against legacy AS/RS, transport-only robots and manual picking
-    Acme profit and loss Q3 2026     Q2 against Q3, cash and runway, revenue by quarter as a chart
-    Acme customer survey 2026        satisfaction, NPS 61, what customers ask for next, a chart
-
-  You do not need to open them before the meeting. Every file in the decks folder that is not a PDF is one
-  of the meeting's documents, offered whenever it fits what you say.
-
-  Say these (each showed its document in the scored run):
-    SAY_LINES
-  Avoid these (measured):
-    AVOID_LINES
-
-  Scored run: SCORE_LINE
-    rehearsal/run.sh rehearsal/docs-1.txt .stage/rehearsal/docs 6
-    python3 rehearsal/check.py .stage/rehearsal/docs
-  Pictures of each document on the shared screen: .stage/design/documents/
-
-  Keep documents as HTML pages. An Excel file in the decks folder cannot be shown (the shared screen has no
-  spreadsheet app). A CSV is downloaded instead of shown. A one-page PDF in the decks folder becomes a
-  one-slide deck and can take over "the company slides".
+  Launch as in 1 with --library ~/Desktop/lauzhack-2026/library (decks made by: mise run fixtures).
+  "Okay, let's open up the company slides."  then  "Go to slide 7."          at once
+  "So how big is this market really?"                                         announces slide 5
+  "Open GitHub."  "Scroll down a bit."  "Close that."                         a site, then back to the deck
+  "Show me the gross margin slide."  then  "No, not that one."               the announce stops, nothing shown
