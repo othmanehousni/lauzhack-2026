@@ -49,6 +49,106 @@ def words(n: int) -> str:
     return ONES[n] if n < 20 else TENS[n // 10] + ("" if n % 10 == 0 else " " + ONES[n % 10])
 
 
+# ---------------------------------------------------------------- the ear: how Apple's recognizer writes speech (rates from the dev
+# scripts' transcripts, eval/heard: number words become digits 78% of the time, % and decimals always, ordinals 75%, every line
+# capitalized, 84% with a final mark, uh as ah, hyphens as spaces, British spellings American, Marc as Mark, Lina as Lena)
+
+VALUE = {w: i for i, w in enumerate(ONES)} | {w: 10 * i for i, w in enumerate(TENS) if i > 1}
+NUMBER = re.compile(r"\b(?:an? )?(?:%s|hundred|thousand|million)(?:(?:[ -]| and )(?:%s|hundred|thousand|million))*(?: point(?: (?:%s))+)?(?: percent)?\b"
+                    % (("|".join(VALUE),) * 3), re.I)
+ORDINAL = re.compile(r"\b(%s)\b" % "|".join(ORDS), re.I)
+AMERICAN = {"labour": "labor", "colour": "color", "favour": "favor", "behaviour": "behavior", "centre": "center", "metres": "meters", "metre": "meter",
+            "fulfilment": "fulfillment", "organisation": "organization", "programme": "program", "analyse": "analyze", "optimise": "optimize",
+            "annualised": "annualized", "recognise": "recognize", "licence": "license", "neighbour": "neighbor", "travelling": "traveling",
+            "Marc": "Mark", "Lina": "Lena"}
+QUESTION = re.compile(r"^(?:\W*(?:and|so|okay|ok|um|uh|ah|now|right|but|then|well|alright|hmm|yeah|oh|sorry)\W+)*"
+                      r"(?:what|how|which|who|where|why|when|can|could|would|will|is|are|do|does|did|should|shall|may|have|has)\b", re.I)
+
+
+def number(m: re.Match, rng) -> str:
+    s = m.group(0)
+    low = s.lower()
+    if low.startswith(("a ", "an ")) and not re.match(r"an? (hundred|thousand|million)", low):
+        return s.split(" ", 1)[0] + " " + number(NUMBER.search(s.split(" ", 1)[1]), rng)
+    pct, low = low.endswith(" percent"), low.removesuffix(" percent")
+    whole, _, dec = low.partition(" point ")
+    ws = [w for w in re.split(r"[ -]+", whole) if w not in ("and", "a", "an")]
+    if ws[0] not in VALUE and not low.startswith(("a ", "an ")):
+        return s
+    if not dec and not pct and len(ws) == 1 and ws[0] in VALUE and VALUE[ws[0]] <= 10:
+        before = m.string[:m.start()].split()[-1:]
+        if ws[0] == "one" and not (before and before[0].lower() in ("slide", "page", "number", "option")) or rng.random() < 0.15:
+            return s
+    if len(ws) >= 2 and ws[0] in ("nineteen", "twenty") and VALUE.get(ws[1], 0) >= 10 and all(w in VALUE for w in ws):
+        v = VALUE[ws[0]] * 100 + sum(VALUE[w] for w in ws[1:])
+        return str(v)
+    if any(a in VALUE and b in VALUE and not (VALUE[a] >= 20 and VALUE[a] % 10 == 0 and 0 < VALUE[b] < 10) for a, b in zip(ws, ws[1:])):
+        return s  # a stutter, not one number
+    total, cur, scale = 0, 0, ""
+    for w in ws:
+        if w in VALUE:
+            cur += VALUE[w]
+        elif w == "hundred":
+            cur = max(cur, 1) * 100
+        else:
+            total += max(cur, 1) * (1000 if w == "thousand" else 10 ** 6)
+            cur, scale = 0, w
+    v = total + cur
+    if dec:
+        out = f"{v}." + "".join(str(VALUE[w] % 10) for w in dec.split())
+        if scale == "million":
+            out = f"{v // 10 ** 6}." + "".join(str(VALUE[w] % 10) for w in dec.split()) + " million"
+    elif scale == "million" and v % 10 ** 6 == 0 and rng.random() < 0.5:
+        out = f"{v // 10 ** 6} million"
+    else:
+        out = f"{v:,}".replace(",", " ") if v >= 10000 and rng.random() < 0.5 else str(v)
+    return out + ("%" if pct else "")
+
+
+def ordinal(m: re.Match, rng) -> str:
+    n = ORDS.index(m.group(1).lower()) + 1
+    return m.group(0) if rng.random() < 0.25 else f"{n}{'th' if 10 < n < 14 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def written(rng, text: str) -> str:
+    """Words as the ear writes them: digits, %, 1st, ah for uh, no hmm, spaces for hyphens, American spellings."""
+    text = NUMBER.sub(lambda m: number(m, rng), text)
+    text = ORDINAL.sub(lambda m: ordinal(m, rng), text)
+    text = re.sub(r"(\d) percent\b", r"\1%", text)
+    text = re.sub(r"\buh\b", lambda m: "ah" if rng.random() < 0.9 else m.group(0), text)
+    text = re.sub(r"\b[Hh]mm+\b,?\s*", lambda m: "" if rng.random() < 0.8 else m.group(0), text)
+    text = re.sub(r"\b([Ww]e)'re\b", lambda m: m.group(1) + " are" if rng.random() < 0.5 else m.group(0), text)
+    text = re.sub(r"\b([A-Za-z]{2,})-([A-Za-z]{2,})\b", lambda m: f"{m.group(1)} {m.group(2)}" if rng.random() < 0.9 else m.group(0), text)
+    text = re.sub(r"\b(%s)\b" % "|".join(AMERICAN), lambda m: AMERICAN[m.group(1)] if rng.random() < 0.9 else m.group(1), text)
+    return text
+
+
+def address_written(text: str) -> str:
+    """A spoken address as the ear writes it: lauzhack dot com is lauzhack.com."""
+    text = re.sub(r"\b[Ww] w w\b", "www", text)
+    text = re.sub(r" (?:dot) ", ".", text)
+    text = re.sub(r" slash ", "/", text)
+    text = re.sub(r"(?<=\w) (?:dash|hyphen) (?=\w)", "-", text)
+    return re.sub(r"\.([a-z]) ([a-z])\b", r".\1\2", text)
+
+
+def finish(rng, text: str, ear: bool, final: bool = True) -> str:
+    """A capital first, and as the ear does, a full stop or question mark at the end, some commas as full stops."""
+    w = text.split()
+    if not w:
+        return text
+    w[0] = w[0][:1].upper() + w[0][1:]
+    if ear:
+        for i in range(len(w) - 1):
+            if w[i].endswith(",") and rng.random() < 0.2:
+                w[i], w[i + 1] = w[i][:-1] + ".", w[i + 1][:1].upper() + w[i + 1][1:]
+        if len(w) > 1 and w[-1].lower().strip(".?!") == "please" and not w[-2].endswith(",") and rng.random() < 0.6:
+            w[-2] += ","
+    if final and not re.search(r"[.?!]$", w[-1]) and rng.random() < 0.85:
+        w[-1] = w[-1].rstrip(",;:—-") + ("?" if QUESTION.match(text) and rng.random() < 0.85 else ".")
+    return " ".join(x for x in w if x)
+
+
 def dev(key: str) -> bool:
     return zlib.crc32(key.encode()) % 8 == 0
 
@@ -164,7 +264,18 @@ def candidates(rng: random.Random, s: Session, targets: list[dict], near: list[d
     rng.shuffle(rest)
     for c in head:
         rest.insert(min(len(rest), rng.choice([0] * 10 + [1] * 4 + [2] * 3 + [3] * 2 + [4, 5])), c)
-    return [*pinned, *rest][:max(k, len(pinned))]
+    out = [*pinned, *rest][:max(k, len(pinned))]
+    if rng.random() < 0.5:  # the app keeps the best three slides of the meeting's decks among the candidates, whatever they score
+        taken = {key(c) for c in [*out, *avoid]}
+        own = [x for x in s.slides if key(x) not in taken]
+        for x in rng.sample(own, max(0, min(len(own), 3 - sum(c["kind"] == "slide" for c in out[len(pinned):])))):
+            spare = [i for i in range(len(out) - 1, len(pinned) - 1, -1) if key(out[i]) not in tset and out[i]["kind"] != "slide"]
+            if len(out) >= k:
+                if not spare:
+                    break
+                del out[spare[0]]
+            out.insert(rng.randint(len(pinned), len(out)), x)
+    return out
 
 
 def index(cands: list[dict], c: dict) -> int:
@@ -481,7 +592,18 @@ def request(rng, s: Session, family: str, obj: str, answer: str, target: dict | 
 
 
 def utter(rng, family: str, segs: list[tuple[str, str]], heard: list[str], cands: list[dict], **state) -> list[dict]:
-    """The utterance whole (done), and one or two prefixes while it is spoken, each labelled by what has been said so far."""
+    """The utterance whole (done), and one or two prefixes while it is spoken, each labelled by what has been said so far; written as
+    the ear writes it (half), typed with a capital and a final mark (a third), or as composed."""
+    raw = " ".join(t for t, _ in segs).split()
+    if raw and leak(" ".join(raw)):
+        return []
+    style = rng.random()
+    ear, typed = style < 0.5, 0.5 <= style < 0.8
+    if ear:
+        segs = [(t if label.startswith(("search ", "click ", "open ")) else written(rng, t), label) for t, label in segs]
+        heard = [finish(rng, written(rng, h), True) for h in heard]
+    elif typed:
+        heard = [finish(rng, h, False) for h in heard]
     text_words, labels, spans = [], [], []
     for t, label in segs:
         w = t.split()
@@ -493,6 +615,8 @@ def utter(rng, family: str, segs: list[tuple[str, str]], heard: list[str], cands
         labels[end - 1] = label
     if not text_words:
         return []
+    if ear or typed:
+        text_words = finish(rng, " ".join(text_words), ear, final=family != "fragment").split()
     final = labels[-1]
     whole = " ".join(text_words)
     if leak(whole):
@@ -580,12 +704,16 @@ def fam_slide_number(rng, s: Session):
     if rng.random() < 0.2:
         behind, screen = screen, pick(rng, s.sites + s.files)
     form = pick(rng, NUMBER_REQ)
+    if rng.random() < 0.15:  # past the deck's end: the number as said, which the app does nothing with
+        k = rng.randint(n + 1, 99)
+        while "{o}" in form:
+            form = pick(rng, NUMBER_REQ)
     if k == n and rng.random() < 0.3:
         phrase = pick(rng, ["the last slide", "go to the last slide", "last slide please", "jump to the end of the deck", "the final slide"])
     elif k == 1 and rng.random() < 0.3:
         phrase = pick(rng, ["the first slide", "back to the first slide", "go to the title slide", "first slide please"])
     else:
-        phrase = form.format(n=spoken_number(rng, k), o=ORDS[k - 1])
+        phrase = form.format(n=spoken_number(rng, k), o=ORDS[min(k, 20) - 1])
     phrase += tail(rng)
     if behind is None and k == cur + 1:
         answer = "nothing"
@@ -710,9 +838,10 @@ def fam_intents_open(rng, s: Session):
     elif form == "address":
         host = arg.lower()
         known = next((x for x in s.sites if x["url"] == host.removeprefix("www.")), None)
-        c = candidates(rng, s, [known] if known else [], [])
+        c = candidates(rng, s, [known] if known else [], [] if known else rng.sample(s.sites, min(len(s.sites), 3)))
         answer = f"show {index(c, known)}" if known else f"open {host}"
-        return utter(rng, "address", [(noise(rng, text, 0.5), answer)], context(rng, s), c, screen=screen, behind=behind)
+        text = address_written(text) if rng.random() < 0.5 else noise(rng, text, 0.5)
+        return utter(rng, "address", [(text, answer)], context(rng, s), c, screen=screen, behind=behind)
     elif form == "unknown":
         return utter(rng, "unsure", [(noise(rng, text), "unsure")], context(rng, s), candidates(rng, s, [], []), screen=screen, behind=behind)
     else:
@@ -737,13 +866,13 @@ def fam_address(rng, s: Session):
                                                "fieldnotes.app", "tinylabs.xyz", "museum-bern.ch"]) + pick(rng, ["", "", "", "/pricing", "/blog", "/about"])
     if not known and rng.random() < 0.3:
         host = "www." + host
-    spoken = spoken_address(rng, host)
+    spoken = host if rng.random() < 0.5 else spoken_address(rng, host)  # the ear writes a spoken address with its dots
     screen, behind = s.screen(pick(rng, ["desktop", "slide", "front"]))
     if known:
         c = candidates(rng, s, [site], near_sites(s, site))
         answer = f"show {index(c, site)}" if screen is None or key(screen) != key(site) else "nothing"
     else:
-        c = candidates(rng, s, [], [])
+        c = candidates(rng, s, [], rng.sample(s.sites, min(len(s.sites), rng.choice([0, 2, 3, 4]))))  # other sites rank high for an address
         answer = f"open {host}"
     v = pick(rng, ["go to", "can you go to", "open", "let's go to", "pull up", "can you open", "head to", "take us to", "type in", "visit"])
     return utter(rng, "address", [(noise(rng, pick(rng, HEDGES), 0.6), "nothing"), (noise(rng, v, 0.6), "wait"), (spoken + pick(rng, TAILS), answer)], context(rng, s), c,
@@ -1201,7 +1330,143 @@ def fam_chatter(rng, s: Session):
     return utter(rng, family, [(noise(rng, text), "nothing")], context(rng, s), c, screen=screen, behind=behind, offered=list(range(1, len(offered) + 1)), **st)
 
 
-FAMILIES = {fam_slide_title: 5, fam_intents_slide: 3, fam_slide_number: 2.5, fam_deck: 2.5, fam_intents_deck: 0.6, fam_slides_generic: 2.5,
+CONCEPTS = [  # a slide by its title, the questions it answers without naming it, and how a presenter announces it
+    (r"pric|business model", ["how much do customers pay?", "what do we charge for it?", "so what's the price?", "how expensive is it?",
+                              "what would a customer pay per month?", "who pays for this, and how much?", "is it cheap?"],
+     ["what customers pay", "how we charge for it", "the price tag"]),
+    (r"market", ["how large is the opportunity?", "how many potential customers are out there?", "is the market big enough?",
+                 "how much money is in this space?", "what's the size of the prize?"], ["how big this could get", "the size of the opportunity"]),
+    (r"competi", ["who else is doing this?", "who are the other players?", "what are the alternatives?", "why can't someone just copy this?",
+                  "how do we compare with the others?"], ["who else is out there", "the other players", "how we stack up against the others"]),
+    (r"^team$|^our team", ["who's behind this?", "who are the people building it?", "who runs the company?", "who's on the founding team?"],
+     ["the people behind it", "who's building this"]),
+    (r"traction|results|kpis|headline|wins", ["how's it going so far?", "do people actually use it?", "what have we achieved so far?",
+                                             "how are the numbers looking?", "is anyone paying yet?"], ["how far we've come", "the numbers so far"]),
+    (r"problem|pain points|^why ", ["so what's wrong with how it's done today?", "why does this matter?", "what's broken?",
+                                    "why are we even doing this?"], ["what's broken today", "why this matters"]),
+    (r"solution|how it works|^product$|proposed design|approach", ["so how does it actually work?", "what did we build?", "what's the fix?",
+                                                                   "how do we solve it?"], ["how it works", "what we built"]),
+    (r"the ask|decisions? needed", ["what do you need from us?", "how much are you raising?", "what do we have to decide today?",
+                                    "so what are you asking for?"], ["what we need from you", "what we're asking for"]),
+    (r"timeline|roadmap|deliverables|migration plan", ["when does this ship?", "what's the schedule?", "when will it be ready?",
+                                                       "how long will it take?", "what's coming next year?"], ["when things land", "the schedule"]),
+    (r"risk", ["what could go wrong?", "what keeps you up at night?", "where could this fail?", "what are the dangers here?"],
+     ["what could go wrong", "the things that worry us"]),
+    (r"budget|cost", ["where does the money go?", "what are we spending?", "are we over budget?", "how much does all this cost us?"],
+     ["where the money goes", "what we spend"]),
+    (r"cash", ["how long can we keep going?", "how much money is in the bank?", "what's the burn?", "when do we run out of money?"],
+     ["how long the money lasts", "the bank balance"]),
+    (r"hiring|staffing", ["how many people are we adding?", "who are we hiring?", "how big will the team get?"], ["who we're hiring"]),
+    (r"agenda", ["what are we covering today?", "what's the plan for this session?", "what's on the menu today?"], ["the plan for today"]),
+    (r"revenue|sales overview", ["how much did we sell?", "what came in this quarter?", "where does the revenue come from?", "how did sales do?"],
+     ["what came in", "the sales"]),
+    (r"margin", ["are we making money on each sale?", "how profitable is it?", "what's left after costs?"], ["how profitable it is"]),
+    (r"outlook|priorities", ["what do we expect for the rest of the year?", "what's the forecast?", "where do we land this year?"],
+     ["what we expect next", "the forecast"]),
+    (r"root cause", ["why did it happen?", "what actually broke?", "what caused it?"], ["what caused it"]),
+    (r"lessons|went well", ["what did we learn?", "what would we do differently?"], ["what we learned"]),
+    (r"next steps|action", ["so what happens next?", "what are the next moves?", "who does what now?"], ["what happens next"]),
+]
+ASK_FORMS = ["let me show you {np}", "here's {np}", "now, {np}", "I want to show you {np}", "and this is {np}", "so, {np}", "let's look at {np}"]
+
+
+def fam_question(rng, s: Session):
+    """A question a slide answers, or the slide announced by what it is about, never by its title: shown when its deck is on screen,
+    next when it is the next slide; nothing when it is on screen, when the deck is not, or when no slide answers it."""
+    found = [x for x in CONCEPTS if any(sl["page"] > 1 and re.search(x[0], sl["title"], re.I) for sl in s.slides)]
+    pat, qs, nps = pick(rng, found if found and rng.random() < 0.8 else CONCEPTS)
+    hits = [x for x in s.slides if x["page"] > 1 and re.search(pat, x["title"], re.I)]
+    ask = rng.random() < 0.3
+    text = pick(rng, ASK_FORMS).format(np=pick(rng, nps)) if ask else pick(rng, qs)
+    text = pick(rng, ["", "", "", "and ", "so ", "okay, ", "um, ", "right, ", "but ", "and, uh, "]) + text
+    if not hits:
+        screen, behind = s.screen(pick(rng, ["slide", "slide", "desktop", "front"]))
+        return utter(rng, "question unanswered", [(noise(rng, text), "unsure" if ask else "nothing")], context(rng, s), candidates(rng, s, [], []),
+                     screen=screen, behind=behind)
+    t = pick(rng, hits)
+    d = next(x for x in s.decks if deck_name(x) == t["deck"])
+    r = rng.random()
+    if r < 0.15:
+        screen, behind = t, None
+    elif r < 0.75:
+        screen, behind = slide(d, pick(rng, [i for i in range(len(d["slides"])) if i != t["page"] - 1])), None
+    elif r < 0.85:
+        screen, behind = pick(rng, s.sites + s.files), slide(d, rng.randrange(len(d["slides"])))
+    else:
+        screen, behind = s.screen(pick(rng, ["desktop", "front"]))
+        behind = behind if behind and behind["deck"] != t["deck"] else None
+    c = candidates(rng, s, [t], [x for x in s.slides if x["deck"] == t["deck"] and x != t][:4])
+    on = bool(screen) and screen["kind"] == "slide" and screen["deck"] == t["deck"]
+    if key(screen or {}) == key(t):
+        answer, family = "nothing", "question on screen"
+    elif on or ask or behind and behind["deck"] == t["deck"]:
+        answer = "next" if on and t["page"] == screen["page"] + 1 else f"show {index(c, t)}"
+        family = "question"
+    else:
+        answer, family = "nothing", "question elsewhere"
+    return utter(rng, family, [(noise(rng, text), answer)], context(rng, s, rng.choice([0, 1, 1])), c, screen=screen, behind=behind)
+
+
+BACK_FORMS = ["as I said on the {t} slide, {b}", "like we saw with {t}, {b}", "remember {t}? {b}", "this ties back to {t}, {b}",
+              "as I mentioned earlier, {b}", "going back to what I said about {t}, {b}", "same as with {t} earlier, {b}", "that's the {t} point again, {b}",
+              "{b}, as you saw a few slides ago", "we covered {t} already, so just quickly, {b}"]
+
+
+def fam_talk_back(rng, s: Session):
+    """Talk that names an earlier slide of the deck on screen, or repeats one of its points: nothing, though it is among the candidates."""
+    d = pick(rng, [x for x in s.decks if len(x["slides"]) >= 4] or s.decks)
+    n = len(d["slides"])
+    cur = rng.randrange(2, n) if n > 2 else n - 1
+    j = rng.randrange(1, cur) if cur > 1 else 0
+    ref, screen = slide(d, j), slide(d, cur)
+    bullets = d["slides"][j]["bullets"] or [ref["title"]]
+    text = pick(rng, BACK_FORMS).format(t=ref["title"].lower(), b=said(rng, pick(rng, bullets)))
+    c = candidates(rng, s, [ref, screen], near_slides(s, ref))
+    return utter(rng, "talk back", [(noise(rng, text), "nothing")], context(rng, s, rng.choice([0, 1])), c, screen=screen)
+
+
+ADDRESSED = ["{p}, I think your mic is off", "{p}, we can't hear you", "sorry {p}, you're breaking up", "{p}, do you want to jump in?",
+             "over to you, {p}", "thanks {p}, good point", "{p}, can you see my screen?", "go ahead, {p}", "{p}, are you still with us?",
+             "{p}, could you take that one?", "hi {p}, welcome", "{p}, you had a question?"]
+
+
+def fam_name_aside(rng, s: Session):
+    """A remark to someone whose name is on a candidate, a team slide or a file: nothing."""
+    p = pick(rng, PEOPLE)
+    folder = pick(rng, s.files)["folder"]
+    if rng.random() < 0.5 and s.slides:
+        sl = pick(rng, s.slides)
+        item = {**sl, "text": "; ".join([f"{p} {pick(rng, ['Weber', 'Ortega', 'Novak', 'Haddad', 'Berg'])}, {pick(rng, ['CEO', 'CTO', 'COO', 'design lead'])}"] + sl["text"].split("; ")[:2])}
+    else:
+        item = {"kind": "file", "name": f"{p} {pick(rng, ['notes', 'feedback', 'CV', 'contract', 'expenses', 'onboarding'])}.{pick(rng, ['pdf', 'docx', 'xlsx'])}", "folder": folder}
+    screen, behind = s.screen(pick(rng, ["slide", "slide", "desktop", "front"]))
+    c = candidates(rng, s, [item], [])
+    return utter(rng, "aside", [(noise(rng, pick(rng, ADDRESSED).format(p=p)), "nothing")], context(rng, s), c, screen=screen, behind=behind)
+
+
+ODD = ["walrus", "trampoline", "kite festival", "goat yoga", "lighthouse", "accordion", "glacier cave", "pinball", "hot air balloon", "llama",
+       "knitting circle", "sandcastle", "ice sculpture", "falconry", "beekeeping", "origami", "rollercoaster", "tuba", "dinosaur", "time machine",
+       "haunted castle", "pirate ship", "jellyfish", "yodelling", "space elevator", "pancake", "treehouse", "marathon costume", "cactus"]
+ODD_KINDS = ["report", "plan", "deck", "slides", "spreadsheet", "file", "photos", "video", "notes", "summary", "presentation", "chart", "slide"]
+
+
+def fam_absent_named(rng, s: Session):
+    """A request for something no candidate is, though one word of it is a candidate's: unsure, not that candidate."""
+    item = s.any()
+    own = [w for w in re.findall(r"[A-Za-z]{4,}", label(item)) if w.lower() not in ("with", "from", "slide", "slides", "deck", "file", "report")]
+    if not own:
+        return []
+    w = pick(rng, own).lower()
+    obj = pick(rng, ["the {w} {o} {k}", "the {o} {w} {k}", "our {w} {o} {k}", "the {k} about the {o} {w}", "the {k} with the {o}"]).format(
+        w=w, o=pick(rng, ODD), k=pick(rng, ODD_KINDS))
+    screen, behind = s.screen(pick(rng, ["slide", "slide", "desktop", "front"]))
+    if screen and key(screen) == key(item):
+        return []
+    c = candidates(rng, s, [item], [])
+    return request(rng, s, "unsure", obj, "unsure", None, [], screen, behind, cands=c)
+
+
+FAMILIES = {fam_question: 4, fam_talk_back: 1.5, fam_name_aside: 1, fam_absent_named: 1.5, fam_slide_title: 5, fam_intents_slide: 3, fam_slide_number: 2.5, fam_deck: 2.5, fam_intents_deck: 0.6, fam_slides_generic: 2.5,
             fam_next_prev: 3, fam_site: 4, fam_intents_open: 4, fam_address: 1.5, fam_file: 4, fam_ask_siblings: 3, fam_unsure: 1.5,
             fam_absent_slide: 1, fam_search: 2, fam_click: 1, fam_control: 3, fam_bare_control: 1.2, fam_close: 1.5, fam_undo: 2,
             fam_pick: 3.5, fam_pick_file: 1, fam_pick_without_offer: 0.6, fam_mention: 4, fam_later: 4, fam_wait: 2.5, fam_split: 3,
