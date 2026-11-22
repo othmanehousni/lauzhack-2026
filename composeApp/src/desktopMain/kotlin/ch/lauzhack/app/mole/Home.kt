@@ -180,6 +180,8 @@ internal fun Home(
 ) {
     val theme by settings.theme
     val mode by settings.mode.collectAsState()
+    val call by meeting.collectAsState()
+    val said = rememberSaid(call, line)
     Themed(theme) {
         val c = LocalMoleColors.current
         val f = frameOf(c)
@@ -199,8 +201,11 @@ internal fun Home(
                 Modifier.weight(1f).fillMaxHeight().padding(end = 8.dp, bottom = 8.dp).clip(RoundedCornerShape(16.dp))
                     .background(f.panel).border(1.dp, c.rule, RoundedCornerShape(16.dp)),
             ) {
-                if (page == Page.Settings) SettingsPage(settings, choose)
-                else Overview(meeting, onStart, onEnd, line, onPick, sample, onSample, onScreen, phone, settings, choose, scroll, page == Page.Say, mime) { page = Page.Settings }
+                when (page) {
+                    Page.Settings -> SettingsPage(settings, choose)
+                    Page.Say -> SayPage(said.takeIf { call != null && it.isNotEmpty() })
+                    Page.Home -> Overview(meeting, onStart, onEnd, line, onPick, sample, onSample, onScreen, phone, settings, choose, scroll, mime) { page = Page.Settings }
+                }
             }
         }
     }

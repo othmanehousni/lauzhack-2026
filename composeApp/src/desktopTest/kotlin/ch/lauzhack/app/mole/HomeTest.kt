@@ -59,7 +59,7 @@ class HomeTest {
         val phone = MutableStateFlow(false)
         val scope = CoroutineScope(Dispatchers.Default)
         val mime = Mime(scope, null, settings.mode) // no lip reader here: not set up
-        val scene = ImageComposeScene(1100, 760, Density(1f)) {
+        val scene = ImageComposeScene(1100, 760 - 28, Density(1f)) { // the window as it opens, under its clear title bar
             Home(detector.meeting, { detector.start("Meeting") }, detector::stop, line, {}, MutableStateFlow(Announce), {}, onScreen, phone, settings, { null }, mime)
         }
         var frame = 0L
@@ -71,14 +71,20 @@ class HomeTest {
             return scene.semanticsOwners.flatMap { all(it.rootSemanticsNode) }
         }
         fun texts() = nodes().mapNotNull { it.text() }
+        fun scrolls() = nodes().mapNotNull { it.config.getOrNull(SemanticsProperties.VerticalScrollAxisRange)?.maxValue?.invoke() }.filter { it > 0f }
         fun click(label: String) = assertNotNull(nodes().first { it.text() == label }.config[SemanticsActions.OnClick].action).invoke()
 
         fun node(description: String) = nodes().first { it.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull() == description }
         fun tap(description: String) = assertNotNull(node(description).config[SemanticsActions.OnClick].action).invoke()
         fun selected(description: String) = node(description).config.getOrNull(SemanticsProperties.Selected)
 
-        assertTrue(listOf("Welcome back", "The right slide, on cue.", "Your phone connects during a meeting.", "“Okay, let’s open up the company slides.”").all { it in texts() })
+        assertTrue(listOf("Welcome back", "The right slide, on cue.", "Your phone connects during a meeting.", "SAMPLE").all { it in texts() })
+        assertEquals(emptyList(), scrolls(), "the home page fits the window as it opens")
+        assertTrue("“Okay, let’s open up the company slides.”" !in texts(), "what to say is a page of its own, so the home page fits the window")
         assertEquals(true, selected("Home"))
+        tap("Things to say")
+        assertTrue(listOf("Things to say", "“Okay, let’s open up the company slides.”").all { it in texts() })
+        tap("Home")
         click("Start a meeting")
         assertNotNull(detector.meeting.value, "the window's Start a meeting is the tray's")
         assertTrue(listOf("Molière is in a meeting.", "End the meeting", "The desktop", "No phone connected.").all { it in texts() })
@@ -86,12 +92,12 @@ class HomeTest {
         line.value = MoleLine(MoleState.Heard, heard = "Next slide please.")
         onScreen.value = OnScreen(Target.Slide("Company_Overview", 2, "Problem"), "Company Overview")
         phone.value = true
-        assertTrue(listOf("“Next slide please.”", "Company Overview, slide 2", "Company Overview, slide 2 is on screen.", "Phone connected.", "THIS MEETING").all { it in texts() })
+        assertTrue(listOf("“Next slide please.”", "Company Overview, slide 2", "Company Overview, slide 2 is on screen.", "Phone connected.", "LIVE").all { it in texts() })
+        assertEquals(emptyList(), scrolls(), "in a meeting too")
         line.value = MoleLine(MoleState.Hidden)
-        assertTrue("“Next slide please.”" in texts(), "what it heard last stays once the bar dives")
-
         tap("Things to say")
         assertEquals(true, selected("Things to say"))
+        assertTrue(listOf("This meeting", "“Next slide please.”").all { it in texts() }, "in a call, the page is what it heard, kept once the bar dives")
         tap("Settings")
         assertEquals(true, selected("Settings"))
         assertTrue("Welcome back" !in texts(), "settings are a page of their own")
@@ -119,6 +125,7 @@ class HomeTest {
         assertEquals("Mime", prefs.get("mode", ""))
         tap("Home")
         assertTrue(listOf("Speak without a sound.", "Start miming", "Lip reading isn't set up yet.", "git lfs pull\nlipreading/setup.sh").all { it in texts() }, "${texts()}")
+        assertEquals(emptyList(), scrolls(), "and miming, with what to run")
         assertTrue("Start a meeting" !in texts())
         click("Start miming")
         val until = System.nanoTime() + 5_000_000_000L
