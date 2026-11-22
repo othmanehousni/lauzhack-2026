@@ -58,7 +58,7 @@ def hbars(title, labels, values, shown):
 
 
 CSS = f"""
-html {{ font-size: min(1.06vw, 1.62vh); }}
+html {{ font-size: min(1.14vw, 1.74vh); }}
 body {{ margin: 0; background: #fff; color: {INK}; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }}
 main {{ padding: 2.4rem 3rem 5rem; }}
@@ -75,6 +75,7 @@ tr.letters th, th.n {{ background: {HEAD}; color: {MUTED}; font-weight: 400; fon
 tr.head th:not(.n) {{ background: {HEAD}; font-weight: 600; }}
 tr.total td {{ font-weight: 700; border-top: 2px solid {INK}; }}
 figure {{ margin: 0; }}
+.chart table {{ align-self: flex-start; }}
 figcaption {{ font-size: 1.3rem; font-weight: 600; margin-bottom: .6rem; }}
 svg {{ width: 100%; height: auto; font-family: inherit; }}
 svg .v {{ font-size: 26px; font-weight: 600; fill: {INK}; text-anchor: middle; }}
@@ -117,13 +118,13 @@ def market():
         g = (b / a) ** (1 / 4)
         vals = [round(a * g ** t, 1) for t in range(5)]
         totals = [x + y for x, y in zip(totals, vals)]
-        rows.append([name] + [f"{v:.1f}" for v in vals] + [f"{g - 1:.0%}"])
+        rows.append([name] + [f"{v:.1f}" for v in vals[::2]] + [f"{g - 1:.0%}"])
     cagr = (totals[-1] / totals[0]) ** (1 / 4) - 1
     regions = {"North America": 16.8, "Europe": 13.4, "Asia Pacific": 14.4, "Rest of the world": 3.4}
     total = sum(regions.values())
     return page("Acme Robotics", "Warehouse automation market", "Global market in $ billions, 2026 to 2030. Robotic picking grows fastest.",
                 "Market by segment", [
-                    table(["Segment"] + [str(y) for y in years] + ["Growth a year"], rows + [["Total"] + [f"{t:.1f}" for t in totals] + [f"{cagr:.0%}"]]),
+                    table(["Segment"] + [str(y) for y in years[::2]] + ["Growth a year"], rows + [["Total"] + [f"{t:.1f}" for t in totals[::2]] + [f"{cagr:.0%}"]]),
                     table(["Region, 2030", "$ billions", "Share"], [[r, f"{v:.1f}", pct(v / total)] for r, v in regions.items()] +
                           [["Total", f"{total:.1f}", "100%"]], first=9)],
                 bars("Total market, $ billions", [str(y) for y in years], totals, [f"{t:.1f}" for t in totals]),
@@ -204,9 +205,9 @@ def survey():
     asks = [("A cold-storage robot", 17), ("Picking bags and pouches", 15), ("More WMS connectors", 12), ("One view across sites", 9)]
     return page("Acme Robotics", "Customer survey 2026", "October 2026, 38 of our 42 customers answered.", "Survey results", [
         table(["Satisfied with", "Share"], [[a, pct(v)] for a, v in areas]),
-        table(["What they ask for next", "Customers"], [[a, n] for a, n in asks], first=9),
-        table(["Headline", "Result"], [["Net promoter score", "61"], ["Would renew", "36 of 38"]], first=15)],
-        hbars("Satisfied or very satisfied", [a for a, _ in areas], [v for _, v in areas], [pct(v) for _, v in areas]))
+        table(["Headline", "Result"], [["Net promoter score", "61"], ["Would renew", "36 of 38"]], first=9)],
+        hbars("Satisfied or very satisfied", [a for a, _ in areas], [v for _, v in areas], [pct(v) for _, v in areas]) +
+        table(["What they ask for next", "Customers"], [[a, n] for a, n in asks], first=13))
 
 
 DOCUMENTS = {"Acme market figures 2026": market, "Acme pricing sheet 2026": pricing, "Acme customer pipeline Q4 2026": pipeline,
