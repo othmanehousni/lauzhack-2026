@@ -1,0 +1,10 @@
+{"note":"getting Apple's English speech model ready"}
+{"note":"listening... (ctrl-c to stop)"}
+{"level":0}
+{"level":0.0031622776601683794}
+{"kind":"live","ago":0,"text":"can you"}
+{"level":0.080000000000000002}
+{"kind":"live","ago":0.30000000000000004,"text":"can you open github.com\/lauzhack"}
+{"level":0.20999999999999999}
+{"text":"Can you open github.com\/lauzhack \"now\", café?","kind":"final","ago":1.4000000000000001}
+{"level":1.0000000000000001e-05}

@@ -30,6 +30,9 @@ ktor-server-cio = { module = "io.ktor:ktor-server-cio", version.ref = "ktor" }
 ktor-server-websockets = { module = "io.ktor:ktor-server-websockets", version.ref = "ktor" }
 koog-agents = { module = "ai.koog:koog-agents", version.ref = "koog" }
 koog-embeddings-base = { module = "ai.koog:embeddings-base", version.ref = "koog" }
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version = "3.0.8" }
+litertlm-jvm = { module = "com.google.ai.edge.litertlm:litertlm-jvm", version = "0.19.1" }
+litertlm-android = { module = "com.google.ai.edge.litertlm:litertlm-android", version = "0.19.1" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

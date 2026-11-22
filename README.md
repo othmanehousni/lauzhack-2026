@@ -1,6 +1,6 @@
 # LauzHack 2026
 
-A minimal Kotlin Multiplatform app for Android and desktop. Android opens a blank white screen. Desktop opens The Mole floater, based on `mole/index.html`.
+A minimal Kotlin Multiplatform app for Android and desktop. Android opens a blank white screen. Desktop opens the Molière floater, based on `mole/index.html`.
 
 ## Setup
 
