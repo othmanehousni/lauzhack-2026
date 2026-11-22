@@ -126,15 +126,15 @@ python3 rehearsal/check.py .stage/rehearsal/demo
 AVD=lauzhack-2026 mise exec -- androidApp/check.sh
 ```
 
-The decider is trained and scored on Modal, so no model loads on the Mac. `tune/build.py` composes the training data, and `tune/modal_tune.py` fine tunes, converts and scores the model. `derisk` checks the pipeline on ten training steps and downloads the base model to the `decider` volume. The other steps take the name of the run, here `r5`. Use your own Modal profile.
+The decider is trained and scored on Modal, so no model loads on the Mac. `tune/build.py` composes the training data, and `tune/modal_tune.py` fine tunes, converts and scores the model. `derisk` checks the pipeline on ten training steps and downloads the base model to the `decider` volume. The other steps take the name of the run, here `mine`. The installed model is round 4, `r4/decider_q8_ekv1024.litertlm` on the volume. Use your own Modal profile.
 
 ```sh
 export MODAL_IMAGE_BUILDER_VERSION=2025.06
 modal run tune/modal_tune.py::derisk
-modal run tune/modal_tune.py::train --name r5
-modal run tune/modal_tune.py::convert_run --name r5
-modal run tune/modal_tune.py::evaluate --name r5
-modal volume get decider r5/decider_q8_ekv1024.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
+modal run tune/modal_tune.py::train --name mine
+modal run tune/modal_tune.py::convert_run --name mine
+modal run tune/modal_tune.py::evaluate --name mine
+modal volume get decider mine/decider_q8_ekv1024.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
 ```
 
 `evaluate` replays every script in `eval/` and the dev split through the converted model, the way the app runs it. `mise exec -- modal run eval/modal_decider.py` replays the scripts through the Kotlin `ModelAgent` itself. `tune/report.py` prints a run's scores beside the Python prototype's.
@@ -162,7 +162,7 @@ Section 8 of `DEMO.txt` lists what the scored rehearsals got wrong. These are me
 - A slide number beyond the deck is cut short: "Go to slide 99." went to slide 9.
 - Of 12 requests for things that do not exist, 7 did nothing and 5 announced an unrelated slide or app. Say "no", or it is shown when the wait runs out.
 
-The scores were 17 of 17 on the demo lines and 37 of 45 on the harder set. The old hand written rules scored 28 of 41 on the lines both can do. The set that nothing was tuned on scored 27 of 45. From the end of your voice, a command reaches the shared screen in 1.5 to 1.8 seconds, and an announce appears after about 2 seconds.
+The scores were 17 of 17 on the demo lines and 37 of 45 on the harder set. The old hand written rules scored 28 of 41 on the lines both can do. The set that nothing was tuned on scored 27 of 45. From the end of your voice, a command reaches the shared screen in about 0.9 seconds, and an announce appears after about 1 second. `python3 latency/lever.py .stage/latency` measures both again through the whole app, from synthesized speech.
 
 `DEMO.txt` also marks what no person has tried yet: the permission prompts, the menu items and the Stop button on the bar, the meeting starting by itself when a call begins, and a real phone. On a phone, that means hearing through it, finding the laptop over a hotspot and how the buzz feels. The browser on the shared screen has none of your accounts signed in, so a page that needs a login shows a login page.
 

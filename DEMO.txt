@@ -66,8 +66,9 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
 
   a. Open the app:   open composeApp/build/compose/binaries/main/app/Moliere.app
      There is no Dock icon. Look for the mole in the menu bar.
-  b. Decks: the app reads PDFs from ~/Documents/Moliere. For the demo either copy your decks there,
-     or menu bar mole, "Choose decks folder...", and pick the repo's library folder.
+  b. Decks: the app is set to the repo's library folder (the three sample decks), so it works as it is.
+     For your own decks: menu bar mole, "Choose decks folder...". Any folder under Desktop, Documents or
+     Downloads works (the shared screen can read those three).
   c. Menu bar mole, "Start a meeting". The first time, macOS asks for: Microphone, Speech Recognition,
      Local Network (the link to the VM and the phone), and Calendar on the first real call. Allow each.
      If you missed one: System Settings, Privacy & Security, enable the app under that heading, then
@@ -80,9 +81,18 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
      call app takes the microphone (NOT VERIFIED BY A PERSON); "Start a meeting" always works.
 
   What was verified without a person: the packaged app was fed synthesized speech files through Apple's
-  recognizer (no microphone, no sound) and acted on them correctly. Measured from the end of the voice:
-  a command reaches the shared screen in 1.5 to 1.8 seconds, an announce appears after about 2 seconds.
-  An agent is working on bringing both under about one second; see the end of this file for the result.
+  recognizer (no microphone, no sound) and acted on them correctly. Measured from the end of the voice,
+  18 sentences: a command reaches the shared screen in 0.9 seconds (worst 1.4), an announce appears
+  after 1.0 second (worst 1.3). At the start of the night both took 1.6 to 2 seconds.
+  Measure it again (about 2 minutes, no sound):   python3 latency/lever.py .stage/latency
+
+  What to watch for with your real voice (none of this could be tried without a person):
+    The app now acts when your voice goes quiet for half a second, without waiting for the sentence to be
+    declared over. A pause after words that are already a command ("Next slide ... is about pricing")
+    acts at the pause.
+    In a noisy room the voice may never read as quiet. Commands then take about 1.7 seconds, as before.
+    A "no" said in the same breath as the request can be heard as one sentence and not stop it.
+    Say "no" once you see the announce on the bar.
 
 
 3. SAY NO OR IT GETS SHOWN
@@ -174,11 +184,35 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
     "Open the quarterly penguin migration report." (does not exist)   announced an unrelated slide; "no" stops it
     12 requests for things that do not exist      7 did nothing, 5 announced an unrelated slide or app.
                                                   Say "no", or it is shown when the wait runs out.
-  Training continues on Modal on exactly these; the model file can be swapped without a rebuild.
+    "Next slide is about pricing." (talk, not a command)   moved to the next slide
 
 
-9. REBUILD FROM SOURCE (only if you change code)
+9. A SECOND MODEL IS READY, YOUR CALL
+
+  Installed: round 4 (r4). It passes all 17 demo lines. A later round (r6b) was trained during the night on
+  what the app and the recognizer showed. It was not installed, because it is better and worse:
+
+                                             r4 (installed)   r6b
+    the 17 demo lines                        17               14   ("Tell me about the cold storage robot." does nothing)
+    hard set, 45 lines                       37               38
+    held-out set, 45 lines                   27               37   (answers many more questions about a slide)
+    12 requests for things that do not exist  7 do nothing     3 do nothing, 9 announce something
+    things seen recently, 5 lines             5                5
+    eval scripts as the recognizer hears them (340 lines, on Modal)   217   237
+
+  r6b acts more: it finds more, and it announces more things nobody asked for. Recommendation: keep r4 for a
+  scripted demo in front of a jury; try r6b if you want it to answer freer questions and you are ready to say "no".
+  Try r6b for one run, nothing replaced (add the flag to any command above):
+    --models "$PWD/.stage/models/try-r6b"
+  Install it for good:
+    cp .stage/models/r6b/decider.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
+  Back to r4:
+    cp .stage/models/r4/decider.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
+  Training on Modal stopped at 9.50 dollars of the 10 set for it.
+
+
+10. REBUILD FROM SOURCE (only if you change code)
 
     export JAVA_HOME=/Users/admin/Library/Java/JavaVirtualMachines/temurin-21.0.7/Contents/Home ANDROID_HOME=/Users/admin/Library/Android/sdk
     ./gradlew :composeApp:desktopTest :composeApp:desktopJar :androidApp:assembleDebug :composeApp:createDistributable
-  Tests tonight: 30 suites, 102 tests, 0 failures.
+  Tests tonight: 31 suites, 116 tests, 0 failures.
