@@ -5,12 +5,11 @@
 <link rel="stylesheet" href="mole.css">
 <style>
   :root {
-    --page: light-dark(var(--paper), oklch(0.205 0.006 62));
+    --page: light-dark(var(--paper), oklch(0.17 0 0));
     --fill: oklch(from var(--ink) l c h / .05);
     --muted: oklch(from var(--ink) l c h / .64);
-    --device: light-dark(var(--rim), oklch(0.16 0.004 62)); /* the phone's body */
+    --device: light-dark(var(--rim), oklch(0.12 0 0)); /* the phone's body */
     --outline: light-dark(oklch(0 0 0 / .1), oklch(1 0 0 / .1)); /* the thumbnail's edge */
-    --on-call: light-dark(oklch(0 0 0 / .25), var(--hairline)); /* the bar's edge over the call */
     /* Not themed: the call is someone else's dark app, and the deck, its files and the wallpapers are the presenter's. */
     --call: oklch(0.192 0.004 286);
     --call-panel: oklch(0.2278 0.0057 285.94);
@@ -25,70 +24,77 @@
     --video: oklch(0.1647 0.0041 285.93);
     --white: oklch(1 0 0);
     --black: oklch(0 0 0);
-    --deck: oklch(0.9798 0.0086 84.57);
-    --deck-ink: oklch(0.2291 0.006 56.07);
-    --pdf: oklch(0.9198 0.0075 80.72);
-    --pdf-bar: oklch(0.9731 0.0041 91.44);
-    --wall-sage: oklch(0.9168 0.0153 136.08);
+    --deck: oklch(1 0 0);
+    --deck-ink: oklch(0.2 0 0);
+    --pdf: oklch(0.93 0 0);
+    --pdf-bar: oklch(0.975 0 0);
     --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-    --sans: -apple-system, system-ui, sans-serif;
+    --sans: "Inter", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
   }
-  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.5 -apple-system, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 400 14px/1.5 var(--sans); letter-spacing: -0.006em; -webkit-font-smoothing: antialiased; }
   main { max-width: 960px; margin: 0 auto; padding: 56px 32px 80px; display: grid; gap: 48px; }
   main > * { min-width: 0; }
-  h1 { font: 600 56px/1 ui-serif, "New York", Georgia, serif; letter-spacing: -0.03em; margin: 0 0 12px; }
+  h1 { font: 600 48px/1.1 var(--sans); letter-spacing: -0.022em; margin: 0 0 16px; }
   header p { margin: 0; max-width: 56ch; color: var(--muted); text-wrap: pretty; }
-  h2 { font: 500 12px/1 -apple-system, system-ui, sans-serif; letter-spacing: .02em; color: var(--hint); margin: 0 0 14px; }
+  h2 { font: 500 12px/16px var(--sans); letter-spacing: 0; color: var(--hint); margin: 0 0 12px; }
   p { text-wrap: pretty; }
-  .note { margin: 12px 0 0; max-width: 64ch; font-size: 13px; color: var(--muted); }
+  .note { margin: 12px 0 0; max-width: 64ch; font-size: 13px; letter-spacing: -0.003em; color: var(--muted); }
 
   .screen { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; container-type: inline-size; transition: background-color .3s ease; }
   .screen[data-wall="0"] { background-color: var(--call); }
   .screen[data-wall="1"] { background-color: var(--ember); }
-  .screen[data-wall="2"] { background-color: var(--deck-ink); }
+  .screen[data-wall="2"] { background-color: var(--black); }
   .screen[data-wall="3"] { background-color: var(--white); box-shadow: inset 0 0 0 1px var(--hairline); }
-  .screen[data-wall="4"] { background-color: var(--wall-sage); }
+  /* A photo-like wallpaper, so the bar is also seen over something busy. */
+  .screen[data-wall="4"] {
+    background: radial-gradient(60% 45% at 72% 28%, oklch(0.94 0.05 85), transparent 70%),
+      radial-gradient(120% 55% at 25% 108%, oklch(0.36 0.07 145) 35%, transparent 72%),
+      radial-gradient(80% 45% at 92% 104%, oklch(0.28 0.05 155) 25%, transparent 75%),
+      linear-gradient(oklch(0.6 0.09 240), oklch(0.83 0.05 215) 55%, oklch(0.68 0.07 125));
+  }
   .screen .mole-bar { position: absolute; left: 50%; bottom: 24px; translate: -50% 0; }
   /* In the meeting the bar sits on the presenter's side: under the shared frame, never inside it. */
-  .screen[data-wall="0"] .mole-bar { left: 33.8cqw; bottom: calc(6cqw + 5px); box-shadow: 0 0 0 1px var(--on-call), 0 10px 30px oklch(from var(--black) l c h / .4); }
+  .screen[data-wall="0"] .mole-bar { left: 33.8cqw; bottom: calc(6cqw + 5px); }
 
   /* -- the meeting mock: everything in cqw, so it scales with the screen (laid out at 896px wide) -------------------- */
-  .meeting { display: none; position: absolute; inset: 0; color: var(--call-text); font: 1.2cqw/1.3 -apple-system, system-ui, sans-serif; }
+  .meeting { display: none; position: absolute; inset: 0; color: var(--call-text); font: 1.2cqw/1.3 var(--sans); letter-spacing: 0; }
   .screen[data-wall="0"] .meeting { display: block; }
   .z-top { position: absolute; inset: 0 0 auto; height: 3.6cqw; display: flex; align-items: center; padding: 0 1.8cqw; color: oklch(from var(--white) l c h / .72); }
-  .z-top b { font-weight: 500; color: oklch(from var(--white) l c h / .42); margin-left: .8cqw; font-variant-numeric: tabular-nums; }
+  .z-top b { font-weight: 400; color: oklch(from var(--white) l c h / .42); margin-left: .8cqw; font-variant-numeric: tabular-nums; }
   .z-sharing { position: absolute; left: 50%; translate: -50% 0; display: flex; align-items: center; gap: .8cqw; padding: .4cqw .45cqw .4cqw 1.1cqw; border-radius: 99px; background: var(--call-green-deep); color: var(--white); font-weight: 600; white-space: nowrap; }
   .z-sharing i { width: .7cqw; height: .7cqw; border-radius: 50%; background: var(--white); }
   .z-sharing span { padding: .3cqw .9cqw; border-radius: 99px; background: var(--call-red); font-size: 1.05cqw; }
 
-  .z-stage { position: absolute; left: 1.8cqw; top: 5cqw; width: 64cqw; height: 36cqw; border-radius: .5cqw; overflow: hidden; background: var(--deck); outline: .22cqw solid var(--call-green); outline-offset: .2cqw; }
-  .z-tag { position: absolute; z-index: 1; left: 0; top: 0; padding: .25cqw .8cqw; border-bottom-right-radius: .5cqw; background: var(--call-green); color: var(--call-green-ink); font: 600 .95cqw/1.3 -apple-system, system-ui, sans-serif; }
-  .z-slide { position: absolute; inset: 0; opacity: 0; transition: opacity .35s ease; color: var(--deck-ink); }
+  .z-stage { position: absolute; left: 1.8cqw; top: 5cqw; width: 64cqw; height: 36cqw; border-radius: .5cqw; overflow: hidden; background: var(--deck); outline: .22cqw solid var(--call-green); outline-offset: .2cqw; color-scheme: light; }
+  .z-tag { position: absolute; z-index: 1; left: 0; top: 0; padding: .25cqw .8cqw; border-bottom-right-radius: .5cqw; background: var(--call-green); color: var(--call-green-ink); font: 400 .95cqw/1.3 var(--sans); }
+  .z-tag b { font-weight: 600; }
+  .z-slide { position: absolute; inset: 0; opacity: 0; color: var(--deck-ink); }
   .screen[data-slide=slide6] .z-slide[data-name=slide6], .screen[data-slide=slide7] .z-slide[data-name=slide7],
   .screen[data-slide=offer] .z-slide[data-name=offer], .screen[data-slide=video] .z-slide[data-name=video] { opacity: 1; }
 
   .z-deck { padding: 4.2cqw 4.4cqw; box-sizing: border-box; display: flex; flex-direction: column; }
-  .z-kicker { font: 600 .95cqw/1 -apple-system, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: oklch(from var(--deck-ink) l c h / .45); }
-  .z-deck h3 { font: 600 3.4cqw/1.05 ui-serif, "New York", Georgia, serif; letter-spacing: -0.02em; margin: 1cqw 0 0; }
-  .z-page { position: absolute; right: 2.4cqw; bottom: 1.8cqw; font: 700 1.1cqw/1 -apple-system, system-ui, sans-serif; color: oklch(from var(--deck-ink) l c h / .5); }
+  .z-kicker { font: 600 .95cqw/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: oklch(from var(--deck-ink) l c h / .6); }
+  .z-deck h3 { font: 600 3.4cqw/1.1 var(--sans); letter-spacing: -0.022em; margin: 1cqw 0 0; }
+  .z-page { position: absolute; right: 2.4cqw; bottom: 1.8cqw; font: 600 1.1cqw/1 var(--sans); font-variant-numeric: tabular-nums; color: oklch(from var(--deck-ink) l c h / .6); }
   .z-points { list-style: none; margin: 3cqw 0 0; padding: 0; display: grid; gap: 1.4cqw; font-size: 1.7cqw; }
-  .z-points b { color: var(--ember); margin-right: 1.2cqw; font-size: 1.2cqw; }
+  .z-points b { color: var(--ember); margin-right: 1.2cqw; font-size: 1.2cqw; font-weight: 600; font-variant-numeric: tabular-nums; }
   .z-chart { margin-top: auto; height: 17cqw; display: flex; align-items: flex-end; gap: 2.4cqw; padding-left: .4cqw; border-bottom: .12cqw solid oklch(from var(--deck-ink) l c h / .3); }
   .z-chart i { width: 6.5cqw; background: oklch(from var(--deck-ink) l c h / .16); position: relative; border-radius: .2cqw .2cqw 0 0; }
   .z-chart i:last-child { background: var(--ember); }
-  .z-chart i::after { content: attr(data-year); position: absolute; left: 0; right: 0; top: 100%; margin-top: .6cqw; text-align: center; font: 500 .95cqw/1 -apple-system, system-ui, sans-serif; color: oklch(from var(--deck-ink) l c h / .5); }
+  .z-chart i::after { content: attr(data-year); position: absolute; left: 0; right: 0; top: 100%; margin-top: .6cqw; text-align: center; font: 500 .95cqw/1 var(--sans); font-variant-numeric: tabular-nums; color: oklch(from var(--deck-ink) l c h / .6); }
 
   .z-pdf { background: var(--pdf); }
-  .z-pdf header { display: flex; justify-content: space-between; padding: .7cqw 1.6cqw .7cqw 11.5cqw; background: var(--pdf-bar); border-bottom: 1px solid oklch(from var(--deck-ink) l c h / .1); font-size: 1cqw; color: oklch(from var(--deck-ink) l c h / .6); }
-  .z-sheet { position: absolute; left: 50%; translate: -50% 0; top: 4.4cqw; width: 30cqw; height: 40cqw; padding: 2.6cqw 2.8cqw; box-sizing: border-box; background: var(--white); box-shadow: 0 .3cqw 1.2cqw oklch(from var(--black) l c h / .12); }
-  .z-sheet h4 { font: 600 1.9cqw/1.1 ui-serif, "New York", Georgia, serif; margin: 0; }
-  .z-sheet p { margin: .5cqw 0 2cqw; font-size: .95cqw; color: oklch(from var(--deck-ink) l c h / .5); }
+  .z-pdf header { display: flex; justify-content: space-between; padding: .7cqw 1.6cqw .7cqw 15cqw; background: var(--pdf-bar); border-bottom: 1px solid oklch(from var(--deck-ink) l c h / .1); font-size: 1cqw; color: oklch(from var(--deck-ink) l c h / .6); }
+  .z-sheet { position: absolute; left: 50%; translate: -50% 0; top: 4.4cqw; width: 30cqw; height: 40cqw; padding: 2.6cqw 2.8cqw; box-sizing: border-box; background: var(--white); }
+  .z-sheet h4 { font: 600 1.9cqw/1.2 var(--sans); letter-spacing: -0.018em; margin: 0; }
+  .z-sheet p { margin: .5cqw 0 2cqw; font-size: .95cqw; color: oklch(from var(--deck-ink) l c h / .6); }
   .z-row { display: flex; justify-content: space-between; align-items: center; padding: .9cqw 0; border-top: 1px solid oklch(from var(--deck-ink) l c h / .08); font-size: 1cqw; }
   .z-row i { width: 7cqw; height: .8cqw; border-radius: .4cqw; background: oklch(from var(--deck-ink) l c h / .12); }
   .z-row.z-hot i { background: var(--ember); }
 
   .z-video { background: var(--video); color: var(--white); }
-  .z-video h5 { position: absolute; left: 2cqw; top: 2.4cqw; margin: 0; font: 600 1.4cqw/1 -apple-system, system-ui, sans-serif; }
+  .z-video h5 { position: absolute; left: 2cqw; top: 2.4cqw; margin: 0; font: 600 1.4cqw/1 var(--sans); }
   .z-video .z-play { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 6cqw; height: 6cqw; border-radius: 50%; background: oklch(from var(--white) l c h / .14); display: grid; place-items: center; }
   .z-video .z-play::after { content: ""; margin-left: .5cqw; border-left: 1.8cqw solid var(--white); border-top: 1.1cqw solid transparent; border-bottom: 1.1cqw solid transparent; }
   .z-video .z-progress { position: absolute; left: 2cqw; right: 2cqw; bottom: 2cqw; height: .35cqw; border-radius: 1cqw; background: oklch(from var(--white) l c h / .2); }
@@ -99,6 +105,7 @@
   .z-tile::before { content: ""; position: absolute; left: 50%; top: 18%; translate: -50% 0; width: 4.8cqw; height: 4.8cqw; border-radius: 50%; background: var(--fg); }
   .z-tile::after { content: ""; position: absolute; left: 50%; bottom: -2.6cqw; translate: -50% 0; width: 11cqw; height: 7cqw; border-radius: 5.5cqw 5.5cqw 0 0; background: var(--fg); }
   .z-tile span { position: absolute; z-index: 1; left: .7cqw; bottom: .6cqw; padding: .2cqw .6cqw; border-radius: .35cqw; background: oklch(from var(--black) l c h / .5); font-size: 1.05cqw; }
+  .z-tile small { font-size: inherit; opacity: .64; }
   .z-tile.z-talking { box-shadow: inset 0 0 0 .2cqw var(--call-green); }
 
   .z-tools { position: absolute; inset: auto 0 0; height: 6cqw; display: flex; align-items: center; justify-content: center; gap: 3.2cqw; background: var(--call-panel); border-top: 1px solid oklch(from var(--white) l c h / .06); }
@@ -108,11 +115,11 @@
   .z-tools .z-end { position: absolute; right: 1.8cqw; padding: .55cqw 1.4cqw; border-radius: .5cqw; background: var(--call-red); color: var(--white); font-weight: 600; font-size: 1.1cqw; }
 
   .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-  .controls button { font: 500 13px/1 -apple-system, system-ui, sans-serif; color: var(--ink); background: var(--fill); border: 0; border-radius: 8px; height: 32px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: background-color .15s ease, color .15s ease, scale .16s var(--ease-out); }
+  .controls button { font: 500 13px/1 var(--sans); letter-spacing: -0.003em; color: var(--ink); background: var(--fill); border: 0; border-radius: 8px; height: 32px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: background-color .15s ease, color .15s ease, scale .16s var(--ease-out); }
   .controls button[aria-pressed=true] { background: var(--ink); color: var(--paper); }
   .controls button:active { scale: .97; }
   .controls button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  kbd { font: 500 11px/1 ui-monospace, monospace; opacity: .5; }
+  kbd { font: 500 12px/1 var(--sans); letter-spacing: 0; opacity: .6; }
 
   /* -- the phone: the companion for when the presenter stands up and walks ------------------------------------------ */
 
@@ -124,7 +131,7 @@
   .range svg { width: 22px; height: 16px; }
   .track { position: relative; height: 28px; background: radial-gradient(circle, oklch(from var(--ink) l c h / .28) 1px, transparent 1.5px) 0 50% / 8px 8px repeat-x; }
   .edge { position: absolute; left: 60%; top: 6px; bottom: 6px; width: 2px; border-radius: 1px; background: var(--ember); }
-  .edge::after { content: "3 m"; position: absolute; top: 100%; left: 50%; translate: -50% 8px; font: 500 12px/1 var(--sans); color: var(--muted); white-space: nowrap; }
+  .edge::after { content: "3 m"; position: absolute; top: 100%; left: 50%; translate: -50% 8px; font: 500 12px/1 var(--sans); letter-spacing: 0; color: var(--muted); white-space: nowrap; }
   .walker { position: absolute; inset: 0; transform: translateX(calc(var(--d) * 100%)); transition: transform calc(1400ms * var(--slow)) var(--ease-in-out); }
   .walker i { position: absolute; left: 0; top: 50%; width: 12px; height: 12px; translate: -50% -50%; border-radius: 50%; background: var(--ink); }
   .range output { font: 500 13px/1 var(--sans); font-variant-numeric: tabular-nums; text-align: right; }
@@ -144,8 +151,8 @@
   .status svg { width: 34px; height: 12px; fill: currentColor; }
   .top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px 8px 20px; }
   .top > div:first-child { min-width: 0; }
-  .top b { display: block; font: 600 15px/20px var(--sans); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .top small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
+  .top b { display: block; font: 600 15px/20px var(--sans); letter-spacing: -0.009em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top small { display: block; font-size: 12px; line-height: 16px; letter-spacing: 0; color: var(--muted); }
   .mic { flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 11px; border-radius: 16px; background: var(--fill); font: 500 13px/1 var(--sans); transition: background-color calc(200ms * var(--slow)) ease, color calc(200ms * var(--slow)) ease; }
   [data-mic=phone] .mic { background: var(--ink); color: var(--paper); }
   .wave { display: flex; align-items: center; gap: 2px; height: 12px; }
@@ -165,10 +172,9 @@
   .phone .mole-text { flex: none; width: 100%; text-align: center; }
   .phone .mole-dot { display: none; }
   .phone .mole-text .mole-words { padding: 0; --wx: 0px; --wy: 0px; }
-  .phone .mole-title { font: 600 22px/28px var(--sans); letter-spacing: -0.02em; }
-  .phone .mole-heard { height: 20px; margin-top: 4px; font-size: 14px; line-height: 20px; }
-  .phone .mole-hint { padding: 16px 10px 8px; justify-content: center; }
-  .phone .mole-hint > span:last-child { display: none; } /* everything on the phone is the presenter's alone */
+  .phone .mole-title { font: 600 22px/28px var(--sans); letter-spacing: -0.018em; }
+  .phone .mole-heard { height: 20px; margin-top: 4px; font-size: 14px; line-height: 20px; letter-spacing: -0.006em; }
+  .phone .mole-hint { padding: 16px 10px 8px; text-align: center; }
   .phone .mole-list { border-bottom: 0; }
   /* A thumb needs a taller row than a cursor, and the name must not truncate: on two versions of one file the end of the
      name is the difference, so the date drops under it. */
@@ -177,15 +183,17 @@
   .phone .mole-name { align-self: end; }
   .phone .mole-meta { grid-column: 3; align-self: start; }
 
-  .now { flex: none; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; align-items: center; margin: 0 12px 28px; padding: 8px; border-radius: 20px; background: var(--fill); }
-  .now > div > small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
-  .now > div > b { display: block; font: 500 15px/20px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .now { flex: none; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; align-items: center; margin: 0 12px 28px; padding: 8px; }
+  .now > div > small { display: block; font-size: 12px; line-height: 16px; letter-spacing: 0; color: var(--muted); }
+  .now > div > b { display: block; font: 500 15px/20px var(--sans); letter-spacing: -0.009em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* A live copy of the shared frame: its slides are laid out in cqw of a 896px screen, so a container 88 / .64 px wide
      makes the frame (64cqw) exactly as wide as the thumbnail. */
-  .thumb { position: relative; height: 49.5px; border-radius: 12px; overflow: hidden; outline: 1px solid var(--outline); outline-offset: -1px; }
+  .thumb { position: relative; height: 49.5px; border-radius: 12px; overflow: hidden; }
+  /* The edge sits over the copied slide, whose positioned layers would paint over an outline. */
+  .thumb::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--outline); }
   .thumb-cq { width: 137.5px; container-type: inline-size; }
-  .thumb-stage { position: relative; width: 64cqw; height: 36cqw; background: var(--deck); font: 1.2cqw/1.3 var(--sans); }
-  .thumb .z-slide { opacity: 1; transition: none; }
+  .thumb-stage { position: relative; width: 64cqw; height: 36cqw; background: var(--deck); font: 1.2cqw/1.3 var(--sans); letter-spacing: 0; color-scheme: light; }
+  .thumb .z-slide { opacity: 1; }
   .home { position: absolute; left: 50%; bottom: 8px; width: 100px; height: 4px; translate: -50% 0; border-radius: 2px; background: oklch(from var(--ink) l c h / .25); }
 
   /* -- states, choices and the loop ----------------------------------------------------------------------------- */
@@ -204,10 +212,10 @@
 
   /* Choosing cells show the whole bar as it looks on screen, bottom-aligned so the panels' heights compare. */
   .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 8px; }
-  .choices button { all: unset; display: grid; grid-template-rows: 1fr auto; justify-items: center; gap: 16px; padding: 32px 16px 14px; border-radius: 12px; background: oklch(from var(--ink) l c h / .04); cursor: pointer; transition: background-color .15s ease; }
+  .choices button { all: unset; display: grid; grid-template-rows: 1fr auto; justify-items: center; gap: 16px; padding: 32px 16px 14px; border-radius: 12px; cursor: pointer; transition: background-color .15s ease; }
   .choices button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .choices .mole-bar { align-self: end; }
-  .choices small { justify-self: start; font: 500 12px/1 -apple-system, system-ui, sans-serif; color: var(--hint); }
+  .choices small { justify-self: start; font: 500 12px/16px var(--sans); letter-spacing: 0; color: var(--hint); }
 
   .hood { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px 32px; }
   .hood p { margin: 0; }
@@ -216,16 +224,16 @@
   .ticks i, .sw { aspect-ratio: 1; border-radius: 3px; background: oklch(from var(--ink) l c h / .08); transition: background-color calc(200ms * var(--slow)) ease; }
   .legend { white-space: nowrap; }
   .sw { display: inline-block; width: 9px; margin: 0 2px 0 6px; border-radius: 2px; }
-  .ticks [data-did=acted], .sw[data-did=acted] { background: var(--sage); }
-  .ticks [data-did=asked], .sw[data-did=asked] { background: var(--plum); }
+  .ticks [data-did=acted], .sw[data-did=acted] { background: oklch(from var(--ink) l c h / .5); }
+  .ticks [data-did=asked], .sw[data-did=asked] { background: var(--ember); }
   .ticks [data-now] { background: var(--ink); }
-  pre { margin: 20px 0 0; padding: 16px 20px; border-radius: 12px; background: var(--fill); font: 12.5px/1.65 ui-monospace, "SF Mono", Menlo, monospace; overflow-x: auto; }
+  pre { margin: 20px 0 0; padding: 16px 20px; border-radius: 12px; background: var(--fill); font: 13px/20px var(--mono); letter-spacing: 0; overflow-x: auto; }
   pre .c { color: var(--muted); }
 
   @media (hover: hover) and (pointer: fine) {
     .controls button:hover:not([aria-pressed=true]) { background: oklch(from var(--ink) l c h / .09); }
     .sheet button:hover { background: var(--hover); }
-    .choices button:hover { background: oklch(from var(--ink) l c h / .07); }
+    .choices button:hover { background: var(--hover); }
   }
   @media (max-width: 760px) {
     .pocket { grid-template-columns: 1fr; gap: 40px; }
@@ -248,7 +256,7 @@
       <div class="meeting" aria-hidden="true">
         <div class="z-top">Home insurance review<b>24:13</b><div class="z-sharing"><i></i>You're sharing: Agent desktop<span>Stop share</span></div></div>
         <div class="z-stage">
-          <div class="z-tag">Shared · Agent desktop</div>
+          <div class="z-tag"><b>Shared</b> Agent desktop</div>
           <div class="z-slide z-deck" data-name="slide6">
             <div class="z-kicker">Your home cover</div>
             <h3>What clients ask us</h3>
@@ -266,10 +274,10 @@
             <div class="z-page">07</div>
           </div>
           <div class="z-slide z-pdf" data-name="offer">
-            <header><span id="pdfName">Home offer — revised.pdf</span><span>1 / 4</span></header>
+            <header><span id="pdfName">Home offer revised.pdf</span><span>1 / 4</span></header>
             <div class="z-sheet">
               <h4>Home insurance offer</h4>
-              <p>Revised · 2 April</p>
+              <p>Revised on 2 April</p>
               <div class="z-row z-hot">Deductible<i></i></div>
               <div class="z-row">Premium per year<i></i></div>
               <div class="z-row">Contents covered<i></i></div>
@@ -279,8 +287,8 @@
           <div class="z-slide z-video" data-name="video"><h5>Robot gripper demo</h5><div class="z-play"></div><div class="z-progress"></div></div>
         </div>
         <div class="z-people">
-          <div class="z-tile" style="--bg: var(--tile-a); --fg: var(--face-a)"><span>Claire · client</span></div>
-          <div class="z-tile" style="--bg: var(--tile-b); --fg: var(--face-b)"><span>Marc · client</span></div>
+          <div class="z-tile" style="--bg: var(--tile-a); --fg: var(--face-a)"><span>Claire <small>client</small></span></div>
+          <div class="z-tile" style="--bg: var(--tile-b); --fg: var(--face-b)"><span>Marc <small>client</small></span></div>
           <div class="z-tile z-talking" style="--bg: var(--tile-c); --fg: var(--face-c)"><span>Hamid (you)</span></div>
         </div>
         <div class="z-tools">
@@ -334,8 +342,9 @@
     <div class="sheet" id="sheet"></div>
   </section>
   <section>
-    <h2>Choosing a document · only the presenter sees this, nothing is shared until they pick</h2>
+    <h2>Choosing a document</h2>
     <div class="choices" id="choices"></div>
+    <p class="note">Only the presenter sees this, nothing is shared until they pick.</p>
   </section>
 
   <section>
@@ -377,14 +386,14 @@ flow {
     unsure: { heard: "open the, um, thing from the offsite" },
     thinking: { title: "Thinking…", heard: "show them how the warehouse robot picks" },
     waiting: { title: "Open… what?", heard: "open up, um", timeout: 8000 },
-    tunneling: { title: "Step 2 · clicking Search", heard: "search robot grippers on youtube" },
+    tunneling: { title: "Step 2, clicking Search", heard: "search robot grippers on youtube" },
     failed: { title: "Couldn't find “roadmap”.", heard: "pull up the roadmap" },
     hello: { title: "Hi. I'm listening.", heard: "" },
   };
 
   const OFFERS = [
-    { name: "Home offer — March.pdf", meta: "Sent 12 Mar", kind: "pdf" },
-    { name: "Home offer — revised.pdf", meta: "Sent 2 Apr", kind: "pdf" },
+    { name: "Home offer March.pdf", meta: "Sent 12 Mar", kind: "pdf" },
+    { name: "Home offer revised.pdf", meta: "Sent 2 Apr", kind: "pdf" },
   ];
   const Q3 = [
     { name: "Q3 review.pptx", meta: "Slide 7", kind: "slides" },
@@ -527,8 +536,8 @@ flow {
       await beat("hello", {}, 1600);
       await beat("idle", { heard: "" }, 600);
       await beat("thinking", { heard: "show them how the warehouse robot picks" }, 1400);
-      await beat("tunneling", { title: "Step 1 · opening YouTube" }, 1500);
-      await beat("tunneling", { title: "Step 2 · clicking Search" }, 1500);
+      await beat("tunneling", { title: "Step 1, opening YouTube" }, 1500);
+      await beat("tunneling", { title: "Step 2, clicking Search" }, 1500);
       await beat("ready", { title: "It's on screen." }, 1500, "video");
       await beat("back", { heard: "" }, 1300);
       await beat("hidden", {}, 1500);
@@ -554,7 +563,7 @@ flow {
     if (next === "System") delete root.dataset.theme;
     else root.dataset.theme = next.toLowerCase();
     themeButton.dataset.theme = next;
-    themeButton.firstChild.data = `Theme · ${next}`;
+    themeButton.firstChild.data = `${next} theme`;
   }
 
   const button = (row, label, key, onclick) => {
@@ -568,7 +577,7 @@ flow {
   button(controls, "Play story", "space", story);
   const slowButton = button(controls, "Slow-mo", "S", toggleSlow);
   button(controls, "Wallpaper", "W", nextWall);
-  const themeButton = button(controls, "Theme · System", "T", nextTheme);
+  const themeButton = button(controls, "System theme", "T", nextTheme);
   themeButton.dataset.theme = "System";
   const walkButton = button(pocketControls, "Walk away", "M", () => { run++; walk(phone.dataset.mic === "laptop"); });
   button(pocketControls, "Ask which one", "A", () => show("choosing", CHOICES[0].words));
