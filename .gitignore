@@ -10,3 +10,4 @@ library/
 .DS_Store
 local.properties
 .android/
+.claude/worktrees/
