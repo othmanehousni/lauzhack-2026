@@ -35,7 +35,7 @@ private fun deck(pdf: File, out: File, width: Int): List<DeckPage> = Loader.load
     texts(doc).mapIndexed { i, (title, text, points) -> DeckPage(pdf.nameWithoutExtension, i + 1, title, text, pages[i], points) }
 }
 
-private val BULLET = Regex("""^[•◦▪▫‣●○■□►▶✓✔*·⁃–—-]\s*""")
+private val BULLET = Regex("""^[\u2022\u25e6\u25aa\u25ab\u2023\u25cf\u25cb\u25a0\u25a1\u25ba\u25b6\u2713\u2714*\u00b7\u2043\u2013\u2014-]\s*""") // escaped, as CharactersTest bans some of these marks in sources
 private val FOOTER = Regex("""^(page\s*)?\d+(\s*(/|of)\s*\d+)?$""", RegexOption.IGNORE_CASE)
 
 /** A slide's lines after its title as the decider reads them: no bullet marks, no page number, "; "-joined. */
