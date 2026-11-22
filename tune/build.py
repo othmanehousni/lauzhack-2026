@@ -15,10 +15,8 @@ from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
-from intents import INTENTS  # noqa: E402
-
 sys.path.insert(0, str(HERE))
+from intents import INTENTS  # noqa: E402
 from prompt import CONTROLS, grammar, prompt, spoken  # noqa: E402
 
 

@@ -15,6 +15,23 @@ ROOT = Path(__file__).resolve().parent.parent
 SPACE = "▁"  # LiteRT-LM's LLGuidance sees SentencePiece's space mark, not a space: a constraint must spell spaces with it
 K, DECK_BONUS = 8, 0.04  # candidates per decision; cosine added to slides of the deck on screen (tune/retrieval.py, dev scripts)
 PREVIEW = {"show", "slide", "next", "previous", "slides", "control", "close"}  # answers a partial sentence may act on
+SITES = {
+    "YouTube": "https://www.youtube.com", "GitHub": "https://github.com", "Google": "https://www.google.com",
+    "Gmail": "https://mail.google.com", "Google Maps": "https://www.google.com/maps", "Google Drive": "https://drive.google.com",
+    "Google Docs": "https://docs.google.com", "Google Sheets": "https://sheets.google.com", "LinkedIn": "https://www.linkedin.com",
+    "X (Twitter)": "https://x.com", "Facebook": "https://www.facebook.com", "Instagram": "https://www.instagram.com",
+    "Reddit": "https://www.reddit.com", "Wikipedia": "https://en.wikipedia.org", "Amazon": "https://www.amazon.com",
+    "Netflix": "https://www.netflix.com", "Spotify": "https://open.spotify.com", "Notion": "https://www.notion.so",
+    "Figma": "https://www.figma.com", "Slack": "https://app.slack.com", "Discord": "https://discord.com/app",
+    "ChatGPT": "https://chatgpt.com", "Claude": "https://claude.ai", "Hacker News": "https://news.ycombinator.com",
+    "Product Hunt": "https://www.producthunt.com", "Stack Overflow": "https://stackoverflow.com", "Devpost": "https://devpost.com",
+    "Hugging Face": "https://huggingface.co", "arXiv": "https://arxiv.org", "TikTok": "https://www.tiktok.com",
+    "Twitch": "https://www.twitch.tv", "Medium": "https://medium.com", "Apple": "https://www.apple.com", "Vercel": "https://vercel.com",
+    "LauzHack": "https://lauzhack.com", "EPFL": "https://www.epfl.ch", "OpenAI": "https://openai.com", "Anthropic": "https://www.anthropic.com",
+}
+APPS = ["Notes", "Calculator", "Safari", "System Settings", "Maps", "Photos", "Preview", "Finder", "Keynote", "Mail",
+        "Terminal", "Google Chrome"]  # stand-in for the VM's /Applications in evals
+ON_STAGE = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif", ".mp4", ".mov", ".m4v", ".webm"}
 
 
 def literal(path: Path, name: str):
@@ -70,13 +87,13 @@ class Catalog:
                 parts = path.split("/")[3:]
                 self.items[path] = {"kind": "file", "name": parts[-1], "folder": " / ".join(parts[:-1][-2:])}
                 self.docs[path] = f"title: {parts[-1]} | text: {self.items[path]['folder']}"
-        for name, url in literal(ROOT / "brain.py", "SITES").items():
+        for name, url in SITES.items():
             self.items[url] = {"kind": "site", "name": name, "url": host(url)}
             self.docs[url] = f"title: {name} | text: {host(url)}"
-        for name in literal(ROOT / "brain.py", "APPS"):
+        for name in APPS:
             self.items[name] = {"kind": "app", "name": name}
             self.docs[name] = f"title: {name} | text: app"
-        self.on_stage = literal(ROOT / "stage.py", "ON_STAGE")
+        self.on_stage = ON_STAGE
         self.ids = list(self.docs)
         texts, self.owner = list(self.docs.values()), list(range(len(self.ids)))
         for j, i in enumerate(self.ids):  # each item also by its name alone, a deck by its name, an app or site as one

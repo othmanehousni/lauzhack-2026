@@ -12,7 +12,7 @@ import java.time.Instant
 import javax.imageio.ImageIO
 import kotlin.math.abs
 
-/** One PDF page as brain.py's Catalog reads it: its first line of text as the title, all its lines joined as the text;
+/** One PDF page: its first line of text as the title, all its lines joined as the text;
  * and its [points] as the decider is trained on a slide's text (tune/CONTRACT.md, Items): the lines after the title,
  * without bullet marks or the page number, joined by "; ". */
 data class DeckPage(val deck: String, val page: Int, val title: String, val text: String, val png: File, val points: String = "")
