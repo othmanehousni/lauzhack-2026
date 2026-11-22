@@ -4,6 +4,7 @@ import ai.koog.embeddings.base.Embedder
 import ai.koog.embeddings.base.Vector
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.MoleState
+import ch.lauzhack.app.Target
 import ch.lauzhack.app.agent.CLASSIFY
 import ch.lauzhack.app.agent.Catalog
 import ch.lauzhack.app.agent.EXAMPLES
@@ -112,16 +113,40 @@ class SessionLeverTest {
                         (if (l.options.isNotEmpty()) "  ${l.options.map { it.name }}" else "") + (if (l.card.isNotEmpty()) "  [${l.card}]" else ""))
                 }
             }
-            val session = Session(agent, desk.asScreen(), mole, typed(input).map { it.heard })
+            fun now() = t0.elapsedNow().inWholeMilliseconds
+            val calls = mutableListOf<Triple<Long, Long, String>>() // each screen call: when it began, when it returned, what
+            val inner = desk.asScreen()
+            suspend fun <T> timed(what: String, call: suspend () -> T): T {
+                val at = now()
+                try {
+                    return call()
+                } finally {
+                    calls += Triple(at, now(), what)
+                    println("%6d ms  screen     %-44s %d ms".format(at, what, now() - at))
+                }
+            }
+            val screen = object : SharedScreen {
+                override val onScreen get() = inner.onScreen
+                override suspend fun show(target: Target) = timed("show ${name(target)}") { inner.show(target) }
+                override suspend fun control(name: String) = timed(name) { inner.control(name) }
+                override suspend fun close() = timed("close") { inner.close() }
+            }
+            val session = Session(agent, screen, mole, typed(input).map { it.heard })
             val running = launch { session.run() }
             var n = 0
+            var typedAt = 0L
 
-            /** Types [said] as one utterance and waits until the agent has had it and the mole has settled. */
-            suspend fun say(said: String): MoleLine {
-                println("> $said")
+            fun type(said: String) {
+                typedAt = now()
+                println("%6d ms  > %s".format(typedAt, said))
                 keyboard.write("$said\n".toByteArray())
                 keyboard.flush()
                 n++
+            }
+
+            /** Types [said] as one utterance (unless [typed] already) and waits until the agent has had it and the mole has settled. */
+            suspend fun say(said: String, typed: Boolean = false): MoleLine {
+                if (!typed) type(said)
                 withTimeout(25.seconds) {
                     while (true) {
                         val (at, l) = lines.last()
@@ -146,13 +171,19 @@ class SessionLeverTest {
             assertEquals(png(acme, 1), onStage())
             assertEquals(listOf(MoleState.Heard, MoleState.Ready, MoleState.Back, MoleState.Hidden), since(mark).dropWhile { it != MoleState.Heard })
 
-            val suggested = say("Let's start with the problem we're solving.") // the agent only suggests the next slide
-            assertEquals(MoleState.Choosing to "Show slide 2?", suggested.state to suggested.title)
-            assertEquals(png(acme, 1), onStage())
             mark = lines.size
+            say("Let's start with the problem we're solving.") // the agent is not sure enough to act: it announces the next slide
+            val (announcedAt, announce) = lines.drop(mark).first { it.second.state == MoleState.Retrieving }
+            assertEquals("Slide 2 next. Say no to stop." to 2500L, announce.title to announce.timeoutMs)
+            val shown = calls.first { it.third == "show slide 2" }
+            assertEquals(png(acme, 2), onStage(), "shown once its window ran out")
+            val ready = lines.drop(mark).first { it.second.state == MoleState.Ready }.first
+            println("latency: typed to announce ${announcedAt - typedAt} ms, announce to screen call ${shown.first - announcedAt} ms, " +
+                "screen call ${shown.second - shown.first} ms, typed to on screen ${shown.second - typedAt} ms, typed to ready ${ready - typedAt} ms")
+            assertTrue(shown.first - announcedAt in 2500L..2600L, "the window, then at once")
+            assertEquals(listOf(MoleState.Retrieving, MoleState.Picked, MoleState.Ready, MoleState.Back, MoleState.Hidden), since(mark).dropWhile { it != MoleState.Retrieving }.distinct())
             say("Warehouses simply can't hire enough people to pick orders, and labour ends up being more than half of fulfilment cost.")
-            assertEquals(png(acme, 2), onStage(), "taken by staying on its topic")
-            assertTrue(MoleState.Picked in since(mark), "${since(mark)}")
+            assertEquals(png(acme, 2), onStage(), "the talk stays on what is up")
             say("So what did we build? A mobile robot with a suction gripper that drops right into your existing shelving.")
             assertEquals(png(acme, 3), onStage())
             say("Next slide please.")
@@ -186,6 +217,21 @@ class SessionLeverTest {
             assertTrue(MoleState.Unsure in since(mark), "${since(mark)}")
             assertEquals(home + picked, pages(), "nothing opened")
             assertEquals(desk.stage.home, desk.stage.front)
+            assertEquals(png(acme, 6), onStage())
+
+            // the same suggestion again, turned down on the bar before its window runs out: nothing changes on screen
+            mark = lines.size
+            val before = calls.size
+            val again = "Let's start with the problem we're solving."
+            type(again)
+            withTimeout(5.seconds) { while (lines.drop(mark).none { it.second.state == MoleState.Retrieving }) delay(10) }
+            val stoppedAt = now()
+            session.pick(-1)
+            say(again, typed = true)
+            val stopped = lines.drop(mark).first { it.second.state == MoleState.Back }
+            println("latency: dismiss to \"${stopped.second.title}\" ${stopped.first - stoppedAt} ms")
+            assertEquals("Okay, not shown.", stopped.second.title)
+            assertEquals(before, calls.size, "nothing shown")
             assertEquals(png(acme, 6), onStage())
 
             running.cancel()
