@@ -125,6 +125,7 @@
 
   .pocket { display: grid; grid-template-columns: 1fr 300px; gap: 64px; align-items: center; }
   .copy p { margin: 0; max-width: 46ch; }
+  .copy p + p { margin-top: 16px; }
   .copy b { font-weight: 600; }
 
   .range { display: grid; grid-template-columns: auto 1fr 5ch; align-items: center; gap: 14px; margin: 20px 0 36px; }
@@ -182,6 +183,11 @@
   .phone .mole-key, .phone .mole-glyph { grid-row: 1 / 3; }
   .phone .mole-name { align-self: end; }
   .phone .mole-meta { grid-column: 3; align-self: start; }
+  .phone .mole-say { left: 0; height: 20px; font-size: 14px; line-height: 20px; letter-spacing: -0.006em; }
+  /* The announce's stop is a thumb's target, low on the screen where the options would open. It floats there, so the
+     mole stays where it is. */
+  .phone .mole-bar { position: relative; }
+  .phone .mole-stop { position: absolute; left: 14px; right: 14px; bottom: 16px; height: 56px; margin: 0; border-radius: 28px; font-size: 15px; font-weight: 600; line-height: 56px; letter-spacing: -0.009em; }
 
   .now { flex: none; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; align-items: center; margin: 0 12px 28px; padding: 8px; }
   .now > div > small { display: block; font-size: 12px; line-height: 16px; letter-spacing: 0; color: var(--muted); }
@@ -209,6 +215,8 @@
   .sheet .mole-title > span { white-space: normal; }
   .sheet .mole-text .mole-words { --wy: 0px; }
   .sheet .mole-text .mole-dot { translate: none; }
+  .sheet .mole-say { display: none; }
+  .sheet .mole-stop { align-self: flex-start; margin: 0; }
 
   /* Choosing cells show the whole bar as it looks on screen, bottom-aligned so the panels' heights compare. */
   .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 8px; }
@@ -317,6 +325,7 @@
         <output id="dist">0.4 m</output>
       </div>
       <p><b>When it hesitates, it asks.</b> If two documents fit what you said, the phone buzzes and the mole holds both up. Tap one or say its number. Nothing is shared until you pick.</p>
+      <p><b>Before it shows anything, it says what.</b> Say “no” or tap Stop before the button runs out, and nothing is shared.</p>
       <div class="controls" id="pocketControls"></div>
     </div>
 
@@ -406,19 +415,26 @@ flow {
     { label: "Picked by voice", state: "picked", words: { title: "Opening the revised offer…", heard: "the second one", options: OFFERS, pick: 1 } },
   ];
 
+  // The announce: retrieving with the one thing it is about to show, shown when the time is up unless stopped.
+  const ANNOUNCE = { title: "Showing slide 7", heard: LINE, options: [{ name: "Market size", meta: "Slide 7", kind: "slides" }], timeout: 2500 };
+
   const LIVE = { ...SAMPLES, choosing: CHOICES[0].words, picked: CHOICES[2].words };
   const KEYS = ["hidden", ...Object.keys(LIVE)];
   const SHOWN = { slide6: "What clients ask us", slide7: "Market size", video: "Robot gripper demo" };
 
-  for (const [state, words] of Object.entries(SAMPLES)) {
-    const pick = Object.assign(document.createElement("button"), { onclick: () => show(state, { card: "07", ...words }) });
-    pick.setAttribute("aria-label", `Show ${state} on the screen`);
+  const still = (label, state, words, onclick) => {
+    const pick = Object.assign(document.createElement("button"), { onclick });
+    pick.setAttribute("aria-label", `Show ${label} on the screen`);
     const bar = Mole.create(document.createElement("div"));
     bar.el.setAttribute("aria-hidden", "true");
     bar.set(state, { card: "07", ...words });
     pick.append(bar.el);
     sheet.append(pick);
-  }
+    return bar;
+  };
+  for (const [state, words] of Object.entries(SAMPLES)) still(state, state, words, () => show(state, { card: "07", ...words }));
+  // Its countdown held at 40%, so the still shows the button draining.
+  still("the announce", "retrieving", ANNOUNCE, () => announce()).el.getAnimations({ subtree: true }).forEach(a => { a.pause(); a.currentTime = 1000; });
 
   for (const { label, state, words } of CHOICES) {
     const cell = Object.assign(document.createElement("button"), { onclick: () => show(state, words) });
@@ -492,13 +508,29 @@ flow {
     if (state === "ready") present("slide7");
   }
 
-  // Clicking a row, on the bar or the phone, plays the rest: it opens, lands on screen, and hands back.
+  // Clicking a row, on the bar or the phone, plays the rest: it opens, lands on screen, and hands back. Stop (-1) on an
+  // announce hands back with nothing shown.
   async function pickLive(i) {
     const beat = beats(++run), chosen = liveOptions[i];
     if (chosen) pdfName.textContent = chosen.name;
     try {
+      if (i < 0) {
+        await beat("back", { heard: "" }, 1500);
+        return await beat("idle", { heard: "" }, 0);
+      }
       await beat("picked", { pick: i, title: `Opening the ${["first", "second", "third"][i] ?? "chosen"} one…`, heard: "" }, 1100);
       await beat("ready", { title: "It's on screen." }, 1600, chosen?.kind === "slides" ? "slide7" : "offer");
+      await beat("back", { heard: "" }, 1500);
+      await beat("idle", { heard: "" }, 0);
+    } catch {}
+  }
+
+  // Says what it will show, shows it when the time is up, and hands back; Stop or a new run cuts in.
+  async function announce() {
+    const beat = beats(++run);
+    try {
+      await beat("retrieving", ANNOUNCE, ANNOUNCE.timeout);
+      await beat("ready", { title: "It's on screen." }, 1600, "slide7");
       await beat("back", { heard: "" }, 1500);
       await beat("idle", { heard: "" }, 0);
     } catch {}
@@ -519,8 +551,8 @@ flow {
       await stream("idle", "okay so the next thing I want to show you is the market size");
       await beat("heard", { title: "I've got it." }, 1000);
       await beat("working", { title: "Finding slide 7…" }, 2000);
-      await beat("retrieving", { title: "I found slide 7." }, 1300);
-      await beat("ready", { title: "Slide 7 is ready." }, 1700, "slide7");
+      await beat("retrieving", { title: ANNOUNCE.title, options: ANNOUNCE.options, timeout: ANNOUNCE.timeout }, ANNOUNCE.timeout);
+      await beat("ready", { title: "It's on screen." }, 1700, "slide7");
       await beat("back", { heard: "" }, 1500);
       await beat("hidden", {}, 1200);
       await step(() => walk(true), 1500);
@@ -581,6 +613,7 @@ flow {
   themeButton.dataset.theme = "System";
   const walkButton = button(pocketControls, "Walk away", "M", () => { run++; walk(phone.dataset.mic === "laptop"); });
   button(pocketControls, "Ask which one", "A", () => show("choosing", CHOICES[0].words));
+  button(pocketControls, "Announce", "N", announce);
 
   addEventListener("keydown", e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -592,9 +625,12 @@ flow {
     else if (e.key === "t") nextTheme();
     else if (e.key === "m") walkButton.click();
     else if (e.key === "a") show("choosing", CHOICES[0].words);
+    else if (e.key === "n") announce();
   });
 
-  // The loop strip: a cursor sweeps the cells, and each cell keeps what the agent answered at that tick.
+  // The loop strip: a cursor sweeps the cells, and each cell keeps what the agent answered at that tick. Held by
+  // reference, since the comparison harness replaces the page's body and the loop keeps running.
+  const ticks = document.querySelector("#ticks");
   for (let i = 0; i < 48; i++) ticks.append(document.createElement("i"));
   const ACTED = new Set(["heard", "working", "retrieving", "tunneling", "ready", "picked"]), ASKED = new Set(["choosing", "waiting", "unsure"]);
   let tick = 0;

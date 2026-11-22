@@ -22,7 +22,7 @@
   --sage: oklch(0.7185 0.053 150.25); /* unused here: slides.html still draws its bullets with it */
   --hairline: oklch(from var(--ink) l c h / .1);
   --rule: oklch(from var(--ink) l c h / .08);
-  --wash: oklch(from var(--ink) l c h / .06); /* a picked row */
+  --wash: oklch(from var(--ink) l c h / .06); /* a picked row, the stop button's track */
   --hover: oklch(from var(--ink) l c h / .04);
   --hint: oklch(from var(--ink) l c h / .6);
   --heard: oklch(from var(--ink) l c h / .66);
@@ -191,6 +191,7 @@
 .mole-words {
   --wx: -16px;
   --wy: 0px;
+  position: relative;
   padding-left: 16px;
   transform: translate(var(--wx), var(--wy));
   transition: transform calc(260ms * var(--slow)) var(--ease-out);
@@ -217,6 +218,64 @@
 .mole-text[data-one-line] .mole-heard { opacity: 0; }
 .mole-heard::before { content: "\201C"; }
 .mole-heard::after { content: "\201D"; }
+
+/* -- the announce ---------------------------------------------------------------------------------------------- */
+
+/* Retrieving with one option: the mole is about to show it and will unless you stop it, by voice or with the button,
+   whose ink drains to the left as the time runs out. It asks nothing of you, so it stays ink, not red, and the bar
+   keeps its size: it usually runs while you are still talking. */
+.mole-say {
+  position: absolute;
+  left: 16px;
+  right: 0;
+  bottom: 0;
+  height: 16px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: -0.003em;
+  color: var(--hint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity calc(200ms * var(--slow)) var(--ease-out);
+}
+.mole-bar[data-announce] .mole-say { opacity: 1; }
+.mole-bar[data-announce] .mole-heard { opacity: 0; }
+.mole-bar[data-announce] .mole-text .mole-words { --wy: 0px; }
+
+.mole-stop {
+  position: relative;
+  display: none;
+  flex: none;
+  box-sizing: border-box;
+  height: 32px;
+  margin: 0 0 0 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--wash);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 32px;
+  letter-spacing: -0.003em;
+  text-align: center;
+  opacity: 0;
+  transition: opacity calc(160ms * var(--slow)) var(--ease-out), scale calc(160ms * var(--slow)) var(--ease-out),
+    display calc(160ms * var(--slow)) allow-discrete;
+}
+.mole-bar[data-announce] .mole-stop {
+  display: block;
+  opacity: 1;
+  @starting-style { opacity: 0; }
+}
+.mole-drain { position: absolute; inset: 0; border-radius: inherit; background: var(--ink); color: var(--paper); }
+button.mole-stop { cursor: pointer; }
+button.mole-stop::before { content: ""; position: absolute; inset: -4px; } /* a 40px target */
+button.mole-stop:active { scale: .96; }
+button.mole-stop:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .mole-bar, .mole-words, .mole-dot { transition-property: opacity !important; }
