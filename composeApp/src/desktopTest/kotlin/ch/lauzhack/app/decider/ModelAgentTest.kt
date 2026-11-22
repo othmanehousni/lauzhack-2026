@@ -103,6 +103,22 @@ class ModelAgentTest {
     }
 
     @Test
+    fun aFilePickedByMeaningAmongFilesThatScoreAsItDoesIsAChoice() {
+        fun files(vararg s: Double) = Catalog(listOf(plan, photo, slide(1)), s.map { floatArrayOf(it.toFloat(), sqrt(1 - it * it).toFloat()) }, meeting = setOf("Talk"))
+        val r = Run(apply = false)
+        r.agent.catalog = files(0.74, 0.72, 0.73) // candidates by score: Plan, slide 1, House
+        assertEquals(listOf(Move.Nothing, Move.Ask(listOf(plan.target, photo.target))), r.say("show the document now", "show 1", "show 1"),
+            "offered when the words end, not announced while they are said; a slide that close is not one of the choices")
+        assertEquals(Move.Show(photo.target), r.say("the second", "show 2").last())
+        val alone = Run(apply = false)
+        alone.agent.catalog = files(0.74, 0.70, 0.73)
+        assertEquals(ask(plan), alone.say("show the document now", "show 1", "show 1").last(), "no file scores as it does: announced")
+        val match = Run(apply = false)
+        match.agent.catalog = files(0.78, 0.77, 0.60)
+        assertEquals(ask(plan), match.say("show the plan now", "show 1", "show 1").last(), "it scores as a match does: announced, however close the next file")
+    }
+
+    @Test
     fun aCandidateItsScoresDoNotBackIsNotShown() {
         val r = Run()
         r.agent.catalog = scored(0.69, 0.60, 0.65, 0.60)

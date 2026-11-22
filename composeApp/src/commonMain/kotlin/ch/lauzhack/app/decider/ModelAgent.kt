@@ -163,7 +163,7 @@ class ModelAgent(
         u.said = said
         when {
             move in u.taken || move == u.moving -> return Move.Nothing
-            said.startsWith("ask") -> {
+            said.startsWith("ask") || move.isChoice -> {
                 if (coming != null) stopped() // a choice replaces an announce
                 offer = (move as Move.Ask).options.map(cat::itemOf)
                 offerAt = heard.n
@@ -178,7 +178,7 @@ class ModelAgent(
      * before gave it too, or the voice has stopped on these words. */
     private fun early(said: String, move: Move, n: Int, cat: Catalog, agreed: Boolean): Move {
         val kind = said.substringBefore(' ') in EARLY && move != Move.Unsure || said == "undo" && coming != null
-        if (!kind || !agreed || move == Move.Nothing || move in u.taken || move == u.moving) return Move.Nothing
+        if (!kind || !agreed || move.isChoice || move == Move.Nothing || move in u.taken || move == u.moving) return Move.Nothing // a choice is offered once, when the words end
         take(move, n, cat)
         return move
     }
@@ -268,8 +268,11 @@ class ModelAgent(
         val arg = said.substringAfter(' ', "")
         val now = front ?: stage
         fun show(c: Item?) = if (c == null || same(c.target, now?.target)) Move.Nothing else Move.Show(c.target)
-        fun pick(c: Item?, meaning: Boolean = false, named: Boolean = false) =
-            show(c).let { if (it is Move.Show) doubt(c!!, s.candidates, cat, score, meaning, named)?.let { d -> Move.Ask(listOf(it.target), d) } ?: Move.Unsure else it }
+        fun pick(c: Item?, meaning: Boolean = false, named: Boolean = false) = show(c).let {
+            if (it !is Move.Show) return@let it
+            val d = doubt(c!!, s.candidates, cat, score, meaning, named) ?: return@let Move.Unsure
+            Move.Ask(listOf(it.target) + if (meaning && d > 0) alike(c, cat, score) else emptyList(), d)
+        }
         val deck = u.deck ?: u.last ?: cat.firstSlide
         fun page(p: Int) = deck?.let { cat.slide(it.target.deck, p) }
         return when (said.substringBefore(' ')) {
@@ -292,6 +295,16 @@ class ModelAgent(
         }
     }
 
+    /** The other files that score as file [c] does, the best three, when [c] scores short of a match: picked by meaning,
+     * it is one of several the words fit and none they name, and the presenter chooses. A file that scores as a match
+     * is announced even with another close behind ("the models diagram", with the architecture diagram a little under
+     * it). Slides are not offered so: a deck is walked, not chosen from. */
+    private fun alike(c: Item, cat: Catalog, score: DoubleArray): List<Target> {
+        val s = cat.score(c, score)?.takeIf { c.target is Target.File && it < MATCH } ?: return emptyList()
+        // Deeper than the eight the model reads: with a deck open its slides fill those, and the files wait just below.
+        return cat.candidates(score, k = 32).filter { it != c && it.target is Target.File && cat.score(it, score)!! >= s - CLOSE }.take(3).map { it.target }
+    }
+
     /** How much of the presenter's window a pick of [c] waits: none when it is sure, half when it is likely, all of it
      * otherwise, and for an address or a search, which no score backs; null for a candidate picked by [meaning] that
      * its score does not back. An item [named] exactly needs no lead: its name tells it from those that score as it does. */
@@ -306,6 +319,8 @@ class ModelAgent(
         }
     }
 }
+
+private val Move.isChoice get() = this is Move.Ask && options.size > 1
 
 /** The words of [text], without the punctuation and capitals the recognizer refines after they were said. */
 private fun spoken(text: String) = text.lowercase().map { if (it.isLetterOrDigit()) it else ' ' }.joinToString("").split(' ').filter(String::isNotEmpty)
