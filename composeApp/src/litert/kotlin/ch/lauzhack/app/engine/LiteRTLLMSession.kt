@@ -1,10 +1,10 @@
 // Copyright 2000-2026 JetBrains s.r.o. and contributors. Licensed under the Apache License, Version 2.0
 // (https://www.apache.org/licenses/LICENSE-2.0). Adapted from JetBrains Koog at commit 921f7c1,
 // prompt/prompt-executor/prompt-executor-clients/prompt-executor-litert-client/src/androidMain/kotlin/ai/koog/prompt/executor/clients/litert/LiteRTLLMSession.kt
-// Changes: package; the engine starts on the first of config.backends that initializes, with config.maxNumTokens;
-// a JSON schema in prompt.params becomes LiteRT's ResponseFormat (constrained decoding), and so does a REGEX, with
-// LLGuidance; a prompt of one message without tools is answered in a one-off conversation, the next one created ahead;
-// prompt.params.maxTokens caps the answer.
+// Changes: package; the engine starts on the first of config.backends that initializes, with config.maxNumTokens,
+// on the CPU with as many threads as performance cores unless told; a JSON schema in prompt.params becomes LiteRT's
+// ResponseFormat (constrained decoding), and so does a REGEX, with LLGuidance; a prompt of one message without tools is
+// answered in a one-off conversation, the next one created meanwhile; prompt.params.maxTokens caps the answer.
 package ch.lauzhack.app.engine
 
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -12,6 +12,7 @@ import ai.koog.prompt.Prompt
 import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.params.LLMParams
+import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -23,14 +24,22 @@ import com.google.ai.edge.litertlm.ResponseFormat
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.tool
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.jsonPrimitive
+
+/** This Mac's performance cores, or null: a prefill on as many threads is the fastest, faster than on LiteRT's default
+ * number and than with efficiency cores too (6 and 4 cores: up to 1800 tokens a second by default, 2000 on 6, slower on 8). */
+private val PERFORMANCE_CORES: Int? by lazy {
+    runCatching { ProcessBuilder("sysctl", "-n", "hw.perflevel0.physicalcpu").start().inputStream.bufferedReader().readText().trim().toInt() }.getOrNull()
+}
 
 /**
  * Manages a LiteRT inference session for a single [LiteRTLLMClient].
@@ -68,8 +77,10 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
     // history divergence and to compute the incremental delta to send.
     private var sentMessages: List<Message> = emptyList()
 
-    // The next one-off conversation for each key, created while nothing runs.
-    private val spares = HashMap<ConversationKey, Conversation>()
+    // The next one-off conversation for each key, made while the last one answers: one with LLGuidance takes 0.6 s,
+    // and made between answers it held up the next one. LiteRT lets a conversation answer while the engine makes another.
+    private val spares = HashMap<ConversationKey, Deferred<Conversation>>()
+    private val make = Mutex() // ExperimentalFlags is global: one conversation made at a time
     private val ahead = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
@@ -88,7 +99,7 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
         }
 
         val newEngine = firstWorking(
-            config.backends,
+            config.backends.map { if (it is Backend.CPU && it.threadCount == null) Backend.CPU(PERFORMANCE_CORES) else it },
             { Engine(EngineConfig(modelPath = modelPath, backend = it, maxNumTokens = config.maxNumTokens, cacheDir = config.cacheDir)) },
             Engine::initialize,
         )
@@ -232,26 +243,24 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
         }
     }
 
-    /** Answers [message] in the spare conversation for [key], or a new one, then prepares the next spare for [key]. */
-    private fun once(
+    /** Answers [message] in the spare conversation for [key], or a new one, while the next spare for [key] is made. */
+    private suspend fun once(
         engine: Engine, key: ConversationKey, conversationConfig: ConversationConfig, llGuidance: Boolean, message: Message, format: ResponseFormat?, maxTokens: Int?,
     ): Message.Assistant {
-        val conversation = spares.remove(key) ?: create(engine, conversationConfig, llGuidance)
+        val conversation = spares.remove(key)?.let { runCatching { it.await() }.getOrNull() } ?: create(engine, conversationConfig, llGuidance)
+        spares[key] = ahead.async { create(engine, conversationConfig, llGuidance) }
         try {
             return conversation.sendMessage(message.toLitertMessage(), maxOutputToken = maxTokens, responseFormat = format).toKoogMessage(config.clock)
         } finally {
             runCatching { conversation.close() }
-            ahead.launch {
-                mutex.withLock { if (key !in spares && this@LiteRTLLMSession.engine === engine) spares[key] = create(engine, conversationConfig, llGuidance) }
-            }
         }
     }
 
     /** With [llGuidance], LLGuidance is the conversation's constraint provider, which regex decoding needs. */
     @OptIn(ExperimentalApi::class)
-    private fun create(engine: Engine, conversationConfig: ConversationConfig, llGuidance: Boolean): Conversation {
+    private suspend fun create(engine: Engine, conversationConfig: ConversationConfig, llGuidance: Boolean): Conversation = make.withLock {
         ExperimentalFlags.enableConversationConstrainedDecoding = llGuidance
-        return engine.createConversation(conversationConfig)
+        engine.createConversation(conversationConfig)
     }
 
     /**
@@ -273,7 +282,7 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
     /** Best-effort tear-down of all cached LiteRT objects. Resets all session state. */
     private fun closeQuietly() {
         closeConversationQuietly()
-        spares.values.forEach { runCatching { it.close() } }
+        spares.values.forEach { runCatching { runBlocking { it.await() }.close() } } // the engine outlives what it makes
         spares.clear()
         runCatching { engine?.close() }
         engine = null
