@@ -43,6 +43,18 @@ private const val CLOSE = 0.03
 private const val LIKELY = 0.72
 private const val BACKED = 0.70
 
+/** Words that ask for something to be shown. A pick by meaning of words without one, which do not name it either
+ * ([names]), is shown only when it is sure: plain talk scores as a likely match of some slide, and in the sessions of
+ * 22 November 60 of the 62 such picks were of talk. */
+private val REQUEST = Regex("\\b(show(s|ing|n)?|open(s|ing)?|see|look|display|play|watch|pull up|bring up|put up|go to|go back|back to|jump|switch|move to|" +
+    "return to|give me|get me|take (me|us)|on (the )?screen|what about|how about|slides?|diagrams?|deck|pictures?|figures?|charts?|graphs?)\\b")
+
+/** `next` and `previous` are said with one of these, or of a slide the words surely match ("So what was the real issue?"
+ * before the slide on it): the model also reads them into talk ("Maybe I can just for you."), and they change the slide
+ * at once, with no announce to stop. */
+private val ONWARD = Regex("\\b(next|forward|following|ahead|onward|advance|continue|skip|proceed|(move|moving|go|going|carry|keep) on|keep going)\\b")
+private val BACKWARD = Regex("\\b(previous|back|backwards?|before|prior|earlier|last|rewind|return)\\b")
+
 /**
  * The agent of tune/CONTRACT.md: [catalog] retrieves the candidates with [embedder], [model] answers one line of the
  * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
@@ -267,22 +279,30 @@ class ModelAgent(
     private fun move(said: String, s: State, cat: Catalog, score: DoubleArray): Move {
         val arg = said.substringAfter(' ', "")
         val now = front ?: stage
+        val words = s.now.lowercase()
         fun show(c: Item?) = if (c == null || same(c.target, now?.target)) Move.Nothing else Move.Show(c.target)
         fun pick(c: Item?, meaning: Boolean = false, named: Boolean = false) = show(c).let {
             if (it !is Move.Show) return@let it
-            val d = doubt(c!!, s.candidates, cat, score, meaning, named) ?: return@let Move.Unsure
+            val d = doubt(c!!, s.candidates, cat, score, meaning, named)
+            if (meaning && d != 0.0 && !REQUEST.containsMatchIn(words) && !names(words, c, cat)) return@let Move.Nothing
+            if (d == null) return@let Move.Unsure
             Move.Ask(listOf(it.target) + if (meaning && d > 0) alike(c, cat, score) else emptyList(), d)
         }
         val deck = u.deck ?: u.last ?: cat.firstSlide
         fun page(p: Int) = deck?.let { cat.slide(it.target.deck, p) }
+        fun step(said: Regex, by: Int): Move {
+            val c = deck?.let { page(it.page + by) }
+            val meant = c != null && doubt(c, s.candidates, cat, score, meaning = true, named = false) == 0.0
+            return if (meant || said.containsMatchIn(words)) show(c) else Move.Nothing
+        }
         return when (said.substringBefore(' ')) {
             "wait" -> Move.Wait
             "unsure" -> Move.Unsure
             "show" -> arg.toInt().let { if (it <= s.offered.size) show(s.candidates[it - 1]) else pick(s.candidates[it - 1], meaning = true) } // an offered one is the presenter's choice
             "ask" -> Move.Ask(arg.split(' ').map { s.candidates[it.toInt() - 1].target }.distinct())
             "slide" -> show(page(arg.toInt()))
-            "next" -> show(deck?.let { page(it.page + 1) })
-            "previous" -> show(deck?.let { page(it.page - 1) })
+            "next" -> step(ONWARD, 1)
+            "previous" -> step(BACKWARD, -1)
             "slides" -> show(s.behind ?: u.last ?: cat.firstSlide)
             "open" -> cat.exactly(arg)?.let { pick(it, named = true) } ?: cat.named(arg)?.let(::pick)
                 ?: if ('.' in arg) pick(Catalog.site(Target.Site("https://" + arg.replace(" ", ""), arg))) else Move.Unsure
@@ -319,6 +339,20 @@ class ModelAgent(
         }
     }
 }
+
+/** Whether [words] say a word of [c]'s name that at most one other item's name has: "our tech stack" names "Moliere tech
+ * stack.png", "Moliere" none of the pitch's figures. No slide is named so: a title is a sentence, and talk shares its words. */
+private fun names(words: String, c: Item, cat: Catalog): Boolean {
+    val said = spoken(words).toSet()
+    return nameWords(c).any { w -> w in said && cat.items.count { w in nameWords(it) } <= 2 }
+}
+
+private fun nameWords(c: Item): List<String> = when (c) {
+    is Item.File -> spoken(c.name.substringBeforeLast('.'))
+    is Item.Site -> spoken(c.name)
+    is Item.App -> spoken(c.name)
+    is Item.Slide -> emptyList()
+}.filter { it.length >= 4 }
 
 private val Move.isChoice get() = this is Move.Ask && options.size > 1
 

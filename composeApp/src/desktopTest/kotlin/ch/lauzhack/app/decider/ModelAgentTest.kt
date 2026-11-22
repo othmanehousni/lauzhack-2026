@@ -90,7 +90,7 @@ class ModelAgentTest {
     @Test
     fun aPickIsSureWhenItLeadsTheOthersAndScoresAsAMatchDoes() {
         val r = Run(apply = false)
-        fun doubt(answer: String) = (r.say("that", answer).single() as Move.Ask).doubt
+        fun doubt(answer: String) = (r.say("show that", answer).single() as Move.Ask).doubt
         r.agent.catalog = scored(0.82, 0.71, 0.77, 0.60) // candidates by score: slide 1, GitHub, slide 2, Notes
         assertEquals(listOf(0.0, 1.0, 1.0), listOf(doubt("show 1"), doubt("show 2"), doubt("search the market")), "a search has no score")
         assertEquals(listOf(0.0, 1.0), listOf(doubt("open github"), doubt("open gitub")), "a name said exactly needs no lead, one heard nearly does")
@@ -132,7 +132,7 @@ class ModelAgentTest {
     @Test
     fun twoPartialsInARowActAndDoneDoesNotRepeatIt() {
         val r = Run(slide(1).target, apply = false)
-        assertEquals(listOf(Move.Nothing, ask(github), Move.Nothing), r.say("can you open github please", "show 4", "show 4", "show 4"))
+        assertEquals(listOf(Move.Nothing, ask(github), Move.Nothing), r.say("open github can you please", "show 4", "show 4", "show 4"))
         assertEquals(listOf(null, null), r.asked.take(2).map { it.second }, "partials are unconstrained")
         assertEquals(grammar(State(screen = slide(1), candidates = catalog.items)), r.asked.last().second, "done is constrained")
     }
@@ -179,7 +179,7 @@ class ModelAgentTest {
     fun whenTheVoiceStopsOnNewWordsTheyAreDecidedAndActAtOnce() {
         val (now, _) = heard(live("Go to") to "nothing", quiet("Go to slide 3.") to "slide 3", end("Go to slide 3.") to "slide 3")
         assertEquals(listOf(Move.Nothing, Move.Show(slide(3).target), Move.Nothing), now)
-        val (pick, _) = heard(quiet("So how big is this market really?") to "show 3", end("So how big is this market, really?") to "show 3")
+        val (pick, _) = heard(quiet("Show me the market size slide") to "show 3", end("Show me the market size slide.") to "show 3")
         assertEquals(listOf(ask(slide(3)), Move.Nothing), pick, "a pick is announced as soon as the voice stops")
     }
 
@@ -215,7 +215,7 @@ class ModelAgentTest {
     @Test
     fun partialsDisagreeingOrOfTheWrongKindWaitForTheEnd() {
         val r = Run(slide(1).target)
-        assertEquals(listOf(Move.Nothing, Move.Nothing, ask(notes)), r.say("one two three four five", "show 4", "show 5", "show 5"))
+        assertEquals(listOf(Move.Nothing, Move.Nothing, ask(notes)), r.say("show one two three four", "show 4", "show 5", "show 5"))
         assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Ask(listOf(search("cold storage")))), r.say("look up cold storage robots please", "search cold storage", "search cold storage", "search cold storage"))
         assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Unsure), r.say("our internal dash board please", "unsure", "unsure", "unsure"))
     }
@@ -281,16 +281,34 @@ class ModelAgentTest {
         assertEquals(OnScreen(slide(3).target), r.desk.onScreen)
         r.say("github", "show 4")
         assertEquals(listOf(Move.Show(slide(3).target)), r.say("slides", "slides"))
-        r.say("the photo", "show 6")
+        r.say("the house", "show 6")
         r.say("hmm", "nothing")
         assertTrue(r.prompt.startsWith("screen: file \"House.jpg\" in u / Pictures\n"), "a picture replaces the deck on the stage")
+    }
+
+    @Test
+    fun talkThatAsksForNothingMovesNoSlide() {
+        fun on2(words: String, answer: String) = Run(slide(2).target, apply = false).say(words, answer).last()
+        assertEquals(Move.Nothing, on2("okay fine", "next"), "next read into talk")
+        assertEquals(Move.Show(slide(3).target), on2("moving on", "next"))
+        assertEquals(Move.Nothing, on2("yeah exactly", "previous"), "previous read into talk")
+        assertEquals(Move.Show(slide(1).target), on2("go back", "previous"))
+        assertEquals(Move.Nothing, on2("so anyway", "show 3"), "a likely pick of words that ask for nothing and name nothing")
+        assertEquals(ask(slide(3)), on2("see that", "show 3"), "the same pick, asked for")
+        assertEquals(ask(photo), on2("the house", "show 6"), "the same score, but the words name the file")
+        val sure = Run(slide(1).target, apply = false)
+        sure.agent.catalog = scored(0.60, 0.82, 0.71, 0.60)
+        assertEquals(ask(slide(2)), sure.say("so anyway", "show 1").last(), "a sure pick needs no request word")
+        val about = Run(slide(1).target, apply = false)
+        about.agent.catalog = scored(0.60, 0.82, 0.71, 0.60)
+        assertEquals(Move.Show(slide(2).target), about.say("so anyway", "next").last(), "nor does next, of words that surely match the next slide")
     }
 
     /** The move [answer] makes, at the end of an utterance, with GitHub just shown over slide 2. */
     private fun mapped(answer: String, start: Target = slide(2).target): Move {
         val r = Run(start)
         if (start == slide(2).target) r.say("github", "show 4")
-        return r.say("do it", answer).last()
+        return r.say(when (answer) { "next" -> "next one"; "previous" -> "go back"; else -> "show it" }, answer).last()
     }
 
     @Test
