@@ -64,35 +64,39 @@ fun MolePhone(
     Column(modifier.fillMaxSize().background(c.paper).safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 8.dp, bottom = 8.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                BasicText("Presenting", style = type(15f, 20f, 600, -.15f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                BasicText("Presenting", style = type(15f, 20f, 600, -.135f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
                 BasicText(meeting, style = type(12f, 16f, 400, color = c.muted), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
             }
             Mic(phoneLeads)
         }
-        // As the options open the centred column grows, so the mole glides up to make room.
-        Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 4.dp), Arrangement.Center, Alignment.CenterHorizontally) {
-            MolePuppet(words.state, shown.timeoutMs, words.front, words.back, Modifier.width(200.dp).aspectRatio(154f / 114.8f))
-            Spacer(Modifier.height(12.dp))
-            Title(words, type(22f, 28f, 600, -.44f, c.ink), TextAlign.Center)
-            Heard(words, type(14f, 20f, tracking = -.15f, color = c.heard), Modifier.padding(top = 4.dp).height(20.dp), TextAlign.Center)
-            Options(words, phone = true, enabled = true, onPick)
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            // As the options open the centred column grows, so the mole glides up to make room.
+            Column(Modifier.fillMaxSize().padding(horizontal = 4.dp), Arrangement.Center, Alignment.CenterHorizontally) {
+                MolePuppet(words.state, shown.timeoutMs, words.front, words.back, Modifier.width(200.dp).aspectRatio(154f / 114.8f))
+                Spacer(Modifier.height(12.dp))
+                Title(words, type(22f, 28f, 600, -.396f, c.ink), TextAlign.Center)
+                Heard(words, type(14f, 20f, 400, -.084f, c.heard), type(14f, 20f, 400, -.084f, c.hint), Modifier.padding(top = 4.dp).height(20.dp), TextAlign.Center)
+                Options(words, phone = true, enabled = true, onPick)
+            }
+            // A thumb's target, low on the screen where the options would open; it floats, so the mole stays put.
+            Stop(words, phone = true, enabled = true, onPick, Modifier.align(Alignment.BottomCenter).padding(start = 14.dp, end = 14.dp, bottom = 16.dp).fillMaxWidth())
         }
         Row(
             Modifier
                 .padding(start = 12.dp, end = 12.dp, bottom = maxOf(28.dp - bottom, 12.dp))
                 .fillMaxWidth()
-                .background(c.fill, RoundedCornerShape(20.dp))
                 .padding(8.dp),
             Arrangement.spacedBy(12.dp),
             Alignment.CenterVertically,
         ) {
             val thumb = RoundedCornerShape(12.dp)
+            // The border draws over the slide, as the web's inset ring does.
             Box(Modifier.size(88.dp, 49.5.dp).clip(thumb).background(Deck).border(1.dp, c.outline, thumb)) {
                 thumbnail?.let { Image(it, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop) }
             }
             Column(Modifier.weight(1f)) {
                 BasicText("On screen", style = type(12f, 16f, 400, color = c.muted))
-                BasicText(onScreenName, style = type(15f, 20f, 500, color = c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                BasicText(onScreenName, style = type(15f, 20f, 500, -.135f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
             }
         }
     }
@@ -146,7 +150,7 @@ private fun Source(text: String, shown: Boolean, color: State<Color>) {
             translationY = dy.value.dp.toPx()
             renderEffect = cssBlur(blur.value.dp.toPx())
         },
-        style = type(13f, 13f, 500, color = Color.Unspecified),
+        style = type(13f, 13f, 500, -.084f, Color.Unspecified), // the page's -0.006em at 14px, inherited as a length
         color = { color.value },
     )
 }

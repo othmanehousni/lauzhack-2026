@@ -236,7 +236,7 @@ class SessionTest {
 
         // the talk moves on to slide 9: the mole says it is coming, and it comes unless the presenter stops it
         rig.say("which brings us to the margin")
-        assertEquals("Slide 9 next. Say no to stop.", rig.until(MoleState.Retrieving).title)
+        assertEquals("Showing slide 9", rig.until(MoleState.Retrieving).title)
         assertEquals("Opening slide 9…", rig.until(MoleState.Picked).title)
         rig.until(MoleState.Hidden)
         assertEquals(rig.time(MoleState.Retrieving) + ANNOUNCE.inWholeMilliseconds, rig.screen.calls.last().first)
@@ -275,7 +275,7 @@ class SessionTest {
         assertEquals(revised, rig.session.onScreen.value.target)
 
         val announced = rig.announced("what comes after this")
-        assertEquals("Slide 8 next. Say no to stop.", rig.mole.line.value.title)
+        assertEquals("Showing slide 8", rig.mole.line.value.title)
         assertEquals(1, rig.screen.calls.size)
         rig.say("and the margin keeps growing year on year")
         assertEquals("Opening slide 8…" to 0, rig.until(MoleState.Picked).let { it.title to it.pick })
@@ -423,7 +423,7 @@ class SessionTest {
         val coming = rig.until(MoleState.Retrieving)
         val at = rig.decided("which brings us to the margin")
         assertEquals(
-            MoleLine(MoleState.Retrieving, "Slide 8 next. Say no to stop.", "which brings us to the margin", listOf(choice(slide(8))), card = "08", timeoutMs = 2500),
+            MoleLine(MoleState.Retrieving, "Showing slide 8", "which brings us to the margin", listOf(choice(slide(8))), card = "08", timeoutMs = 2500),
             coming,
         )
         assertEquals(at, rig.time(MoleState.Retrieving), "announced the moment it is decided")
@@ -569,7 +569,7 @@ class SessionTest {
         rig.until(MoleState.Retrieving)
         rig.say("or rather the risks")
         val risks = rig.decided("or rather the risks")
-        assertEquals("Slide 10 next. Say no to stop.", rig.lines.first { it.first == risks && it.second.state == MoleState.Retrieving }.second.title)
+        assertEquals("Showing slide 10", rig.lines.first { it.first == risks && it.second.state == MoleState.Retrieving }.second.title)
         rig.until(MoleState.Picked)
         rig.until(MoleState.Hidden)
         assertEquals(listOf(first + 2500 to "show slide 8", risks + 2500 to "show slide 10"), rig.screen.calls, "slide 9 never")
@@ -645,7 +645,7 @@ class SessionTest {
         assertEquals(MoleLine(MoleState.Failed, "Couldn't show slide 8.", "The shared screen didn't answer."), rig.until(MoleState.Failed))
         assertEquals(listOf(at + 2500 to "show slide 8", at + 3500 to "show slide 8"), rig.screen.calls)
         assertEquals(
-            listOf(MoleState.Retrieving to "Slide 8 next. Say no to stop.", MoleState.Picked to "Opening slide 8…", MoleState.Working to "Finding slide 8…",
+            listOf(MoleState.Retrieving to "Showing slide 8", MoleState.Picked to "Opening slide 8…", MoleState.Working to "Finding slide 8…",
                 MoleState.Working to "Trying slide 8 again…", MoleState.Failed to "Couldn't show slide 8."),
             rig.lines.map { it.second.state to it.second.title }.dropWhile { it.first != MoleState.Retrieving },
         )

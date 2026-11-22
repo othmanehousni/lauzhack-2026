@@ -38,8 +38,8 @@ private class Step(val words: String, val ms: Int)
 @Serializable
 private class Shot(val name: String, val phone: Boolean = false, val mic: String = "laptop", val steps: List<Step>)
 
-private val WALL = Color(0xFFDFE6DC) // index.html's sage wallpaper, so the bar's hairline shows
-private val DECK_INK = Color(0xFF1F1C1A)
+private val WALL = Color(0xFFDFE6DC) // web.js's stage, so the bar's hairline shows
+private val DECK_INK = Color(0xFF161616)
 
 // A stand-in for the live copy of the shared frame: a slide with the market-size chart.
 private val THUMB = ImageBitmap(176, 99).also {
@@ -54,6 +54,7 @@ private fun words(key: String): MoleLine = when (key) {
     "choosing-two" -> Choices[0].second
     "choosing-three" -> Choices[1].second
     "picked" -> Choices[2].second
+    "announce" -> Announce
     "choosing-kinds" -> MoleLine(
         MoleState.Choosing,
         heard = "show them the launch",

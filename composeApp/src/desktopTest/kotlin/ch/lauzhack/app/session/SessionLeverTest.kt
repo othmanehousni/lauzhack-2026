@@ -174,7 +174,7 @@ class SessionLeverTest {
             mark = lines.size
             say("Let's start with the problem we're solving.") // the agent is not sure enough to act: it announces the next slide
             val (announcedAt, announce) = lines.drop(mark).first { it.second.state == MoleState.Retrieving }
-            assertEquals("Slide 2 next. Say no to stop." to 2500L, announce.title to announce.timeoutMs)
+            assertEquals("Showing slide 2" to 2500L, announce.title to announce.timeoutMs)
             val shown = calls.first { it.third == "show slide 2" }
             assertEquals(png(acme, 2), onStage(), "shown once its window ran out")
             val ready = lines.drop(mark).first { it.second.state == MoleState.Ready }.first

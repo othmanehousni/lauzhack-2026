@@ -178,7 +178,7 @@ class Session(
         val c = Coming(t, asked.text)
         coming = c
         offer = emptyList()
-        mole.on(Event.Coming(choice(t), "${name(t).cap()} next. Say no to stop.", c.said, card(t), window.inWholeMilliseconds))
+        mole.on(Event.Coming(choice(t), "Showing ${name(t)}", c.said, card(t), window.inWholeMilliseconds))
         launch {
             delay(window)
             turn.withLock { if (coming === c) show(t, c.said) }

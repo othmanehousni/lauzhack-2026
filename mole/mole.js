@@ -24,7 +24,7 @@
   };
   const OPEN = new Set(["choosing", "picked"]); // states that show the options panel above the bar
   const NUMBERS = ["one", "two", "three", "four", "five"];
-  // Tiny cut-paper documents in the card's style: cream paper, ink edge, faded ink lines.
+  // Tiny cut-paper documents in the card's style: white paper, ink edge, faded ink lines.
   const GLYPHS = {
     pdf: `<path d="M3.5 1.5h6l3 3v10h-9z"/><path class="g-line" d="M9.5 1.5v3h3M5.5 8h5M5.5 10.5h5M5.5 13h3"/>`,
     slides: `<rect x="1.5" y="3.5" width="13" height="9" rx="1"/><path class="g-line" d="M4 7h6M4 9.5h8"/>`,
@@ -34,10 +34,13 @@
     other: `<path d="M3.5 1.5h6l3 3v10h-9z"/><path class="g-line" d="M9.5 1.5v3h3"/>`,
   };
   const CHECK = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.6 6.3l2.2 2.2 4.6-4.9"/></svg>`;
+  // The announce's stop: an ink fill over a quiet track, drained to the left as its time runs out.
+  const STOP = `Stop<span class="mole-drain" aria-hidden="true">Stop</span>`;
+  const ANNOUNCE_MS = 2500;
   const HEARD_MAX = 44; // a live transcript keeps its newest words
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
 
-  // The slide card: cream paper, ink edge, a two-bar chart and the slide number. 52 × 31, centred on its origin.
+  // The slide card: white paper, ink edge, a two-bar chart and the slide number. 52 × 31, centred on its origin.
   const CARD = `<rect class="m-paper" x="-26" y="-15.5" width="52" height="31" rx="1.8"/>` +
     `<rect class="m-bar" x="-18" y="-1" width="6.5" height="9.5"/><rect class="m-bar" x="-9.5" y="-10.5" width="6.5" height="19"/>` +
     `<text class="m-num" x="11" y="5.6">07</text>`;
@@ -252,17 +255,22 @@
     };
   }
 
-  // create(el, { onpick }) — with onpick(i), the options are clickable rows; without it they are pictures (e.g. inside a button).
+  // create(el, { onpick }): with onpick(i), the options are clickable rows and stop is a button (onpick(-1)); without it
+  // they are pictures (e.g. inside a button).
   function create(root, { onpick } = {}) {
     root.classList.add("mole-bar");
     root.dataset.state = "hidden";
     root.setAttribute("role", "status");
-    root.innerHTML = `<div class="mole-opts"><div class="mole-opts-in"><div class="mole-hint"><span></span><span>Only you see this</span></div><ol class="mole-list"></ol></div></div>` +
-      `<div class="mole-row">${FIGURE}<div class="mole-text"><i class="mole-dot"></i><div class="mole-words"><div class="mole-title"></div><div class="mole-heard"></div></div></div></div>`;
+    const stop = onpick ? `<button class="mole-stop" type="button">${STOP}</button>` : `<span class="mole-stop">${STOP}</span>`;
+    root.innerHTML = `<div class="mole-opts"><div class="mole-opts-in"><div class="mole-hint"></div><ol class="mole-list"></ol></div></div>` +
+      `<div class="mole-row">${FIGURE}<div class="mole-text"><i class="mole-dot"></i><div class="mole-words"><div class="mole-title"></div><div class="mole-heard"></div>` +
+      `<div class="mole-say">Say “no” to stop</div></div></div>${stop}</div>`;
     const title = root.querySelector(".mole-title"), heard = root.querySelector(".mole-heard");
     const text = root.querySelector(".mole-text");
-    const list = root.querySelector(".mole-list"), say = root.querySelector(".mole-hint > span");
+    const list = root.querySelector(".mole-list"), say = root.querySelector(".mole-hint");
     const [backNum, frontNum] = root.querySelectorAll(".m-num");
+    const drain = root.querySelector(".mole-drain");
+    if (onpick) root.querySelector(".mole-stop").onclick = () => onpick(-1);
     let rows = [], label = "07";
 
     function renderOptions(options) {
@@ -357,8 +365,18 @@
 
     // options: [{ name, meta, kind: "pdf" | "slides" | "sheet" | "site" | "image" | "other" }], kept until new ones arrive. pick: the row to mark (-1 for none).
     // card: what the slide card says ("07"); kept until changed. While choosing, the two fanned cards read 1 and 2.
+    // Retrieving with exactly one option is an announce: the mole is about to show that item and does so after timeout
+    // (2500 ms) unless stopped, so the bar offers stop (onpick(-1)) with the time left drawn in it.
     function set(state, { title: t, heard: h, timeout, options, pick, card } = {}) {
       if (!(state in TITLES)) throw new Error(`unknown mole state: ${state}`);
+      const prev = root.dataset.state, announce = state === "retrieving" && options?.length === 1;
+      if (state !== prev || options) {
+        root.toggleAttribute("data-announce", announce);
+        if (announce) {
+          drain.animate([{ clipPath: "inset(0 0 0 0)" }, { clipPath: "inset(0 100% 0 0)" }], { duration: (timeout ?? ANNOUNCE_MS) * slow(), fill: "forwards" });
+          t ??= options[0].name;
+        }
+      }
       if (options) renderOptions(options);
       if (state === "choosing" && pick === undefined) pick = -1;
       if (pick !== undefined) highlight(pick);
@@ -367,7 +385,6 @@
       frontNum.textContent = state === "choosing" ? "1" : label;
       backNum.textContent = state === "choosing" ? "2" : label;
       root.toggleAttribute("data-open", OPEN.has(state) && rows.length > 0);
-      const prev = root.dataset.state;
       if (state !== prev) {
         root.dataset.from = prev;
         root.dataset.state = state;

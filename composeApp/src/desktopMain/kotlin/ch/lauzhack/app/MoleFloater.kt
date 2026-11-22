@@ -23,7 +23,6 @@ import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -47,9 +46,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.ceil
 
-private val Paper = Color(0xFFF2EDE4)
-private val Ink = Color(0xFF1F1C1A)
-private val Ember = Color(0xFFF2531C)
+private val Paper = MoleColors.Light.paper
+private val Ink = MoleColors.Light.ink
+private val Ember = MoleColors.Light.ember
 private const val RING = 1 // dp of hairline ring around the bar
 
 @Composable

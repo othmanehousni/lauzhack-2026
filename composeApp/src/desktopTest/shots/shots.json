@@ -19,6 +19,8 @@
   { "name": "mid-ready-back", "steps": [{ "words": "ready", "ms": 3000 }, { "words": "back", "ms": 150 }] },
   { "name": "mid-choosing-picked", "steps": [{ "words": "choosing-two", "ms": 3000 }, { "words": "picked", "ms": 120 }] },
   { "name": "mid-ready-hidden", "steps": [{ "words": "ready", "ms": 3000 }, { "words": "hidden", "ms": 300 }] },
+  { "name": "announce", "steps": [{ "words": "working", "ms": 3000 }, { "words": "announce", "ms": 1200 }] },
+  { "name": "phone-announce", "phone": true, "steps": [{ "words": "working", "ms": 3000 }, { "words": "announce", "ms": 1200 }] },
   { "name": "phone-choosing", "phone": true, "steps": [{ "words": "choosing-two", "ms": 3000 }] },
   { "name": "phone-three", "phone": true, "mic": "phone", "steps": [{ "words": "choosing-three", "ms": 3000 }] },
   { "name": "phone-ready", "phone": true, "mic": "phone", "steps": [{ "words": "ready", "ms": 3000 }] }

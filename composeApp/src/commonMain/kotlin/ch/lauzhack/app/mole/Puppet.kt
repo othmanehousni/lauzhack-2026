@@ -81,16 +81,18 @@ internal fun MolePuppet(state: MoleState, timeoutMs: Long?, front: String, back:
     val c = LocalMoleColors.current
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    // .m-num: 700 15.5px, letter-spacing -0.02em, in px so it can be drawn in mole space like the SVG text.
-    val num = remember(density, c.rim) {
+    // .m-num: 600 15.5px, letter-spacing -0.02em, tabular, in px so it can be drawn in mole space like the SVG text.
+    val family = inter(15.5f, 600)
+    val num = remember(density, c.rim, family) {
         with(density) {
             TextStyle(
                 color = c.rim,
-                fontWeight = FontWeight.Bold,
-                fontFamily = moleFont(15.5f, 700),
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = family,
                 fontSynthesis = FontSynthesis.None,
-                letterSpacing = (-.31f + trak(15.5f)).toSp(),
+                letterSpacing = (-.31f).toSp(),
                 fontSize = 15.5f.toSp(),
+                fontFeatureSettings = "tnum",
             )
         }
     }
@@ -170,7 +172,7 @@ private fun DrawScope.sheet(x: Float, y: Float, w: Float, c: MoleColors) {
     drawRoundRect(c.rim, Offset(x, y), Size(w, 6f), CornerRadius(1f), Stroke(1.2f))
 }
 
-// The slide card: cream paper, ink edge, a two-bar chart and the slide number. 52 × 31, centred on its origin.
+// The slide card: white paper, ink edge, a two-bar chart and the slide number. 52 × 31, centred on its origin.
 private fun DrawScope.card(number: TextLayoutResult, c: MoleColors) {
     drawRoundRect(c.lens, Offset(-26f, -15.5f), Size(52f, 31f), CornerRadius(1.8f))
     drawRoundRect(c.rim, Offset(-26f, -15.5f), Size(52f, 31f), CornerRadius(1.8f), Stroke(1.3f))

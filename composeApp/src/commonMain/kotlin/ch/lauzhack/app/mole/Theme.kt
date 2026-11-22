@@ -11,9 +11,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontSynthesis
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
+import lauzhack2026.composeapp.generated.resources.InterVariable
+import lauzhack2026.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.Font
 import kotlin.math.roundToInt
 
 /** Light or dark: [System] follows the OS, like mole.css with no data-theme; [Light] and [Dark] force one, like data-theme. */
@@ -31,40 +35,38 @@ data class MoleColors(
     val tie: Color,
     val tieFold: Color,
     val tieKnot: Color,
-    val plum: Color,
+    val ember: Color, // the one accent, a signal red: the mole needs you
     val page: Color,
     val device: Color, // the phone's body, in the playground
     val outline: Color, // the thumbnail's edge
 ) {
-    val lens = Color(0xFFF3EBD5) // cream paper: the card, the lenses, the documents
-    val stack = Color(0xFFFDF8EC) // the pile of slides
-    val rim = Color(0xFF1F1C1A) // ink on cream paper
-    val ember = Color(0xFFF2531C)
-    val sage = Color(0xFF8DAE93)
+    val lens = Color.White // white paper: the card, the lenses, the documents
+    val stack = Color(0xFFEEEEEE) // the pile of slides
+    val rim = Color(0xFF161616) // ink on white paper
     val hairline = ink.copy(alpha = .1f)
     val rule = ink.copy(alpha = .08f)
-    val wash = ink.copy(alpha = .06f) // a picked row, a key
+    val wash = ink.copy(alpha = .06f) // a picked row, the stop button's track
     val hover = ink.copy(alpha = .04f)
-    val hint = ink.copy(alpha = .5f)
-    val heard = ink.copy(alpha = .55f)
+    val hint = ink.copy(alpha = .6f)
+    val heard = ink.copy(alpha = .66f)
     val fill = ink.copy(alpha = .05f)
     val muted = ink.copy(alpha = .64f)
 
     companion object {
         val Light = MoleColors(
-            paper = Color(0xFFF2EDE4), ink = Color(0xFF1F1C1A), figure = Color(0xFF1F1C1A), bridge = Color(0xFFF3EBD5),
-            tie = Color(0xFFF2531C), tieFold = Color(0xFFC4430B), tieKnot = Color(0xFFF78742), plum = Color(0xFF65496E),
-            page = Color(0xFFF2EDE4), device = Color(0xFF1F1C1A), outline = Color.Black.copy(alpha = .1f),
+            paper = Color.White, ink = Color(0xFF161616), figure = Color(0xFF161616), bridge = Color.White,
+            tie = Color(0xFFE8111F), tieFold = Color(0xFFBB0916), tieKnot = Color(0xFFFC675C), ember = Color(0xFFE8111F),
+            page = Color.White, device = Color(0xFF161616), outline = Color.Black.copy(alpha = .1f),
         )
         val Dark = MoleColors(
-            paper = Color(0xFF272421), ink = Color(0xFFF2EDE4), figure = Color(0xFFE3D6C2), bridge = Color(0xFF1F1C1A),
-            tie = Color(0xFFC4430B), tieFold = Color(0xFF9D310B), tieKnot = Color(0xFFF2531C), plum = Color(0xFFAE88BB),
-            page = Color(0xFF191714), device = Color(0xFF0F0D0C), outline = Color.White.copy(alpha = .1f),
+            paper = Color(0xFF222222), ink = Color(0xFFEEEEEE), figure = Color(0xFFD7D7D7), bridge = Color(0xFF161616),
+            tie = Color(0xFFCB0316), tieFold = Color(0xFF9D0410), tieKnot = Color(0xFFF9423D), ember = Color(0xFFF9423D),
+            page = Color(0xFF0F0F0F), device = Color(0xFF060606), outline = Color.White.copy(alpha = .1f),
         )
     }
 }
 
-internal val Deck = Color(0xFFFBF8F2) // index.html's --deck, the shared frame behind a slide; the presenter's, so not themed
+internal val Deck = Color.White // index.html's --deck, the shared frame behind a slide; the presenter's, so not themed
 
 internal val LocalMoleColors = staticCompositionLocalOf { MoleColors.Light }
 
@@ -98,12 +100,6 @@ internal fun reduceMotion() = LocalReduceMotion.current || systemReducesMotion()
 @Composable
 internal expect fun systemReducesMotion(): Boolean
 
-/** What -apple-system (or ui-monospace) renders at this CSS size and weight on macOS; the platform default elsewhere. */
-internal expect fun moleFont(size: Float, weight: Int, mono: Boolean = false): FontFamily
-
-/** Px the system font's own tracking table adds to each letter at this size (Chrome applies it on macOS); 0 elsewhere. */
-internal expect fun trak(size: Float): Float
-
 /** A CSS transition: duration and delay in ms, stretched by [LocalSlowMotion]. */
 @Composable
 internal fun <T> css(ms: Int, delay: Int = 0, easing: Easing = EaseOut): TweenSpec<T> {
@@ -111,14 +107,22 @@ internal fun <T> css(ms: Int, delay: Int = 0, easing: Easing = EaseOut): TweenSp
     return tween((ms * slow).roundToInt(), (delay * slow).roundToInt(), easing)
 }
 
-internal fun type(size: Float, line: Float, weight: Int = 500, tracking: Float = 0f, color: Color, mono: Boolean = false) = TextStyle(
+/** Inter at this CSS size and weight. Chrome sets its optical size to the size in px (font-optical-sizing: auto), within the font's 14 to 32. */
+@Composable
+internal fun inter(size: Float, weight: Int) = FontFamily(
+    Font(Res.font.InterVariable, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight), FontVariation.Setting("opsz", size.coerceIn(14f, 32f)))),
+)
+
+// tracking in px: CSS letter-spacing inherits as a length, so -0.009em on the 15px bar is -0.135px everywhere under it.
+@Composable
+internal fun type(size: Float, line: Float, weight: Int = 500, tracking: Float = 0f, color: Color, tabular: Boolean = false) = TextStyle(
     color = color,
     fontSize = size.sp,
     lineHeight = line.sp,
     fontWeight = FontWeight(weight),
-    fontFamily = moleFont(size, weight, mono),
+    fontFamily = inter(size, weight),
     fontSynthesis = FontSynthesis.None,
-    // px: CSS letter-spacing inherits as a length, so -0.01em on the 15px bar is -0.15px everywhere under it
-    letterSpacing = (tracking + if (mono) 0f else trak(size)).sp,
+    letterSpacing = tracking.sp,
+    fontFeatureSettings = if (tabular) "tnum" else null,
     lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
 )
