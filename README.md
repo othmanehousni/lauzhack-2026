@@ -46,6 +46,16 @@ Outside a call, Molière is asleep: no microphone, no shared screen, no phone li
 
 Both models run in the app's process through LiteRT-LM. The model alone decides what to show. No word list or pattern does. `tune/CONTRACT.md` defines the state, the prompt, the grammar and what each answer does, and both the training side and the app follow it. The `--rules` flag brings back the hand written rules of the earlier prototype.
 
+## Architecture
+
+<img src="docs/readme/architecture.png" alt="Architecture: Ear (Apple speech, on device), then Retrieval (EmbeddingGemma, 8 candidates), then Decider (Gemma 3 270M, fine-tuned by us), then Shared screen (Chrome in a macOS VM), with the bar and the phone under the decider">
+
+All of it runs on the laptop, and a request reaches the shared screen 1.5 to 1.8 seconds after you stop speaking. Apple's on-device speech recognizer hears you, EmbeddingGemma finds eight candidates, and our fine-tuned Gemma 3 270M decides what to show on the shared screen, Chrome in a macOS VM. The bar and the phone announce each pick and let you stop it or undo it.
+
+<img src="docs/readme/tech-stack.png" alt="Tech stack: JetBrains (Kotlin Multiplatform, Ktor, Koog, Compose Multiplatform), Models (Gemma 3 270M ours, EmbeddingGemma, LiteRT-LM), Training (Python on Modal), Mac (Apple speech, Chrome, VM)">
+
+Molière is one Kotlin Multiplatform app, with Compose Multiplatform for the bar and the phone, Ktor for the link between them, and Koog with LiteRT-LM for the models. We train the decider in Python on Modal.
+
 ## Run it
 
 <picture>
