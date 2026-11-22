@@ -3,6 +3,7 @@
   export MODAL_PROFILE=$(~/Desktop/lemodb-proto/switch.sh) MODAL_IMAGE_BUILDER_VERSION=2025.06
   modal run eval/probe_gemma4_audio.py            80 sentences, clean plus three harder variants, prints the table
   modal run eval/probe_gemma4_audio.py --n 2      smoke test on two files
+  modal run eval/probe_gemma4_audio.py --model e4b --kinds clean,voice
 """
 import glob
 import hashlib
@@ -17,14 +18,15 @@ ROOT = Path("/Users/admin/Desktop/lauzhack-2026")
 AUDIO = {"samantha": ROOT / ".stage/heard-audio/Samantha-180", "daniel": ROOT / ".stage/heard-audio/Daniel-180"}
 HEARD = ROOT / ".claude/worktrees/agent-a0aab340ed729f762/eval/heard"
 OUT = Path(__file__).parent.parent / ".stage/g4audio.json"
-REPO = "litert-community/gemma-4-E2B-it-litert-lm"
+MODELS = {"e2b": ("litert-community/gemma-4-E2B-it-litert-lm", "gemma-4-E2B-it.litertlm"),
+          "e4b": ("litert-community/gemma-4-E4B-it-litert-lm", "gemma-4-E4B-it.litertlm")}
 PROMPT = "Transcribe this English speech exactly, word for word. Output only the transcript."
 VARIANTS = ["clean", "voice", "noise", "pause"]
 
 image = (modal.Image.debian_slim(python_version="3.12")
          .pip_install("litert-lm>=0.19.1", "numpy", "huggingface_hub")
          .env({"HF_HOME": "/vol/hf"}))
-vol = modal.Volume.from_name("g4audio", create_if_missing=True)
+vol = modal.Volume.from_name("decider")  # beside the decider probe's copies in /vol/gemma4
 app = modal.App("g4audio")
 
 
@@ -84,16 +86,13 @@ def variant(x, kind: str, other, seed: int):
 
 
 @app.function(image=image, volumes={"/vol": vol}, cpu=8, memory=16384, timeout=3600)
-def transcribe(items: list[dict]) -> list[dict]:
+def transcribe(items: list[dict], repo: str, name: str, kinds: list[str]) -> list[dict]:
     import os
     import time
 
     import litert_lm
-    from huggingface_hub import hf_hub_download, list_repo_files
-    files = [f for f in list_repo_files(REPO) if f.endswith(".litertlm")]
-    name = next((f for f in files if f == "gemma-4-E2B-it.litertlm"), files[0])
-    print("files", files, "using", name)
-    path = hf_hub_download(REPO, name, local_dir="/vol/model")
+    from huggingface_hub import hf_hub_download
+    path = hf_hub_download(repo, name, local_dir="/vol/gemma4")
     vol.commit()
     t = time.time()
     engine = litert_lm.Engine(path, backend=litert_lm.Backend.CPU(), audio_backend=litert_lm.Backend.CPU())
@@ -101,12 +100,12 @@ def transcribe(items: list[dict]) -> list[dict]:
     out = []
     for i, it in enumerate(items):
         x, other = read_wav(it["wav"]), read_wav(it["other"])
-        for kind in VARIANTS:
+        for kind in kinds:
             wav = f"/tmp/{i}-{kind}.wav"
             write_wav(variant(x, kind, other, i), wav)
-            conv = engine.create_conversation(sampler_config=litert_lm.SamplerConfig(top_k=1, seed=0))
+            conv = engine.create_conversation(sampler_config=litert_lm.SamplerConfig(top_k=1, seed=0), system_message=PROMPT)  # in the turn, it was echoed
             t = time.time()
-            m = conv.send_message({"role": "user", "content": [{"type": "audio", "path": wav}, {"type": "text", "text": PROMPT}]},
+            m = conv.send_message({"role": "user", "content": [{"type": "audio", "path": wav}]},
                                   max_output_tokens=128)  # a runaway repeat otherwise runs to the KV limit
             dt = time.time() - t
             j = m.to_json() if hasattr(m, "to_json") else m
@@ -114,7 +113,7 @@ def transcribe(items: list[dict]) -> list[dict]:
             text = c if isinstance(c, str) else "".join(p.get("text", "") for p in c)
             out.append({"id": it["id"], "kind": kind, "text": text.strip(), "s": dt})
             os.remove(wav)
-        print(i, it["id"][:8], out[-4]["text"][:80], f"{out[-4]['s']:.2f}s")
+        print(i, it["id"][:8], out[-len(kinds)]["text"][:80], f"{out[-len(kinds)]['s']:.2f}s")
     return out
 
 
@@ -210,7 +209,7 @@ def self_check() -> None:
 
 
 @app.local_entrypoint()
-def main(n: int = 80, seed: int = 0):
+def main(n: int = 80, seed: int = 0, model: str = "e2b", kinds: str = ",".join(VARIANTS)):
     self_check()
     rows, seen = {}, set()
     for voice in AUDIO:
@@ -237,10 +236,12 @@ def main(n: int = 80, seed: int = 0):
         o = others[k % len(others)]
         items.append({"id": i, "wav": rows[i]["wav"].read_bytes(), "other": rows[o]["wav"].read_bytes()})
     shards = 4 if n > 8 else 1
-    res = [r for part in transcribe.map([items[s::shards] for s in range(shards)]) for r in part]
+    kinds = kinds.split(",")
+    res = [r for part in transcribe.starmap([(items[s::shards], *MODELS[model], kinds) for s in range(shards)]) for r in part]
     got = {(r["id"], r["kind"]): r for r in res}
-    OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps({"pick": pick, "worst": worst, "rows": {i: {k: v for k, v in rows[i].items() if k != "wav"} for i in pick},
+    out = OUT.with_name(f"g4audio-{model}.json")
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(json.dumps({"pick": pick, "worst": worst, "rows": {i: {k: v for k, v in rows[i].items() if k != "wav"} for i in pick},
                                "gemma": res}, indent=1))
 
     def line(label, rs, secs):
@@ -250,10 +251,10 @@ def main(n: int = 80, seed: int = 0):
     for title, subset in (("all 80", pick), ("random 40", pick[len(worst):]), ("Apple's worst 40", worst)):
         print(f"\n{title}\n| | WER | exact | names+numbers | s/file |\n|---|---|---|---|---|")
         line("Apple clean", [(rows[i]["say"], rows[i]["apple"]) for i in subset], "n/a (live stream)")
-        for kind, label in zip(VARIANTS, ["Gemma clean", "Gemma + second voice -12 dB", "Gemma + pink noise -15 dB", "Gemma + 1 s pause"]):
+        for kind, label in [kl for kl in zip(VARIANTS, ["Gemma clean", "Gemma + second voice -12 dB", "Gemma + pink noise -15 dB", "Gemma + 1 s pause"]) if kl[0] in kinds]:
             rs = [got[(i, kind)] for i in subset]
             line(label, [(rows[i]["say"], r["text"]) for i, r in zip(subset, rs)], f"{sum(r['s'] for r in rs) / len(rs):.2f}")
     print("\nApple's ten worst, side by side")
     for i in worst[:10]:
-        print(f"\nscript: {rows[i]['say']}\napple:  {rows[i]['apple']}\ngemma:  {got[(i, 'clean')]['text']}\n+voice: {got[(i, 'voice')]['text']}")
-    print(f"\nraw results in {OUT}")
+        print(f"\nscript: {rows[i]['say']}\napple:  {rows[i]['apple']}", *(f"{k}: {got[(i, k)]['text']}" for k in kinds), sep="\n")
+    print(f"\nraw results in {out}")

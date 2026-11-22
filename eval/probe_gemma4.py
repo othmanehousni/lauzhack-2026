@@ -5,6 +5,7 @@ answer outside the grammar wrong (`timing`: a constrained conversation takes E2B
   python3 tune/build.py --train 3000 --dev 3000      tune/data/{train,dev}.jsonl: 200 dev rows to score, 12 train rows as examples
   export MODAL_PROFILE=$(~/Desktop/lemodb-proto/switch.sh) MODAL_IMAGE_BUILDER_VERSION=2025.06
   modal run eval/probe_gemma4.py                      table, rows where E2B and r6b differ, /tmp/probe_gemma4.json
+  modal run eval/probe_gemma4.py --forms e4b --rows-from .stage/probe/gemma4-e2b-decider.json    E4B on the same rows
 """
 import json
 import random
@@ -18,6 +19,8 @@ import modal
 ROOT = Path(__file__).resolve().parent.parent
 E2B = ("litert-community/gemma-4-E2B-it-litert-lm", "gemma-4-E2B-it.litertlm")  # Apache 2.0, ungated
 E2B_PATH = f"/vol/gemma4/{E2B[1]}"
+E4B = ("litert-community/gemma-4-E4B-it-litert-lm", "gemma-4-E4B-it.litertlm")  # Apache 2.0, ungated, 3.65 GB
+E4B_PATH = f"/vol/gemma4/{E4B[1]}"
 TRAINED = {"r4": "/vol/r4/decider_q8_ekv1024.litertlm", "r6b": "/vol/r6b/decider_q8_ekv1024.litertlm"}
 SHOT_VERBS = ["nothing", "show", "wait", "unsure", "ask", "slide", "open", "search", "slides", "control", "undo", "next"]
 
@@ -57,10 +60,11 @@ app = modal.App("probe-gemma4")
 @app.function(image=img, cpu=2, memory=2048, timeout=1800, volumes={"/vol": vol})
 def fetch() -> None:
     from huggingface_hub import hf_hub_download
-    if not Path(E2B_PATH).exists():
-        hf_hub_download(*E2B, local_dir="/vol/gemma4")
-        vol.commit()
-    print(E2B_PATH, Path(E2B_PATH).stat().st_size)
+    for repo, name in (E2B, E4B):
+        if not Path(f"/vol/gemma4/{name}").exists():
+            hf_hub_download(repo, name, local_dir="/vol/gemma4")
+            vol.commit()
+        print(name, Path(f"/vol/gemma4/{name}").stat().st_size)
 
 
 @app.function(image=img, cpu=8, memory=8192, timeout=3600, volumes={"/vol": vol})
@@ -171,15 +175,22 @@ def shots(train: list[dict]) -> list[dict]:
 
 
 @app.local_entrypoint()
-def main(out: str = "/tmp/probe_gemma4.json"):
+def main(out: str = "/tmp/probe_gemma4.json", forms: str = "r4,r6b,e2b,e2b+12", rows_from: str = ""):
+    """--rows-from an earlier output: the same rows and examples, without tune/data."""
     load = lambda p: [json.loads(l) for l in (ROOT / p).read_text().splitlines() if l.strip()]
-    rows = ([{**e, "set": "rehearsal"} for e in load("eval/cases/rehearsal.jsonl")] + [{**e, "set": "absent"} for e in load("eval/cases/absent.jsonl")]
-            + [{**e, "set": "dev"} for e in random.Random(0).sample(load("tune/data/dev.jsonl"), 200)])
-    ex = shots(load("tune/data/train.jsonl"))
+    if rows_from:
+        d = json.loads(Path(rows_from).read_text())
+        rows, ex = d["rows"], d["shots"]
+    else:
+        rows = ([{**e, "set": "rehearsal"} for e in load("eval/cases/rehearsal.jsonl")] + [{**e, "set": "absent"} for e in load("eval/cases/absent.jsonl")]
+                + [{**e, "set": "dev"} for e in random.Random(0).sample(load("tune/data/dev.jsonl"), 200)])
+        ex = shots(load("tune/data/train.jsonl"))
     fetch.remote()
-    forms = {"r4": (TRAINED["r4"], None, [], 1024, True), "r6b": (TRAINED["r6b"], None, [], 1024, True),
-             "e2b": (E2B_PATH, INSTRUCTION, [], 4096, False), "e2b+12": (E2B_PATH, INSTRUCTION, ex, 8192, False)}
-    n = {"r4": 3, "r6b": 3, "e2b": 4, "e2b+12": 3}  # containers per form
+    every = {"r4": (TRAINED["r4"], None, [], 1024, True), "r6b": (TRAINED["r6b"], None, [], 1024, True),
+             "e2b": (E2B_PATH, INSTRUCTION, [], 4096, False), "e2b+12": (E2B_PATH, INSTRUCTION, ex, 8192, False),
+             "e4b": (E4B_PATH, INSTRUCTION, [], 4096, False)}
+    forms = {f: every[f] for f in forms.split(",")}
+    n = {"r4": 3, "r6b": 3, "e2b": 4, "e2b+12": 3, "e4b": 4}  # containers per form
     calls = {f: [run.spawn(m, rows[i::n[f]], *args) for i in range(n[f])] for f, (m, *args) in forms.items()}
     res = {}
     for f, cs in calls.items():
@@ -194,9 +205,9 @@ def main(out: str = "/tmp/probe_gemma4.json"):
         print(f"{f:8} {c['rehearsal']:>13} {c['absent']:>10} {c['dev']:>8} {sum(x['outside'] for x in r):>8}"
               f" {sum(x['send_s'] for x in r) / len(r):>7.2f} {sum(x['clone_s'] for x in r) / len(r):>8.2f}")
     diff = [{"set": e["set"], "family": e["family"], "now": e["state"]["now"], "done": e["state"]["done"], "expected": e.get("accept", [e["answer"]]),
-             **{f: res[f][i]["answer"] for f in res}, "e2b_raw": res["e2b"][i]["raw"], "e2b+12_raw": res["e2b+12"][i]["raw"]}
-            for i, e in enumerate(rows) if len({right(e, res[f][i]["answer"]) for f in ("r6b", "e2b", "e2b+12")}) > 1]
+             **{f: res[f][i]["answer"] for f in res}, **{f + "_raw": res[f][i]["raw"] for f in res if f[0] == "e"}}
+            for i, e in enumerate(rows) if len({right(e, res[f][i]["answer"]) for f in res if f != "r4"}) > 1]
     Path(out).write_text(json.dumps({"rows": rows, "res": res, "shots": ex, "diff": diff}, ensure_ascii=False))
-    print(f"\n{len(diff)} rows where r6b and an E2B form differ in being right; wrote {out}")
+    print(f"\n{len(diff)} rows where the forms other than r4 differ in being right; wrote {out}")
     for d in diff[:40]:
         print(json.dumps(d, ensure_ascii=False))
