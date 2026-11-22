@@ -57,7 +57,7 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
   A harder set (45 lines: vague asks, mishearings, things that do not exist; about 5 minutes):
     rehearsal/run.sh rehearsal/model-1.txt .stage/rehearsal/hard 6
     python3 rehearsal/check.py .stage/rehearsal/hard
-  Last score tonight: 37 of 45 (the old hand rules: 28 of 41 on the lines both can do).
+  Last score tonight: 37 of 45 (the hand rules, since deleted, scored 28 of 41 on the lines both can do).
   A second set that nothing was tuned on (rehearsal/held-1.txt): 27 of 45.
   The lines it misses are listed in section 8.
 
@@ -75,8 +75,7 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
      "End the meeting" and "Start a meeting" again.
      NOT VERIFIED BY A PERSON: nobody was awake to click these prompts. Do this once before the demo,
      and do it AFTER the last rebuild (a rebuild is a new signature, macOS may ask again).
-  d. In the call (Meet, Zoom, Teams), share the VM window. It is titled "Copilot screen" until the VM is
-     next restarted, then "Molière screen".
+  d. In the call (Meet, Zoom, Teams), share the VM window, titled "Molière screen".
   e. Speak the lines of section 1. With a real call the meeting starts by itself about 5 seconds after the
      call app takes the microphone (NOT VERIFIED BY A PERSON); "Start a meeting" always works.
 
@@ -145,7 +144,6 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
   The bar says "Couldn't get the shared screen ready."   The app starts the VM by itself; if that failed:  agent-desktop sandbox start base --window
   Nothing happens when you speak.                         Menu bar mole, "End the meeting", "Start a meeting". Check the microphone permission.
   It picks the wrong thing.                               Say "no". That is the feature.
-  You want the old behaviour.                             Start with --rules (the hand-written rules, slower to start, no "no").
   No VM at all.                                           Start with --host (a Chrome window on this Mac is the shared screen).
   Look at what it heard and decided.                      ~/Library/Logs/Moliere/moliere.log (every word, decision and screen call, timestamped)
 
@@ -208,7 +206,6 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
     cp .stage/models/r6b/decider.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
   Back to r4:
     cp .stage/models/r4/decider.litertlm "$HOME/Library/Application Support/Moliere/models/decider.litertlm"
-  Training on Modal stopped at 9.50 dollars of the 10 set for it.
 
 
 10. REBUILD FROM SOURCE (only if you change code)
