@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -184,9 +186,9 @@ fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier
             .background(c.paper, RoundedCornerShape(24.dp)),
     ) {
         Options(words, phone = false, enabled = !hidden, onPick)
-        Row(Modifier.height(76.dp).padding(start = 10.dp, end = 22.dp), Arrangement.spacedBy(6.dp), Alignment.CenterVertically) {
+        Row(Modifier.heightIn(min = 76.dp).padding(start = 10.dp, end = 22.dp), Arrangement.spacedBy(6.dp), Alignment.CenterVertically) {
             MolePuppet(words.state, line.timeoutMs, words.front, words.back, Modifier.align(Alignment.Bottom).padding(bottom = 9.dp).size(83.dp, 62.dp))
-            BarWords(words, Modifier.weight(1f))
+            BarWords(words, Modifier.weight(1f).padding(vertical = 10.dp))
             Stop(words, phone = false, enabled = !hidden, onPick, Modifier.padding(start = 8.dp))
         }
     }
@@ -316,8 +318,7 @@ internal fun Title(w: Words, style: TextStyle, align: TextAlign) {
                 },
                 style.copy(textAlign = align),
                 overflow = TextOverflow.Ellipsis,
-                softWrap = false,
-                maxLines = 1,
+                maxLines = 3, // a long name or question wraps; the bar's row grows past 76 dp only for a third line
             )
         }
     }
@@ -333,7 +334,7 @@ internal fun Heard(w: Words, style: TextStyle, say: TextStyle, modifier: Modifie
             text,
             Modifier.fillMaxWidth().graphicsLayer { this.alpha = alpha.value },
             look.copy(textAlign = align),
-            overflow = TextOverflow.Ellipsis,
+            overflow = if (text == SAY_NO) TextOverflow.Ellipsis else TextOverflow.StartEllipsis, // the newest words stay where supported (Android); desktop ends them
             softWrap = false,
             maxLines = 1,
         )
@@ -398,14 +399,14 @@ private fun Option(i: Int, choice: Choice, on: Boolean, picked: Boolean, phone: 
     Row(
         Modifier
             .fillMaxWidth()
-            .height(if (phone) 52.dp else 36.dp) // a thumb needs a taller row than a cursor
+            .heightIn(min = if (phone) 52.dp else 36.dp) // a thumb needs a taller row than a cursor; a long name wraps
             .graphicsLayer { alpha = dim.value }
             .clip(shape)
             .drawBehind { drawRect(bg.value) }
             .then(if (focused) Modifier.border(2.dp, c.ink, shape) else Modifier)
             .onFocusChanged { focused = it.isFocused }
             .clickable(interaction, indication = null, enabled = enabled, role = Role.Button) { onPick(i) }
-            .padding(start = 8.dp, end = 12.dp),
+            .padding(start = 8.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Key(i, on, check = picked && on)
@@ -413,17 +414,18 @@ private fun Option(i: Int, choice: Choice, on: Boolean, picked: Boolean, phone: 
         Glyph(choice.kind)
         Spacer(Modifier.width(10.dp))
         val name = type(14f, 20f, 400, -.084f, c.ink)
-        val meta = type(12f, 20f, 400, color = c.hint)
+        val meta = type(12f, 16f, 400, color = c.hint)
         if (phone) {
             // On two versions of one file the end of the name is the difference, so the date drops under it.
             Column(Modifier.weight(1f)) {
-                BasicText(choice.name, style = name, overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
-                BasicText(choice.meta, style = meta, softWrap = false, maxLines = 1)
+                BasicText(choice.name, style = name, overflow = TextOverflow.Ellipsis, maxLines = 2)
+                BasicText(choice.meta, style = meta, overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
             }
         } else {
-            BasicText(choice.name, Modifier.weight(1f), name, overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+            BasicText(choice.name, Modifier.weight(1f), name, overflow = TextOverflow.Ellipsis, maxLines = 2)
             Spacer(Modifier.width(10.dp))
-            BasicText(choice.meta, style = meta, softWrap = false, maxLines = 1)
+            // Capped, so a deck's long name cannot push the option's own name out; its end (the slide) is what differs.
+            BasicText(choice.meta, Modifier.widthIn(max = 104.dp), meta.copy(textAlign = TextAlign.End), overflow = TextOverflow.StartEllipsis, softWrap = false, maxLines = 1)
         }
     }
 }
