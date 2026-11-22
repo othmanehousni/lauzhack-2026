@@ -28,8 +28,9 @@ internal sealed interface Event {
     data object Answered : Event                                    // the agent answered
     data class Wait(val title: String?, val said: String) : Event   // a request whose object is still to come
     data class Unsure(val said: String) : Event                     // a request nothing fits
-    data class Offer(val options: List<Choice>, val title: String?, val said: String) : Event
-    data object Dismiss : Event                                     // the offer was turned down
+    data class Offer(val options: List<Choice>, val said: String) : Event // a choice: nothing is shown until a pick
+    data class Coming(val option: Choice, val title: String, val said: String, val card: String, val ms: Long) : Event // shown in [ms] unless stopped
+    data object Dismiss : Event                                     // the choice or the announce was turned down
     data class Start(val change: Change, val said: String) : Event  // a change of the screen is decided and under way
     data object Retry : Event                                       // the screen failed it once, the one retry runs
     data object Done : Event                                        // the screen did it
@@ -56,6 +57,8 @@ private fun just(state: MoleState, title: String? = null, heard: String = "") = 
 private fun step(m: Machine, e: Event): Machine? {
     val l = m.line
     val c = m.change
+    // an announce keeps the line until it is shown or stopped, so nothing reaches the screen unannounced
+    if (l.state == MoleState.Retrieving && (e is Event.Hello || e is Event.Wait || e is Event.Unsure)) return null
     return when (e) {
         Event.Sleep -> just(MoleState.Hidden)
         is Event.Setup -> just(MoleState.Tunneling, e.step)
@@ -69,14 +72,15 @@ private fun step(m: Machine, e: Event): Machine? {
         Event.Answered -> if (l.state == MoleState.Thinking) just(MoleState.Idle, heard = l.heard) else null
         is Event.Wait -> Machine(MoleLine(MoleState.Waiting, e.title, e.said, timeoutMs = WAIT.inWholeMilliseconds))
         is Event.Unsure -> just(MoleState.Unsure, heard = e.said)
-        is Event.Offer -> Machine(MoleLine(MoleState.Choosing, e.title, e.said, e.options))
-        Event.Dismiss -> if (l.state == MoleState.Choosing) just(MoleState.Hidden) else null
+        is Event.Offer -> Machine(MoleLine(MoleState.Choosing, heard = e.said, options = e.options))
+        is Event.Coming -> Machine(MoleLine(MoleState.Retrieving, e.title, e.said, listOf(e.option), card = e.card, timeoutMs = e.ms))
+        Event.Dismiss -> if (l.state == MoleState.Choosing || l.state == MoleState.Retrieving) just(MoleState.Back, "Okay, not shown.") else null
         is Event.Start -> Machine(
             if (e.change.pick != null) MoleLine(MoleState.Picked, e.change.first, e.said, l.options, e.change.pick)
             else MoleLine(MoleState.Heard, e.change.first, e.said, card = e.change.card),
             e.change,
         )
-        Event.Retry -> c?.let { Machine(MoleLine(MoleState.Retrieving, it.retrying, l.heard, card = it.card), it) }
+        Event.Retry -> c?.let { Machine(MoleLine(MoleState.Working, it.retrying, l.heard, card = it.card), it) }
         Event.Done -> c?.let { Machine(it.ready?.let { t -> MoleLine(MoleState.Ready, t, l.heard, card = it.card) } ?: MoleLine(MoleState.Back)) }
         is Event.Failed -> just(MoleState.Failed, e.title, e.reason)
         Event.Expire -> when (l.state) {
@@ -91,7 +95,7 @@ private fun step(m: Machine, e: Event): Machine? {
 
 /** How long a line stays up before another may replace it, so it can be read. */
 private fun read(state: MoleState): Duration = when (state) {
-    MoleState.Hidden, MoleState.Idle, MoleState.Choosing -> Duration.ZERO
+    MoleState.Hidden, MoleState.Idle, MoleState.Choosing, MoleState.Retrieving -> Duration.ZERO // what answers them shows at once
     MoleState.Heard, MoleState.Picked -> 700.milliseconds
     MoleState.Ready -> 1500.milliseconds
     MoleState.Hello -> 1800.milliseconds
@@ -133,7 +137,8 @@ class Mole(private val scope: CoroutineScope, private val time: TimeSource = Tim
     private fun settle(new: Boolean) {
         timer?.cancel()
         if (new || want.line.state != shown.value.state) {
-            val left = read(shown.value.state) - since.elapsedNow()
+            // an announce shows at once: its countdown runs from the moment it is decided
+            val left = if (want.line.state == MoleState.Retrieving) Duration.ZERO else read(shown.value.state) - since.elapsedNow()
             if (left > Duration.ZERO) {
                 timer = scope.launch { delay(left); settle(new = true) }
                 return

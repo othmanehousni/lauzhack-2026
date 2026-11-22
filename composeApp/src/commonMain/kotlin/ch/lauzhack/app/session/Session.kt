@@ -9,6 +9,7 @@ import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.agent.ON_STAGE
 import ch.lauzhack.app.agent.suffix
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
@@ -44,13 +46,16 @@ interface SharedScreen {
 
 internal val THINK = 1.seconds // an agent slower than this over new words shows the mole thinking
 internal val UNDO = 8.seconds  // how long "no, not that" takes back what just went up
+internal val ANNOUNCE = 2500.milliseconds // how long an announce can be stopped before it is shown
 private const val EARLIER = 3  // utterances handed to the agent with each one
 
 /**
  * One meeting. Twice a second it asks [given] whether there is anything to do about what the presenter is saying and
  * what the audience sees, carries the move out on [agentDesktop] at once, and tells [mole] what really happens. Words
- * come from [laptop], or from [phone] while [phoneLeads]. It keeps what is on screen and what was there before, the offer
- * in play, the presenter's picks, and the last few utterances. Run it on one thread: its state changes between suspensions.
+ * come from [laptop], or from [phone] while [phoneLeads]. An [Move.Ask] of one target is announced and shown once
+ * [window] has run, unless the presenter stops it ([Move.Undo], or [pick] of a negative index); several are a choice.
+ * It keeps what is on screen and what was there before, the offer in play, the presenter's picks, and the last few
+ * utterances. Run it on one thread: its state changes between suspensions.
  */
 class Session(
     private val given: Agent,
@@ -60,7 +65,10 @@ class Session(
     private val phone: Flow<Heard> = emptyFlow(),
     private val phoneLeads: Flow<Boolean> = flowOf(false),
     private val time: TimeSource = TimeSource.Monotonic,
+    private val window: Duration = ANNOUNCE,
 ) {
+    private class Coming(val target: Target, val said: String) // by identity: announced again, it is a fresh window
+
     private val _heard = MutableStateFlow(Heard(ended = true))
     private val _onScreen = MutableStateFlow(agentDesktop.onScreen)
 
@@ -73,12 +81,14 @@ class Session(
     private var actedOn = Heard()                      // the last words a move was carried out for
     private val acted = mutableListOf<Move>()          // the moves carried out for utterance actedOn.n
     private var before: Pair<OnScreen, TimeMark>? = null // what the last change replaced, and when
-    private var offer = emptyList<Target>()            // in play while the mole shows it
+    private var offer = emptyList<Target>()            // a choice, in play while the mole shows it
+    private var coming: Coming? = null                 // announced, shown when its window ends
+    private var stopped: Target? = null                // an announce turned down, not announced again until the next change
     private val picks = mutableMapOf<Set<Target>, Target>() // the presenter's answer to each choice offered
     private val taps = Channel<Int>(Channel.UNLIMITED)
-    private val turn = Mutex()                         // one move at a time, from the loop or a tap
+    private val turn = Mutex()                         // one move at a time, from the loop, a tap or a window ending
 
-    /** A tap on row [index] of the options, on the bar or the phone. */
+    /** A tap on row [index] of the options, on the bar or the phone; a negative index turns them down. */
     fun pick(index: Int) {
         taps.trySend(index)
     }
@@ -89,7 +99,7 @@ class Session(
         val leads = phoneLeads.distinctUntilChanged()
         launch { leads.drop(1).collect { mole.on(Event.Hello(if (it) "On your phone now." else "Back on the laptop.")) } }
         launch { leads.flatMapLatest { if (it) phone else laptop }.collect(::hear) }
-        launch { for (i in taps) turn.withLock { offered().getOrNull(i)?.let { show(it, said = "", pick = i) } } }
+        launch { for (i in taps) turn.withLock { if (i < 0) stop() else offered().getOrNull(i)?.let { show(it, said = "", pick = i) } } }
         val agent = Agent { heard, onScreen ->
             val slow = if (heard != asked) launch { delay(THINK); mole.on(Event.Thinking(heard.text)) } else null
             asked = heard
@@ -144,22 +154,44 @@ class Session(
         return true
     }
 
-    private fun offered(): List<Target> = if (mole.line.value.state == MoleState.Choosing) offer else emptyList()
+    private fun offered(): List<Target> =
+        coming?.let { listOf(it.target) } ?: if (mole.line.value.state == MoleState.Choosing) offer else emptyList()
 
     private suspend fun show(target: Target, said: String = asked.text, pick: Int? = null, first: String? = null) {
         if (same(target, onScreen.value.target)) return
         val options = offered()
         val i = pick ?: options.indexOfFirst { same(it, target) }.takeIf { it >= 0 } // by tap, by voice, or by staying on it
         if (i != null && options.size > 1) picks[options.toSet()] = options[i]
-        offer = emptyList()
         change(showing(target, i, options.size, first), said, undoable = true) { agentDesktop.show(target) }
     }
 
-    private suspend fun ask(options: List<Target>) {
+    private suspend fun CoroutineScope.ask(options: List<Target>) {
         picks[options.toSet()]?.let { return show(it, first = "Same as before: ${name(it)}.") }
-        if (offered() == options) return
-        offer = options
-        mole.on(Event.Offer(options.map(::choice), if (options.size == 1) "Show ${name(options[0])}?" else null, asked.text))
+        if (options.size > 1) {
+            if (offered() == options) return
+            coming = null
+            offer = options
+            return mole.on(Event.Offer(options.map(::choice), asked.text))
+        }
+        val t = options[0]
+        if (same(t, coming?.target) || same(t, onScreen.value.target) || same(t, stopped)) return
+        val c = Coming(t, asked.text)
+        coming = c
+        offer = emptyList()
+        mole.on(Event.Coming(choice(t), "${name(t).cap()} next. Say no to stop.", c.said, card(t), window.inWholeMilliseconds))
+        launch {
+            delay(window)
+            turn.withLock { if (coming === c) show(t, c.said) }
+        }
+    }
+
+    /** Turns down the choice or the announce in play: nothing is shown. */
+    private fun stop() {
+        if (offered().isEmpty()) return
+        stopped = coming?.target
+        coming = null
+        offer = emptyList()
+        mole.on(Event.Dismiss)
     }
 
     private suspend fun control(name: String) =
@@ -167,10 +199,7 @@ class Session(
         else change(controlling(name), asked.text, undoable = false) { agentDesktop.control(name); null }
 
     private suspend fun undo() {
-        if (offered().isNotEmpty()) {
-            offer = emptyList()
-            return mole.on(Event.Dismiss)
-        }
+        if (offered().isNotEmpty()) return stop()
         val (was, at) = before ?: return
         if (at.elapsedNow() > UNDO) return
         before = null
@@ -185,6 +214,9 @@ class Session(
     /** Runs a change of the screen, once more if it fails, and tells the mole each step as it happens. */
     private suspend fun change(c: Change, said: String, undoable: Boolean, call: suspend () -> OnScreen?) {
         val was = onScreen.value
+        offer = emptyList()
+        coming = null
+        stopped = null
         mole.on(Event.Start(c, said))
         repeat(2) { attempt ->
             try {
@@ -231,9 +263,11 @@ private fun showing(t: Target, pick: Int?, of: Int, first: String?) = Change(
     ready = if (t is Target.Slide) "Slide ${t.page} is ready." else "It's on screen.",
     failed = "Couldn't show ${name(t)}.",
     first = first ?: pick?.let { if (of > 1 && it < ORDINALS.size) "Opening the ${ORDINALS[it]} one…" else "Opening ${name(t)}…" },
-    card = if (t is Target.Slide) t.page.toString().padStart(2, '0') else "",
+    card = card(t),
     pick = pick,
 )
+
+private fun card(t: Target) = if (t is Target.Slide) t.page.toString().padStart(2, '0') else ""
 
 private fun undoing(back: Target?) = Change(
     working = back?.let { "Putting ${name(it)} back…" } ?: "Taking it down…",
@@ -252,7 +286,7 @@ private fun waiting(said: String) = VERBS.findAll(said).lastOrNull()?.value?.low
 
 /** A row of the choosing panel: what the target is called, where it is, and its kind. */
 internal fun choice(t: Target): Choice = when (t) {
-    is Target.Slide -> Choice(t.title.ifEmpty { "Slide ${t.page}" }, "${t.deck.replace('_', ' ')} · slide ${t.page}", Choice.Kind.Slides)
+    is Target.Slide -> Choice(t.title.ifEmpty { "Slide ${t.page}" }, "${t.deck.replace('_', ' ')}, slide ${t.page}", Choice.Kind.Slides)
     is Target.File -> Choice(t.path.substringAfterLast('/'), t.path.substringBeforeLast('/', "").substringAfterLast('/'), kind(t.path))
     is Target.Site -> Choice(t.name.ifEmpty { host(t.url) }, host(t.url), Choice.Kind.Site)
     is Target.App -> Choice(t.name, "App", Choice.Kind.Other)
