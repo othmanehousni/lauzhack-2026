@@ -19,18 +19,22 @@ mkdir -p "$FIX" && touch "$FIX/.fixtures"
 NAMES=$(uv run --offline --quiet --no-project --with reportlab python "$ROOT/rehearsal/fixtures.py" "$FIX") || exit 1
 cleanup() { (cd "$FIX" && echo "$NAMES" | while IFS= read -r n; do rm -f "./$n"; done; rm -f .fixtures); rmdir "$FIX"; }
 trap cleanup EXIT
-for i in $(seq 1 60); do
+for i in $(seq 1 20); do  # Spotlight may lag: the lines seen recently then fail as not retrieved
   [ "$(mdfind -onlyin "$FIX" 'kMDItemContentType == "com.adobe.pdf"' | wc -l)" -ge "$(echo "$NAMES" | wc -l)" ] &&
     [ "$(mdfind -onlyin "$FIX" 'kMDItemNumberOfPages >= 3' | wc -l)" -ge 2 ] && break
   sleep 1
 done
 { basename -a "$LIB"/*.pdf; echo "$NAMES"; } | sed 's/\.pdf$//' > "$OUT/public.txt"  # names check.py may print
 
+while pgrep -f "Moliere.app/Contents/MacOS" >/dev/null; do sleep 5; done  # one may have started meanwhile
 FIFO=$(mktemp -u /tmp/moliere-typed.XXXXXX); mkfifo "$FIFO"
 "$APP" --typed --library "$LIB" --no-history "$@" < "$FIFO" >> "$OUT/out.txt" 2>&1 &
 PID=$!
 exec 3> "$FIFO"
 for i in $(seq 1 240); do grep -q "mole    hello" "$OUT/out.txt" && break; kill -0 $PID 2>/dev/null || break; sleep 1; done
+if ! grep -q "mole    hello" "$OUT/out.txt"; then  # no meeting: the phone port was taken, or it never came up
+  echo "not ready after ${i}s" >> "$OUT/out.txt"; kill -TERM $PID 2>/dev/null; wait $PID 2>/dev/null; exec 3>&-; rm -f "$FIFO"; exit 1
+fi
 echo "ready after ${i}s" >> "$OUT/out.txt"; sleep 3
 while IFS= read -r line; do
   case "$line" in "") continue;; "#"*) echo "##$line" >> "$OUT/out.txt"; continue;; "@"*) GAP=${line#@}; continue;; esac
