@@ -6,6 +6,7 @@ import ch.lauzhack.app.Heard
 import ch.lauzhack.app.Move
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
+import ch.lauzhack.app.session.ANNOUNCE
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -15,22 +16,34 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.Volatile
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /** Answers acted on while the presenter is still speaking, when two partial decisions in a row agree. */
 private val EARLY = setOf("show", "slide", "next", "previous", "slides", "control", "close")
 
+/** How long an announce may take to reach the screen; past this it was stopped on the bar, or failed. */
+private val LANDS = ANNOUNCE + 1500.milliseconds
+
 /**
  * The agent of tune/CONTRACT.md: [catalog] retrieves the candidates with [embedder], [model] answers one line of the
  * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
- * and the answer becomes a [Move]. It decides every two words; calls run one at a time, and words newer than those of a
- * decision in flight drop it.
+ * and the answer becomes a [Move]. An item picked by meaning (`show`, `open`, `search`) is announced as a [Move.Ask] of
+ * it, so that a "no" can stop it; until it is on screen, the agent decides on every word and acts on an `undo` that two
+ * partial decisions agree on. Otherwise it decides every two words; calls run one at a time, and words newer than those
+ * of a decision in flight drop it.
  */
 class ModelAgent(
     catalog: Catalog,
     private val embedder: Embedder,
     private val model: suspend (prompt: String, grammar: String?) -> String,
+    private val time: TimeSource = TimeSource.Monotonic,
 ) : Agent {
     @Volatile var catalog: Catalog = catalog
+
+    /** The model's answer in the last decision, or null when it was not asked; for the log. */
+    var answer: String? = null; private set
 
     private class Utterance(val n: Int, val start: State, val offered: List<Item>, val last: Item.Slide?) {
         var text = ""
@@ -49,6 +62,7 @@ class ModelAgent(
     private var quiet = false           // the last move takes something off the screen
     private var shown: Item? = null
     private var shownAt = 0
+    private var coming: Pair<Target, TimeMark>? = null // its announce, until it is on screen
     private var offer = emptyList<Item>()
     private var offerAt = 0
     private var u = Utterance(Int.MIN_VALUE, State(), emptyList(), null)
@@ -80,35 +94,38 @@ class ModelAgent(
     }
 
     private suspend fun step(heard: Heard, onScreen: OnScreen): Move {
+        answer = null
         val cat = catalog
         observe(onScreen.target, cat, heard)
         if (heard.n != u.n || u.over && heard.text != u.text) begin(heard.n)
         if (u.over) return Move.Nothing
         if (heard.text.isBlank()) return Move.Nothing.also { u.over = heard.ended }
         val words = heard.text.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
-        if (!heard.ended && words < u.words + 2) return Move.Nothing
+        if (!heard.ended && words < u.words + (if (coming != null) 1 else 2)) return Move.Nothing
         val s = u.start.copy(
             heard = heard.earlier, now = heard.text, done = heard.ended,
             candidates = cat.candidates(embedder, heard.text, heard.earlier.lastOrNull(), u.offered),
         )
         val g = grammar(s)
-        val said = model(prompt(s), if (heard.ended) g else null).trim().takeIf { Regex(g).matches(it) } ?: "nothing"
+        val said = model(prompt(s), if (heard.ended) g else null).trim().also { answer = it }.takeIf { Regex(g).matches(it) } ?: "nothing"
         u.text = heard.text
         u.words = words
         val move = move(said, s, cat)
         if (!heard.ended) {
-            val act = move.takeIf { said.substringBefore(' ') in EARLY && it == u.guess && it != Move.Nothing && it !in u.taken }
+            val early = said.substringBefore(' ') in EARLY || said == "undo" && coming != null
+            val act = move.takeIf { early && it == u.guess && it != Move.Nothing && it !in u.taken }
             u.guess = move
             return act?.also { take(it, heard.n, cat) } ?: Move.Nothing
         }
         u.over = true
         when {
             move in u.taken -> return Move.Nothing
-            move is Move.Ask -> {
-                offer = move.options.map(cat::itemOf)
+            said.startsWith("ask") -> {
+                if (coming != null) stopped() // a choice replaces an announce
+                offer = (move as Move.Ask).options.map(cat::itemOf)
                 offerAt = heard.n
             }
-            move is Move.Show || move is Move.Control || move == Move.Undo -> take(move, heard.n, cat)
+            move is Move.Show || move is Move.Ask || move is Move.Control || move == Move.Undo -> take(move, heard.n, cat)
             else -> {}
         }
         return move
@@ -116,7 +133,10 @@ class ModelAgent(
 
     /** What the audience sees now: a slide or picture on the stage, or a tab, file or app in front of it. */
     private fun observe(t: Target?, cat: Catalog, heard: Heard) {
-        if (looked && same(t, seen)) return
+        if (looked && same(t, seen)) {
+            if (coming?.second?.let { it.elapsedNow() > LANDS } == true) stopped()
+            return
+        }
         seen = t
         val item = t?.let(cat::itemOf)
         when {
@@ -133,6 +153,14 @@ class ModelAgent(
         looked = true
         expect = null
         quiet = false
+        coming = null
+    }
+
+    /** Its announce never reached the screen: nothing it was about is shown. */
+    private fun stopped() {
+        coming = null
+        shown = null
+        expect = null
     }
 
     /** An utterance starts from the screen as it is now, with what was offered and shown before it. */
@@ -150,11 +178,15 @@ class ModelAgent(
     private fun take(m: Move, n: Int, cat: Catalog) {
         u.taken += m
         offer = emptyList()
-        if (m is Move.Show) {
-            shown = cat.itemOf(m.target)
+        val t = (m as? Move.Show)?.target ?: (m as? Move.Ask)?.options?.single()
+        val dropped = coming != null && t == null // an announce gives way to whatever else is done
+        if (dropped) stopped()
+        if (t != null) {
+            shown = cat.itemOf(t)
             shownAt = n
-            expect = m.target
-        } else if (m == Move.Undo || m == Move.Control("close")) {
+            expect = t
+            coming = if (m is Move.Ask) t to time.markNow() else null
+        } else if (m == Move.Undo && !dropped || m == Move.Control("close")) {
             shown = null
             quiet = true
         }
@@ -165,20 +197,21 @@ class ModelAgent(
         val arg = said.substringAfter(' ', "")
         val now = front ?: stage
         fun show(c: Item?) = if (c == null || same(c.target, now?.target)) Move.Nothing else Move.Show(c.target)
+        fun pick(c: Item?) = show(c).let { if (it is Move.Show) Move.Ask(listOf(it.target)) else it }
         val deck = s.screen as? Item.Slide ?: s.behind ?: u.last ?: cat.firstSlide
         fun page(p: Int) = deck?.let { cat.slide(it.target.deck, p) }
         return when (said.substringBefore(' ')) {
             "wait" -> Move.Wait
             "unsure" -> Move.Unsure
-            "show" -> show(s.candidates[arg.toInt() - 1])
+            "show" -> pick(s.candidates[arg.toInt() - 1])
             "ask" -> Move.Ask(arg.split(' ').map { s.candidates[it.toInt() - 1].target }.distinct())
             "slide" -> show(page(arg.toInt()))
             "next" -> show(deck?.let { page(it.page + 1) })
             "previous" -> show(deck?.let { page(it.page - 1) })
             "slides" -> show(s.behind ?: u.last ?: cat.firstSlide)
-            "open" -> cat.named(arg)?.let(::show)
-                ?: if ('.' in arg) show(Catalog.site(Target.Site("https://" + arg.replace(" ", ""), arg))) else Move.Unsure
-            "search" -> Move.Show(search(arg))
+            "open" -> cat.named(arg)?.let(::pick)
+                ?: if ('.' in arg) pick(Catalog.site(Target.Site("https://" + arg.replace(" ", ""), arg))) else Move.Unsure
+            "search" -> pick(Catalog.site(search(arg)))
             "click" -> Move.Control("click:$arg")
             "control" -> Move.Control(arg)
             "close" -> Move.Control("close")
