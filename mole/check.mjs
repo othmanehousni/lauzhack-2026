@@ -180,4 +180,12 @@ for (const state of ["retrieving", "ready", "back", "thinking", "waiting", "tunn
   assert(Math.abs(rig.pose().fan) < 0.05 && rig.pose().card > 0.95, `picked folds the fan into one held card (fan ${rig.pose().fan})`);
 }
 
+// No bullet, middle dot, em or en dash as a separator anywhere in the mole's files, comments included.
+for (const file of ["index.html", "mole.js", "mole.css"]) {
+  readFileSync(new URL(`./${file}`, import.meta.url), "utf8").split("\n").forEach((line, i) => {
+    const found = line.match(/[\u2022\u00b7\u2014\u2013]/);
+    assert(!found, `mole/${file}:${i + 1} has U+${found?.[0].codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}: ${line.trim()}`);
+  });
+}
+
 console.log("ok");
