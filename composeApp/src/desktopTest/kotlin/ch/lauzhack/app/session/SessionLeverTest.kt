@@ -133,7 +133,7 @@ class SessionLeverTest {
             }
             val session = Session(agent, screen, mole, typed(input).map { it.heard })
             val running = launch { session.run() }
-            var n = 0
+            var n = 0 // the utterance heard before the line typed last
             var typedAt = 0L
 
             fun type(said: String) {
@@ -141,7 +141,7 @@ class SessionLeverTest {
                 println("%6d ms  > %s".format(typedAt, said))
                 keyboard.write("$said\n".toByteArray())
                 keyboard.flush()
-                n++
+                n = session.heard.value.n
             }
 
             /** Types [said] as one utterance (unless [typed] already) and waits until the agent has had it and the mole has settled. */
@@ -151,7 +151,7 @@ class SessionLeverTest {
                     while (true) {
                         val (at, l) = lines.last()
                         val heard = session.heard.value
-                        if (heard.n == n && heard.ended && l.state in setOf(MoleState.Hidden, MoleState.Idle, MoleState.Choosing) &&
+                        if (heard.n > n && heard.ended && said.endsWith(heard.text) && l.state in setOf(MoleState.Hidden, MoleState.Idle, MoleState.Choosing) &&
                             t0.elapsedNow().inWholeMilliseconds - at > 1200) return@withTimeout
                         delay(100)
                     }

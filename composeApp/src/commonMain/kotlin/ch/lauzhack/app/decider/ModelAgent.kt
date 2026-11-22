@@ -8,6 +8,7 @@ import ch.lauzhack.app.Move
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.session.ANNOUNCE
+import ch.lauzhack.app.session.WAIT
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -18,6 +19,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.Volatile
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -27,6 +29,10 @@ private val EARLY = setOf("show", "slide", "next", "previous", "slides", "contro
 
 /** How long an announce may take to reach the screen; past this it was stopped on the bar, or failed. */
 private val LANDS = ANNOUNCE + 1500.milliseconds
+
+/** How soon after an utterance nothing acted on the next one goes on from it: the presenter paused inside a sentence. */
+private val JOIN = 2.seconds
+private const val JOINED = 2 // utterances one goes on from, at most
 
 /**
  * The agent of tune/CONTRACT.md: [catalog] retrieves the candidates with [embedder], [model] answers one line of the
@@ -49,10 +55,16 @@ class ModelAgent(
     /** The model's answer in the last decision, or null when it was not asked; for the log. */
     var answer: String? = null; private set
 
-    private class Utterance(val n: Int, val start: State, val offered: List<Item>, val deck: Item.Slide?, val last: Item.Slide?) {
+    /** [before]: the words of the [parts] utterances it goes on from, which nothing acted on; [moving]: the show the
+     * last one made, not yet on screen. */
+    private class Utterance(
+        val n: Int, val start: State, val offered: List<Item>, val deck: Item.Slide?, val last: Item.Slide?,
+        val before: String = "", val parts: Int = 0, val moving: Move.Show? = null,
+    ) {
         var text = ""
         var words = 0
         var over = false
+        var ended: TimeMark? = null
         var said = "nothing"
         var guess: Move = Move.Nothing
         val taken = mutableListOf<Move>()
@@ -111,14 +123,16 @@ class ModelAgent(
         observe(onScreen.target, cat, heard)
         if (heard.n != u.n || u.over && heard.text != u.text) begin(heard.n, cat)
         if (u.over) return Move.Nothing
-        if (heard.text.isBlank()) return Move.Nothing.also { u.over = heard.ended }
-        val words = heard.text.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
+        if (heard.text.isBlank()) return Move.Nothing.also { if (heard.ended) over() }
+        val now = listOf(u.before, heard.text).filter(String::isNotBlank).joinToString(" ")
+        val earlier = heard.earlier.dropLast(u.parts)
+        val words = now.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
         if (heard.quiet && !heard.ended && spoken(heard.text) == spoken(u.text)) return early(u.said, u.guess, heard.n, cat, agreed = true)
         if (!heard.ended && !heard.quiet && words < u.words + (if (coming != null) 1 else 2)) return Move.Nothing
         val open = (u.deck ?: u.last)?.target?.deck
-        val score = cat.scores(queries, heard.text, heard.earlier.lastOrNull(), open)
-        val s = u.start.copy(heard = heard.earlier, now = heard.text, done = heard.ended, candidates = cat.candidates(score, u.offered, open))
-        note("candidates  \"${heard.text}\"${if (heard.ended) "" else " (still talking)"}  " +
+        val score = cat.scores(queries, now, earlier.lastOrNull(), open)
+        val s = u.start.copy(heard = earlier, now = now, done = heard.ended, candidates = cat.candidates(score, u.offered, open))
+        note("candidates  \"$now\"${if (heard.ended) "" else " (still talking)"}  " +
             s.candidates.mapIndexed { i, c -> "${i + 1} ${cat.label(c, score)}" }.joinToString(" | "))
         if (heard.ended) cat.pool(score).forEach(note)
         val g = grammar(s)
@@ -132,9 +146,10 @@ class ModelAgent(
             u.guess = move
             return early(said, move, heard.n, cat, agreed)
         }
-        u.over = true
+        over()
+        u.said = said
         when {
-            move in u.taken -> return Move.Nothing
+            move in u.taken || move == u.moving -> return Move.Nothing
             said.startsWith("ask") -> {
                 if (coming != null) stopped() // a choice replaces an announce
                 offer = (move as Move.Ask).options.map(cat::itemOf)
@@ -150,7 +165,7 @@ class ModelAgent(
      * before gave it too, or the voice has stopped on these words. */
     private fun early(said: String, move: Move, n: Int, cat: Catalog, agreed: Boolean): Move {
         val kind = said.substringBefore(' ') in EARLY || said == "undo" && coming != null
-        if (!kind || !agreed || move == Move.Nothing || move in u.taken) return Move.Nothing
+        if (!kind || !agreed || move == Move.Nothing || move in u.taken || move == u.moving) return Move.Nothing
         take(move, n, cat)
         return move
     }
@@ -187,11 +202,22 @@ class ModelAgent(
         expect = null
     }
 
-    /** An utterance starts from the screen as it is now, or as an announce will leave it (the decider takes back only
-     * what is on screen), with what was offered and shown before it. */
+    private fun over() {
+        u.over = true
+        u.ended = time.markNow()
+    }
+
+    /** An utterance starts from the screen as it is now, or as an announce or the show the last utterance just made
+     * will leave it (the decider takes back only what is on screen), with what was offered and shown before it. It
+     * goes on from the last one if nothing acted on that one and it ended a moment ago ([JOIN], or [WAIT] after a
+     * `wait`): a sentence cut by a pause is decided whole. */
     private fun begin(n: Int, cat: Catalog) {
+        val was = u
+        val joins = was.n == n - 1 && was.over && was.taken.isEmpty() && offerAt != was.n && was.parts < JOINED &&
+            was.ended?.let { it.elapsedNow() <= if (was.said == "wait") WAIT else JOIN } == true
         val offered = if (n - offerAt in 1..3) offer else emptyList()
-        val landing = coming?.first?.let(cat::itemOf)
+        val moving = (was.taken.lastOrNull() as? Move.Show)?.takeIf { same(it.target, expect) }
+        val landing = coming?.first?.let(cat::itemOf) ?: moving?.target?.let(cat::itemOf)
         val over = landing != null && landing !is Item.Slide && !onStage(landing)
         val screen = landing ?: front ?: stage
         val start = State(
@@ -201,7 +227,9 @@ class ModelAgent(
             offered = List(offered.size) { it + 1 },
             shown = shown?.takeIf { n - shownAt in 1..2 },
         )
-        u = Utterance(n, start, offered, stage as? Item.Slide, last)
+        val slide = landing.takeIf { moving != null } as? Item.Slide
+        val before = if (joins) listOf(was.before, was.text).filter(String::isNotBlank).joinToString(" ") else ""
+        u = Utterance(n, start, offered, slide ?: stage as? Item.Slide, slide ?: last, before, if (joins) was.parts + 1 else 0, moving)
     }
 
     private fun take(m: Move, n: Int, cat: Catalog) {

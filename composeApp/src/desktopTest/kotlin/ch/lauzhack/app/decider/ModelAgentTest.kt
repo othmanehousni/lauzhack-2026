@@ -14,6 +14,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 /** The shared screen as AgentDesktop and the session change it: slides and pictures on the stage, the rest in front; an
  * announce is shown as if its window had run out. */
@@ -288,6 +291,36 @@ class ModelAgentTest {
         assertEquals(Move.Nothing, mapped("hello there"))
         assertEquals(Move.Nothing, Run().say("show me the plan now", "show 6 please", "show 6 please", "nothing").last())
         assertEquals(listOf(Move.Nothing, Move.Nothing), Run().say("close it now", "close", "close"), "nothing to close on the desktop")
+    }
+
+    @Test
+    fun aSentenceCutByAPauseIsDecidedWholeIfThePauseWasAMomentAndNothingActedOnIt() = runBlocking {
+        val time = TestTimeSource()
+        val answers = ArrayDeque(listOf("nothing", "nothing", "wait", "nothing", "nothing", "next", "nothing"))
+        val asked = mutableListOf<String>()
+        val agent = ModelAgent(catalog, Flat, { p, _ -> asked += p; answers.removeFirst() }, time)
+        val said = mutableListOf<String>()
+        suspend fun say(text: String, after: Duration): String {
+            time += after
+            agent.anythingToDo(Heard(text, true, said.size + 1, said.takeLast(3)), OnScreen(slide(1).target))
+            said += text
+            return asked.last().lines().filter { it.startsWith("heard") || it.startsWith("now") }.joinToString(" | ")
+        }
+        assertEquals("now (done): The robot learns from five.", say("The robot learns from five.", 0.seconds))
+        assertEquals("now (done): The robot learns from five. photos", say("photos", 1.seconds))
+        assertEquals("heard: The robot learns from five. | heard: photos | now (done): Open up, um", say("Open up, um", 3.seconds))
+        assertEquals("heard: The robot learns from five. | heard: photos | now (done): Open up, um the plan", say("the plan", 5.seconds), "after a wait, longer")
+        assertEquals("heard: photos | now (done): Open up, um the plan I mean", say("I mean", 0.seconds))
+        assertEquals("heard: the plan | heard: I mean | now (done): Next slide.", say("Next slide.", 0.seconds), "on from two at most")
+        assertEquals("heard: I mean | heard: Next slide. | now (done): Okay.", say("Okay.", 0.seconds), "not after a move")
+    }
+
+    @Test
+    fun aCommandAfterAShowNotYetOnScreenGoesOnFromItAndDoesNotRepeatIt() {
+        val r = Run(slide(1).target, apply = false)
+        assertEquals(listOf(Move.Show(slide(2).target)), r.say("Next slide.", "next"))
+        assertEquals(listOf(Move.Show(slide(3).target)), r.say("Next slide.", "next"))
+        assertEquals(listOf(Move.Nothing), r.say("please", "slide 3"))
     }
 
     @Test
