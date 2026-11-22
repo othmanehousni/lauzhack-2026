@@ -51,7 +51,7 @@ fun items(decks: List<DeckPage>, apps: List<String>, files: List<String>, sites:
     val slides = decks + recents?.decks.orEmpty().flatMap { it.pages }
     val pages = slides.groupingBy { it.deck }.eachCount()
     return slides.map {
-        Item.Slide(it.deck.replace('_', ' '), it.page, pages.getValue(it.deck), it.title, it.text.removePrefix(it.title).trim(), Target.Slide(it.deck, it.page, it.title))
+        Item.Slide(it.deck.replace('_', ' '), it.page, pages.getValue(it.deck), it.title, it.points, Target.Slide(it.deck, it.page, it.title))
     } + (sites.map(Catalog::site) + recents?.pages.orEmpty().map(::page)).distinctBy { Catalog.site(it.target).url } +
         apps.map { Item.App(it, Target.App(it)) } + (recents?.files.orEmpty().map { it.path } + files).distinct().map(Catalog::file)
 }
@@ -67,12 +67,12 @@ fun vocabulary(items: List<Item>): List<String> {
     return names.map(::clean).filter(String::isNotEmpty).distinct()
 }
 
-private const val FILES = 1500 // the newest, after those used in the last 14 days: what the rules searched
 private val REBUILD = 1.minutes  // a page opened a minute ago is a candidate
 
 /**
- * The model decides: [ModelAgent] over the desk's decks, apps and files, the bookmarks and what the presenter saw lately
- * (AgentDesktop.recents). A call starts on what is quick to have: the library, the apps, the bookmarks and whatever was
+ * The model decides: [ModelAgent] over the desk's decks and apps, the bookmarks and what the presenter saw lately
+ * (AgentDesktop.recents), of which only the files used or changed in the last 14 days, not the Mac's newest 1500
+ * (tune/CONTRACT.md, Candidates at real scale). A call starts on what is quick to have: the library, the apps, the bookmarks and whatever was
  * embedded before; the rest is embedded in the background, and the catalog is rebuilt every [REBUILD] of the call.
  * Vectors are kept on disk by document, so a restart or a rebuild embeds only what is new, except those of the browser's
  * pages, which stay in memory as the history does.
@@ -102,11 +102,12 @@ class ModelBrain(private val engines: Engines) : Brain {
         val all = items(desk.decks, desk.apps, emptyList(), recents = recents)
         val base = items(desk.decks, desk.apps, emptyList())
         val quick = base.toSet()
-        val agent = ModelAgent(build(all.filter { it in quick || Catalog.doc(it) in known }, recents, whole = false), embedder, model)
+        val meeting = desk.decks.map { it.deck }.toSet()
+        val agent = ModelAgent(build(all.filter { it in quick || Catalog.doc(it) in known }, meeting, recents, whole = false), embedder, model, note = ::log)
         scope.launch(Dispatchers.Default) {
             var seen = recents
             while (true) {
-                agent.catalog = build(items(desk.decks, desk.apps, desk.newestFiles(FILES), recents = seen), seen, whole = true)
+                agent.catalog = build(items(desk.decks, desk.apps, emptyList(), recents = seen), meeting, seen, whole = true)
                 delay(REBUILD)
                 seen = desk.recents()
             }
@@ -115,9 +116,10 @@ class ModelBrain(private val engines: Engines) : Brain {
     }
 
     /** The catalog of [items], embedding only what is new; a [whole] one is all there is to keep. */
-    private suspend fun build(items: List<Item>, recents: Recents, whole: Boolean): Catalog {
+    private suspend fun build(items: List<Item>, meeting: Set<String>, recents: Recents, whole: Boolean): Catalog {
         val t = TimeSource.Monotonic.markNow()
-        val catalog = Catalog.build(items, embedder, known)
+        val recent = (recents.files.map { it.target } + recents.pages.map { it.target }).toSet()
+        val catalog = Catalog.build(items, embedder, known, meeting, recent)
         val new = catalog.known.keys.count { it !in known }
         known = if (whole) catalog.known else known + catalog.known
         recents.pages.mapTo(browsed) { Catalog.doc(page(it)) }

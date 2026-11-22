@@ -39,6 +39,7 @@ class ModelAgent(
     private val embedder: Embedder,
     private val model: suspend (prompt: String, grammar: String?) -> String,
     private val time: TimeSource = TimeSource.Monotonic,
+    private val note: (String) -> Unit = {},
 ) : Agent {
     @Volatile var catalog: Catalog = catalog
 
@@ -102,10 +103,11 @@ class ModelAgent(
         if (heard.text.isBlank()) return Move.Nothing.also { u.over = heard.ended }
         val words = heard.text.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
         if (!heard.ended && words < u.words + (if (coming != null) 1 else 2)) return Move.Nothing
-        val s = u.start.copy(
-            heard = heard.earlier, now = heard.text, done = heard.ended,
-            candidates = cat.candidates(embedder, heard.text, heard.earlier.lastOrNull(), u.offered),
-        )
+        val score = cat.scores(embedder, heard.text, heard.earlier.lastOrNull())
+        val s = u.start.copy(heard = heard.earlier, now = heard.text, done = heard.ended, candidates = cat.candidates(score, u.offered, (u.deck ?: u.last)?.target?.deck))
+        note("candidates  \"${heard.text}\"${if (heard.ended) "" else " (still talking)"}  " +
+            s.candidates.mapIndexed { i, c -> "${i + 1} ${cat.label(c, score)}" }.joinToString(" | "))
+        if (heard.ended) cat.pool(score).forEach(note)
         val g = grammar(s)
         val said = model(prompt(s), if (heard.ended) g else null).trim().also { answer = it }.takeIf { Regex(g).matches(it) } ?: "nothing"
         u.text = heard.text
@@ -206,7 +208,7 @@ class ModelAgent(
         return when (said.substringBefore(' ')) {
             "wait" -> Move.Wait
             "unsure" -> Move.Unsure
-            "show" -> pick(s.candidates[arg.toInt() - 1])
+            "show" -> arg.toInt().let { if (it <= s.offered.size) show(s.candidates[it - 1]) else pick(s.candidates[it - 1]) } // an offered one is the presenter's choice
             "ask" -> Move.Ask(arg.split(' ').map { s.candidates[it.toInt() - 1].target }.distinct())
             "slide" -> show(page(arg.toInt()))
             "next" -> show(deck?.let { page(it.page + 1) })
