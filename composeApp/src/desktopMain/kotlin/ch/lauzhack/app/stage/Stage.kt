@@ -166,6 +166,9 @@ class Stage(private val vm: Vm?, data: File, private val port: Int, private val 
             // DevTools port, would come forward instead of the stage.
             vm.guest("for p in \$(pgrep -x 'Google Chrome'); do ps -o command= -p \$p | grep -q remote-debugging || kill \$p; done; true")
             vm.forward(port, GUEST_PORT)
+            // Nothing here touches the VM's mouse or keyboard: its display would sleep after ten idle minutes and leave
+            // the audience on a black screen. Wakes it, and keeps it awake for as long as the VM runs.
+            vm.guest("caffeinate -u -t 1; pgrep -x caffeinate >/dev/null || (nohup caffeinate -d -i >/dev/null 2>&1 &)")
         }
         if (dry) return launch()
         if (!answers()) {
