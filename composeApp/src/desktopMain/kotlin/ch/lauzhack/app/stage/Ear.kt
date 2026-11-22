@@ -1,7 +1,16 @@
 package ch.lauzhack.app.stage
 
 import ch.lauzhack.app.Heard
+import java.io.BufferedReader
+import java.io.File
+import java.io.InputStream
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -12,19 +21,13 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.io.BufferedReader
-import java.io.File
-import java.io.InputStream
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeSource
 
 /** What the presenter said, `ago` how long the words had been unchanged when it arrived, and `stopped` when that was:
  * the log's "text Nms" is `ago`, its "N ms after you stopped" is `stopped.elapsedNow()` once the screen changed. */
@@ -55,12 +58,12 @@ class Ear(private val data: File = DATA) {
 
     /** hear.swift as a program in the app's data, built again when the source changes. Its Info.plist names why it
      * needs the microphone. */
-    fun built(): File {
+    fun built(): File = synchronized(Ear::class.java) {
         val source = File(data, "hear.swift")
         val exe = File(data, "hear")
         val swift = Ear::class.java.getResource("/stage/hear.swift")!!.readText()
         val plist = File(data, "hear.plist")
-        if (source.exists() && source.readText() == swift && plist.exists() && plist.readText() == PLIST && exe.lastModified() >= source.lastModified()) return exe
+        if (source.exists() && source.readText() == swift && plist.exists() && plist.readText() == PLIST && exe.lastModified() >= source.lastModified()) return@synchronized exe
         if (exec(listOf("xcode-select", "-p"), check = false).isBlank()) error("the ear needs Xcode's command line tools: xcode-select --install")
         data.mkdirs()
         source.writeText(swift)
@@ -68,21 +71,44 @@ class Ear(private val data: File = DATA) {
         exec(listOf("swiftc", "-O", "-swift-version", "5", "-parse-as-library", source.path, "-o", exe.path,
             "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", plist.path),
             what = "building hear.swift")
-        return exe
+        exe
     }
 
     /** Listens, listening for `names` (apps, websites, slide titles) in particular, until the helper stops or this is
-     * cancelled. With `files`, it hears those instead of the microphone, at the pace they would be spoken. */
-    suspend fun listen(names: List<String>, files: List<File> = emptyList()) = withContext(Dispatchers.IO) {
-        val log = File(data, "hear.log")
-        val p = ProcessBuilder(listOf(built().path) + files.map { it.path }).redirectError(log).start()
-        p.outputStream.bufferedWriter().use { w -> names.map(String::trim).filter(String::isNotEmpty).forEach { w.write(it + "\n") }; w.write("\n") }
-        val code = try {
-            read(p.inputStream.bufferedReader())
-            p.waitFor()
-        } finally {
-            p.destroy()
+     * cancelled. [pcm] supplies live phone audio. With [files], it hears recorded audio at speaking pace. */
+    suspend fun listen(names: List<String>, files: List<File> = emptyList(), pcm: Flow<ByteArray>? = null) = withContext(Dispatchers.IO) {
+        val log = File(data, if (pcm == null) "hear.log" else "hear-phone.log")
+        val args = if (pcm == null) files.map { it.path } else listOf("--phone-pcm") + names
+        val p = ProcessBuilder(listOf(built().path) + args).redirectError(log).start()
+        // A cancelled meeting must unblock both the pipe reader and the writer, even during model startup.
+        val cleanup = launch(start = CoroutineStart.UNDISPATCHED) {
+            try { awaitCancellation() } finally { p.destroyForcibly() }
         }
+        val writer = launch {
+            try {
+                p.outputStream.use { out ->
+                    if (pcm != null) pcm.collect { out.write(it); out.flush() }
+                    else out.bufferedWriter().use { w ->
+                        names.map(String::trim).filter(String::isNotEmpty).forEach { w.write(it + "\n") }
+                        w.write("\n")
+                    }
+                }
+            } catch (e: java.io.IOException) {
+                currentCoroutineContext().ensureActive()
+                throw e
+            }
+        }
+        val code = try {
+            p.inputStream.bufferedReader().use { read(it) }
+            p.waitFor()
+        } catch (e: java.io.IOException) {
+            currentCoroutineContext().ensureActive()
+            throw e
+        } finally {
+            cleanup.cancel()
+            writer.cancel()
+        }
+        currentCoroutineContext().ensureActive()
         if (code != 0) error("hear.swift stopped with code $code: ${log.readText().trim()}")
     }
 

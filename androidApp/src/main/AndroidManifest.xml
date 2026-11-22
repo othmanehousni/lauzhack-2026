@@ -5,12 +5,6 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <queries>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
-    </queries>
-
     <!-- The laptop serves plain ws:// on the local network. A remote held in one hand stays upright: on its side the
          choice rows have no room. A resize (a large screen ignores the lock) keeps the activity, so the link and the
          recognizer survive. singleTop, so a laptop address given to the running app (am start -e laptop) reaches onNewIntent. -->

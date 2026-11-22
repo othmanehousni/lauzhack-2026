@@ -101,6 +101,22 @@ final class Feed: @unchecked Sendable {
         if error == nil, out.frameLength > 0 { inputs.yield(AnalyzerInput(buffer: out)) }
     }
 
+    /// PCM16LE from Android on stdin. fread assembles a full block across partial pipe writes.
+    func listenToPhone() {
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        var pcm = [Int16](repeating: 0, count: 1600)
+        while true {
+            let n = pcm.withUnsafeMutableBytes { fread($0.baseAddress!, 2, $0.count / 2, stdin) }
+            guard n > 0 else { break }
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)) else { break }
+            buffer.frameLength = AVAudioFrameCount(n)
+            let samples = buffer.floatChannelData![0]
+            for i in 0..<n { samples[i] = Float(Int16(littleEndian: pcm[i])) / 32768 }
+            push(buffer)
+        }
+        inputs.finish()
+    }
+
     /// Each file at the pace it would be spoken, then silence; stops the program after the last one.
     func play(_ paths: [String]) async throws {
         for (n, path) in paths.enumerated() {
@@ -166,8 +182,12 @@ final class Utterance {
 struct Hear {
     @MainActor
     static func main() async throws {
-        var names: [String] = []
-        while let line = readLine(), !line.isEmpty { names.append(line) }
+        let arguments = Array(CommandLine.arguments.dropFirst())
+        let phone = arguments.first == "--phone-pcm"
+        var names = phone ? Array(arguments.dropFirst()) : []
+        if !phone {
+            while let line = readLine(), !line.isEmpty { names.append(line) }
+        }
 
         guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: "en-US")) else {
             fail("this Mac has no English model for SpeechTranscriber")
@@ -191,16 +211,21 @@ struct Hear {
         let (inputs, continuation) = AsyncStream.makeStream(of: AnalyzerInput.self)
         let feed = Feed(format, continuation)
         try await analyzer.start(inputSequence: inputs)
-        let files = Array(CommandLine.arguments.dropFirst())
         let engine = AVAudioEngine()
-        if files.isEmpty {
+        if phone {
+            Task.detached {
+                feed.listenToPhone()
+                do { try await analyzer.finalizeAndFinishThroughEndOfInput() }
+                catch { fail("finishing phone audio: \(error)") }
+            }
+        } else if arguments.isEmpty {
             let mic = engine.inputNode.outputFormat(forBus: 0)
             engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: mic) { buffer, _ in feed.push(buffer) }
             engine.prepare()
             try engine.start()
             emit(["note": "listening... (ctrl-c to stop)"])
         } else {
-            Task.detached { try await feed.play(files) }
+            Task.detached { try await feed.play(arguments) }
         }
 
         let utterance = Utterance()

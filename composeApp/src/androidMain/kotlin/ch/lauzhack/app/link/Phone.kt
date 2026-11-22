@@ -20,8 +20,10 @@ import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -29,8 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The phone as the Android screen sees it: [state] for MolePhone, [onPick] for its taps. Hears with the on-device
- * recognizer while [listen] is on (the activity is started and the microphone granted), and buzzes when the mole needs
+ * The phone as the Android screen sees it: [state] for MolePhone, [onPick] for its taps. Streams microphone audio while [listen] is on (the activity is started and the microphone granted), and buzzes when the mole needs
  * the presenter: a choice, an announce that can still be stopped, a failure, each its own pattern. Build it on the main thread.
  */
 class Phone(context: Context, scope: CoroutineScope) {
@@ -44,25 +45,24 @@ class Phone(context: Context, scope: CoroutineScope) {
         beacon = { withContext(Dispatchers.IO) { hearBeacon(app) } },
     )
     private val foregroundMic = MutableStateFlow(false)
-    private val ears = Ears(app, client::words, client::level, client::mic)
+    private val issue = MutableStateFlow<String?>("Allow microphone access for Molière to use the phone mic.")
+    val micIssue = issue.asStateFlow()
 
     val state: StateFlow<PhoneState> = client.state
     var manual: String? by client::manual // "host" or "host:port", tried when nothing else answers
 
     fun onPick(index: Int) = client.pick(index)
     fun listen(on: Boolean) {
+        if (on && !foregroundMic.value) issue.value = null
         foregroundMic.value = on
-        if (!on) ears.stop()
     }
 
     init {
         scope.launch(Dispatchers.Main.immediate) {
-            try {
-                combine(foregroundMic, state) { allowed, phone -> allowed && phone.connected }
-                    .distinctUntilChanged().collect { if (it) ears.start() else ears.stop() }
-            } finally {
-                ears.stop()
-            }
+            combine(foregroundMic, state) { allowed, phone -> allowed && phone.acceptsAudio }
+                .distinctUntilChanged().collectLatest { capture ->
+                    if (capture) streamMicrophone(client) { issue.value = it }
+                }
         }
         val vibrator = app.getSystemService(VibratorManager::class.java)
         // Asked for like a call: these short effects would count as touch feedback, which Android drops while the app is

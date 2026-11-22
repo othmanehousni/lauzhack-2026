@@ -4,13 +4,16 @@ import ch.lauzhack.app.Choice
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.MoleState
+import ch.lauzhack.app.session.microphoneWords
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import java.net.ServerSocket
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +22,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.count
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -73,6 +78,16 @@ class LoopbackTest {
                 phone.state.first { it.phoneLeads }
                 phone.mic(false)
                 phone.state.first { it.connected && !it.phoneLeads }
+                // Some recognizers deliver words before their first ready or level callback.
+                val listening = CompletableDeferred<Unit>()
+                val routed = async {
+                    microphoneWords(emptyFlow(), laptop.words.onSubscription { listening.complete(Unit) }, laptop::usesPhoneMic).first()
+                }
+                listening.await()
+                val firstCommand = Heard("next slide", ended = true)
+                phone.words(firstCommand)
+                assertEquals(firstCommand, routed.await())
+                phone.state.first { it.phoneLeads }
                 laptopDb.value = -30f
                 phone.mic(true)
 
@@ -96,6 +111,41 @@ class LoopbackTest {
         } finally {
             phoneScope.cancel()
             laptop.stop()
+        }
+    }
+
+    @Test
+    fun rawPhoneAudioReachesTheDesktopTranscriber(): Unit = runBlocking {
+        val port = ServerSocket(0).use { it.localPort }
+        val packet = ByteArray(PCM_BYTES) { if (it % 2 == 0) 0 else 64 }
+        val mac = MutableStateFlow<Float?>(null)
+        val received = CompletableDeferred<ByteArray>()
+        val server = PhoneServer(MutableStateFlow(MoleLine()), MutableStateFlow(Link.Screen()), MutableStateFlow("Audio"),
+            mac, port, "127.0.0.1", beacon = false) { pcm, words ->
+            pcm.collect {
+                received.complete(it)
+                words(Heard("next slide", ended = true))
+            }
+        }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        server.start()
+        try {
+            withTimeout(10.seconds) {
+                val phone = LaptopClient(scope, HttpClient(CIO) { install(WebSockets) }, port)
+                phone.state.first { it.acceptsAudio }
+                val heard = async(start = CoroutineStart.UNDISPATCHED) { server.words.first() }
+                phone.audio(byteArrayOf(0)) // partial PCM frames do not reach the transcriber
+                phone.audio(packet)
+                assertContentEquals(packet, received.await())
+                assertEquals(-6.02f, pcmDecibels(packet), 0.01f)
+                assertEquals(Heard("next slide", ended = true), heard.await())
+                phone.state.first { it.phoneLeads }
+                phone.mic(false)
+                phone.state.first { !it.phoneLeads }
+            }
+        } finally {
+            scope.cancel()
+            server.stop()
         }
     }
 

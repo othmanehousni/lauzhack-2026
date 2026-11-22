@@ -2,7 +2,7 @@
 
 Molière listens to you during a call and puts the right slide, file, website or app on the screen you share. You talk to your audience as usual. Molière works out when you are asking for something and drives the shared screen for you.
 
-It is one Kotlin Compose Multiplatform app: a desktop app on your Mac and an Android companion on the phone in your hand. Each device recognizes speech locally. Both presentation models run on your Mac. The models run inside the app, and there is no model server.
+It is one Kotlin Compose Multiplatform app: a desktop app on your Mac and an Android companion on the phone in your hand. The Mac recognizes speech from either microphone. Both presentation models run on your Mac. The models run inside the app, and there is no model server.
 
 ## What the presenter sees
 
@@ -112,7 +112,7 @@ Molière has no Dock icon. Its mole is in the menu bar. The mise launcher uses t
 
 To install the phone app on a connected Android phone, run `mise run android`. For an emulator, run `mise run android:emulator:setup` once, then `mise run android:emulator` in another terminal before `mise run android`. Put the phone and the Mac on the same network, for example the phone's hotspot. The phone finds the laptop once a meeting runs. It shows a full-width preview of the shared slide or browser tab.
 
-Allow microphone access and keep the companion open. Speak near the Mac for a few seconds so Molière can compare the two microphones. As you walk away with the phone, the mic indicator switches to **Phone** when the phone hears you better. It returns to **Laptop** when you come back or leave the companion. The phone needs on-device English speech recognition. It sends the recognized words and microphone levels to Molière. Your call app manages its own microphone.
+Allow microphone access and keep the companion open. Speak near the Mac for a few seconds so Molière can compare the two microphones. As you walk away with the phone, the mic indicator switches to **Phone** when the phone hears you better. It returns to **Laptop** when you come back or leave the companion. During a meeting the phone streams microphone audio to the Mac over the local, unencrypted WebSocket connection. The Mac transcribes it locally. Leaving the Android app stops the stream. Your call app manages its own microphone.
 
 `DEMO.txt` is the full walkthrough: the 17 test lines with what each must do, permissions, the phone, what to do when something goes wrong, and a three minute run for the jury. The comment above `fun main` in `composeApp/src/desktopMain/kotlin/ch/lauzhack/app/Main.kt` lists every flag.
 

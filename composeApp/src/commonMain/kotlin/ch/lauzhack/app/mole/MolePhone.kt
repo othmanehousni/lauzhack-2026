@@ -57,6 +57,7 @@ fun MolePhone(
     modifier: Modifier = Modifier,
     theme: MoleTheme = MoleTheme.System,
     connected: Boolean = true,
+    micIssue: String? = null,
 ) = Themed(theme) {
     val c = LocalMoleColors.current
     SystemBars(c.paper)
@@ -77,6 +78,9 @@ fun MolePhone(
                 }
                 Mic(phoneLeads)
             }
+        }
+        if (connected && micIssue != null) {
+            BasicText(micIssue, Modifier.padding(horizontal = 20.dp, vertical = 4.dp), style = type(13f, 18f, 400, color = c.ink))
         }
         val preview = thumbnail.takeIf { connected }
         Column(
