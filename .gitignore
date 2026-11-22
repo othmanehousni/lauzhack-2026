@@ -11,3 +11,7 @@ library/
 local.properties
 .android/
 .claude/worktrees/
+# agent tooling installed per machine
+.agents/
+.claude/skills/
+skills-lock.json
