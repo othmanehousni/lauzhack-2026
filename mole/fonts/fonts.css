@@ -1,0 +1,8 @@
+/* Inter 4.1 by Rasmus Andersson, saved locally so every page works offline. SIL Open Font License: Inter-LICENSE.txt. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(InterVariable.woff2) format("woff2");
+}
