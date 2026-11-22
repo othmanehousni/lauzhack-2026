@@ -215,6 +215,9 @@ def noise(rng: random.Random, text: str, p: float = 1.0) -> str:
 def heard_name(rng: random.Random, name: str, p: float = 0.4) -> str:
     if name in SOUNDS and rng.random() < p:
         return rng.choice(SOUNDS[name])
+    w = name.split()
+    if len(w) > 1 and rng.random() < 0.2:
+        name = w[-1] if w[0] in ("Google", "Microsoft", "Apple", "Adobe", "Amazon", "Visual") or rng.random() < 0.5 else w[0]
     return name if rng.random() < 0.6 else name.lower()
 
 
@@ -444,11 +447,15 @@ def request(rng, s: Session, family: str, obj: str, answer: str, target: dict | 
 
 def utter(rng, family: str, segs: list[tuple[str, str]], heard: list[str], cands: list[dict], **state) -> list[dict]:
     """The utterance whole (done), and one or two prefixes while it is spoken, each labelled by what has been said so far."""
-    text_words, labels = [], []
+    text_words, labels, spans = [], [], []
     for t, label in segs:
         w = t.split()
-        text_words += w
-        labels += [None] * (len(w) - 1) + [label] if w else []
+        if w:
+            spans.append((len(text_words), len(text_words) + len(w), label))
+            text_words += w
+    labels = [None] * len(text_words)
+    for _, end, label in spans:
+        labels[end - 1] = label
     if not text_words:
         return []
     final = labels[-1]
@@ -464,12 +471,25 @@ def utter(rng, family: str, segs: list[tuple[str, str]], heard: list[str], cands
         if len(text_words) < 3:
             break
         n = rng.randrange(1, len(text_words))
-        label = next((labels[i] for i in range(n - 1, -1, -1) if labels[i]), "nothing")
+        k = next(i for i, (a, end, _) in enumerate(spans) if a < n <= end)
+        prev = spans[k - 1][2] if k else "nothing"
+        label = spans[k][2] if n == spans[k][1] else prev if prev == spans[k][2] else "wait"
         out.append(ex(family + "/prefix", " ".join(text_words[:n]), label, heard=heard, cands=cands, done=rng.random() < 0.25, **state))
     return out
 
 
 # ------------------------------------------------ families: each returns a few examples, given a fresh session
+
+def namesakes(rng, s: Session, words: str) -> list[dict]:
+    """Files named like a slide or deck, so a request for the slides is told from one for a file."""
+    folder = pick(rng, s.files)["folder"]
+    w = " ".join(x.capitalize() if i == 0 else x for i, x in enumerate(words.split()))
+    return [{"kind": "file", "name": f"{w}{pick(rng, ['', ' notes', ' draft', ' v2', ' export', ' data', ' summary', ' 2026'])}.{pick(rng, ['pdf', 'xlsx', 'docx', 'pptx'])}",
+             "folder": folder} for _ in range(rng.choice([1, 1, 2]))]
+
+
+NOT_OPEN = [v for v in OPENERS if "open" not in v and "load" not in v]
+
 
 def fam_slide_title(rng, s: Session):
     sl = pick(rng, s.slides)
@@ -484,6 +504,9 @@ def fam_slide_title(rng, s: Session):
         obj = pick(rng, CONTENT_OBJ).format(b=b.lower() if rng.random() < 0.6 else b)
     else:
         obj = pick(rng, SLIDE_OBJ).format(t=t)
+    if rng.random() < 0.3:
+        return request(rng, s, "slide over file", obj, "show {n}", sl, near_slides(s, sl) + namesakes(rng, s, sl["title"]), screen, behind,
+                       opener=pick(rng, NOT_OPEN))
     return request(rng, s, "slide title", obj, "show {n}", sl, near_slides(s, sl), screen, behind)
 
 
@@ -537,6 +560,8 @@ def fam_deck(rng, s: Session):
     if screen and screen.get("deck") == cover["deck"]:
         return []
     near = [slide(x, 0) for x in s.decks if x is not d] + [slide(d, i) for i in range(1, min(3, len(d["slides"])))]
+    if rng.random() < 0.35:
+        near += namesakes(rng, s, deck_spoken(rng, d))
     if rng.random() < 0.35:  # the deck named in a preamble, the slides asked for generically
         intro = pick(rng, INTRO).format(t=deck_spoken(rng, d))
         obj = pick(rng, SLIDES_WORDS)
@@ -697,12 +722,15 @@ def fam_file(rng, s: Session):
     k = kind_word(rng, f) if rng.random() < 0.5 else None
     form = pick(rng, FILE_OBJ)
     if k is None:
-        form = form.replace(" {k}", "").replace("the {k} with ", "")
+        form = form.replace("the {k} with ", "").replace(" {k}", "")
     obj = form.format(s=desc, k=k or "")
-    c = candidates(rng, s, [f], near)
+    twin = {**pick(rng, s.slides), "title": stem(f)} if rng.random() < 0.25 else None
+    c = candidates(rng, s, [f] + ([twin] if twin else []), near)
     fits = matches(desc, k, [x for x in c if x["kind"] == "file"])
     if key(f) not in {key(x) for x in fits}:
         return []
+    if twin and k is None:
+        return request(rng, s, "slide over file", obj, f"show {index(c, twin)}", twin, near, screen, behind, cands=c, opener=pick(rng, NOT_OPEN))
     if len(fits) == 1:
         return request(rng, s, "file", obj, f"show {index(c, f)}", f, near, screen, behind, cands=c)
     if len(fits) <= 3:

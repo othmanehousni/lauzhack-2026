@@ -33,8 +33,20 @@ rt = (modal.Image.debian_slim(python_version="3.12")
       .pip_install(TORCH_CPU[0], index_url=TORCH_CPU[1])
       .pip_install("litert-lm==0.19.1", "transformers==5.24.0", "sentencepiece", "numpy")
       .run_commands("mkdir -p /jars", *(f"curl -fsSL -o /jars/{u.rsplit('/', 1)[1]} {u}" for u in JARS))
+      .run_commands("mkdir -p /opt/jdk && curl -fsSL https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse"
+                    " | tar xz -C /opt/jdk --strip-components=1")
       .env({"HF_HOME": "/vol/hf"})
+      .add_local_dir(HERE.parent / "fixtures", "/root/fixtures")
+      .add_local_file(HERE.parent / "brain.py", "/root/brain.py")
+      .add_local_file(HERE.parent / "stage.py", "/root/stage.py")
+      .add_local_dir(HERE.parent / "eval", "/root/eval")
       .add_local_dir(HERE, "/root/tune", ignore=["__pycache__", "data", "*.jsonl"]))
+gpu = (modal.Image.debian_slim(python_version="3.12")
+       .pip_install("torch==2.11.0", "transformers==5.24.0", "accelerate", "sentencepiece")
+       .env({"HF_HOME": "/vol/hf", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"})
+       .add_local_file(HERE.parent / "intents.py", "/root/intents.py")
+       .add_local_dir(HERE.parent / "eval", "/root/eval")
+       .add_local_dir(HERE, "/root/tune", ignore=["__pycache__", "data"]))
 app = modal.App("decider")
 
 
@@ -58,7 +70,7 @@ def finetune(base: str, pairs: list[tuple[str, str]], out: str, steps: int, batc
     from transformers import AutoModelForCausalLM, AutoTokenizer
     torch.manual_seed(seed)
     tok = AutoTokenizer.from_pretrained(base)
-    model = AutoModelForCausalLM.from_pretrained(base, dtype=torch.float32, attn_implementation="eager").to(device)
+    model = AutoModelForCausalLM.from_pretrained(base, dtype=torch.float32, attn_implementation="sdpa" if device == "cuda" else "eager").to(device)
     model.train()
     cap = model.config.get_text_config().final_logit_softcapping
     data = [(tok(chat(p), add_special_tokens=False).input_ids, tok(a + "<end_of_turn>", add_special_tokens=False).input_ids) for p, a in pairs]
@@ -121,6 +133,44 @@ def convert(ckpt: str, outdir: str, name: str) -> str:
     out = max(glob.glob(f"{outdir}/{name}*.litertlm"), key=os.path.getmtime)
     print(f"converted {out} {os.path.getsize(out) / 1e6:.0f} MB in {time.time() - t0:.0f}s", flush=True)
     return out
+
+
+@app.function(image=gpu, gpu="L4", timeout=4 * 3600, volumes={"/vol": vol})
+def train(name: str, seed: int = 0, n: int = 60000, epochs: float = 2.0, lr: float = 1e-4, batch: int = 32, base: str = BASE) -> None:
+    """Build the data in the container, fine-tune the base on it, and score the checkpoint on the dev split (greedy, unconstrained)."""
+    from huggingface_hub import snapshot_download
+    import shutil
+    import subprocess
+    from collections import Counter
+
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    sys.path.insert(0, "/root/tune")
+    from prompt import prompt
+    subprocess.run([sys.executable, "/root/tune/build.py", "--seed", str(seed), "--train", str(n), "--dev", "3000"], check=True)
+    rows = {k: [json.loads(l) for l in open(f"/root/tune/data/{k}.jsonl")] for k in ("train", "dev")}
+    out = f"/vol/{name}"
+    shutil.copytree("/root/tune/data", f"{out}/data", dirs_exist_ok=True)
+    start = "/vol/base" if base == BASE else snapshot_download(base, local_dir=f"/vol/base-{base.split('/')[-1]}")
+    finetune(start, [(prompt(e["state"]), e["answer"]) for e in rows["train"]], f"{out}/ckpt", int(epochs * n / batch), batch, lr, "cuda", seed)
+    vol.commit()
+    tok = AutoTokenizer.from_pretrained(f"{out}/ckpt", padding_side="left")
+    model = AutoModelForCausalLM.from_pretrained(f"{out}/ckpt", dtype=torch.bfloat16).cuda().eval()
+    ok, total = Counter(), Counter()
+    dev = rows["dev"]
+    for i in range(0, len(dev), 64):
+        part = dev[i:i + 64]
+        enc = tok([chat(prompt(e["state"])) for e in part], add_special_tokens=False, return_tensors="pt", padding=True).to("cuda")
+        with torch.no_grad():
+            g = model.generate(**enc, max_new_tokens=16, do_sample=False)
+        for e, row in zip(part, g[:, enc.input_ids.shape[1]:]):
+            got = tok.decode(row, skip_special_tokens=False).split("<end_of_turn>")[0].strip()
+            f = e["family"].split("/")[0] + ("/prefix" if "/" in e["family"] else "")
+            total[f] += 1
+            ok[f] += got == e["answer"]
+    print(f"dev exact {sum(ok.values())}/{sum(total.values())} = {sum(ok.values()) / sum(total.values()):.3f}")
+    for f in sorted(total, key=lambda f: ok[f] / total[f]):
+        print(f"  {f:32} {ok[f]:4}/{total[f]:<4} {ok[f] / total[f]:.2f}")
 
 
 SPACE = "\u2581"  # LiteRT-LM's LLGuidance sees SentencePiece's space mark, not a space: a constraint must spell spaces with it
@@ -274,9 +324,94 @@ def constraint_cost(out: str) -> None:
         print(f"{n}-word prompt:", repr(decide(engine, prompt({**DEMO[0][0], "now": "word " * n}).replace("now (done): ", "now (done): " + "word " * (n - 60)), g.replace(" ", SPACE))))
 
 
+JVM_CHECK = """import com.google.ai.edge.litertlm.*;
+import java.util.*;
+public class T {
+  public static void main(String[] a) throws Exception {
+    Engine e = new Engine(new EngineConfig(a[0], new Backend.CPU(), null, null, 1024));
+    e.initialize();
+    String p = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "UTF-8");
+    Class<?> marker = Class.forName("kotlin.jvm.internal.DefaultConstructorMarker");
+    var config = ConversationConfig.class.getDeclaredConstructor(Contents.class, List.class, List.class, SamplerConfig.class, boolean.class,
+        List.class, Map.class, LoraConfig.class, boolean.class, Integer.class, ThinkingConfig.class, boolean.class, Boolean.class, String.class,
+        SpeculativeDecodingConfig.class, int.class, marker);
+    var send = Conversation.class.getDeclaredMethod("sendMessage$default", Conversation.class, String.class, Map.class,
+        RepetitionPenaltyConfig.class, NoRepeatNgramConfig.class, SuppressTokensConfig.class, Integer.class, ThinkingConfig.class,
+        ResponseFormat.class, int.class, Object.class);
+    for (String rx : new String[]{null, "show 1|nothing", "show\u25811|nothing"}) {
+      long t = System.nanoTime();
+      Conversation c = e.createConversation((ConversationConfig) config.newInstance(null, null, null, new SamplerConfig(1, 1.0, 0.0, 0), false,
+          null, null, null, false, null, null, rx != null, null, null, null, 30711, null));
+      long t1 = System.nanoTime();
+      try {
+        Object m = send.invoke(null, c, p, null, null, null, null, null, null, rx == null ? null : ResponseFormat.Companion.regex(rx), 126, null);
+        System.out.println("JVM " + rx + " -> " + m + String.format(" create %.2fs send %.2fs", (t1 - t) / 1e9, (System.nanoTime() - t1) / 1e9));
+      } catch (Throwable x) { System.out.println("JVM " + rx + " -> " + (x.getCause() != null ? x.getCause() : x)); }
+      c.close();
+    }
+  }
+}
+"""
+
+
+@app.function(image=rt, cpu=4, memory=8192, timeout=1800, volumes={"/vol": vol})
+def jvm_check(out: str) -> None:
+    """The same constraint through LiteRT-LM's JVM API, as the Kotlin app calls it."""
+    import subprocess
+    sys.path.insert(0, "/root/tune")
+    from prompt import prompt
+    Path("/tmp/T.java").write_text(JVM_CHECK)
+    Path("/tmp/p.txt").write_text(prompt(DEMO[0][0]))
+    cp = ":".join(str(p) for p in Path("/jars").glob("*.jar"))
+    c = subprocess.run(["/opt/jdk/bin/javac", "-cp", cp, "-d", "/tmp", "/tmp/T.java"], capture_output=True, text=True)
+    if c.returncode:
+        return print(c.stdout[-2000:], c.stderr[-2000:])
+    r = subprocess.run(["/opt/jdk/bin/java", "-cp", f"/tmp:{cp}", "T", out, "/tmp/p.txt"], capture_output=True, text=True)
+    print("\n".join(l for l in (r.stdout + r.stderr).splitlines() if l.startswith(("JVM", "Exception", "\tat", "Caused")))[:3000])
+
+
 @app.local_entrypoint()
 def derisk(skip: bool = False):
     if not skip:
         derisk_train.remote()
         convert_remote.remote("/vol/derisk/ckpt", "/vol/derisk", "decider")
     derisk_check.remote("/vol/derisk/ckpt", "/vol/derisk/decider_q8_ekv1024.litertlm")
+
+
+@app.function(image=conv, cpu=8, memory=32768, timeout=3600, volumes={"/vol": vol})
+def convert_run(name: str) -> str:
+    out = convert(f"/vol/{name}/ckpt", f"/vol/{name}", "decider")
+    vol.commit()
+    return out
+
+
+@app.function(image=rt, cpu=4, memory=8192, timeout=3 * 3600, volumes={"/vol": vol})
+def score_script(model: str, script: str) -> list[dict]:
+    from huggingface_hub import hf_hub_download
+    sys.path.insert(0, "/root/tune")
+    import score
+    catalog = score.Catalog(hf_hub_download(*EMBEDDER, local_dir="/vol/embedder"))
+    return score.run_script(catalog, score.Decider(model), Path("/root/eval") / script)
+
+
+@app.function(image=rt, cpu=4, memory=8192, timeout=3 * 3600, volumes={"/vol": vol})
+def score_dev(model: str, data: str, start: int, stop: int) -> list:
+    sys.path.insert(0, "/root/tune")
+    import score
+    rows = [json.loads(l) for l in open(data)][start:stop]
+    return score.dev_rows(score.Decider(model), rows)
+
+
+@app.local_entrypoint()
+def evaluate(name: str, scripts: str = "", dev: int = 3000, convert_first: bool = False):
+    """Score /vol/<name>/decider_q8_ekv1024.litertlm on eval scripts (all by default) and the first `dev` dev rows."""
+    if convert_first:
+        convert_run.remote(name)
+    model = f"/vol/{name}/decider_q8_ekv1024.litertlm"
+    names = scripts.split(",") if scripts else sorted(p.name for p in (HERE.parent / "eval").glob("*.jsonl"))
+    calls = [score_script.spawn(model, s) for s in names]
+    chunks = [(model, f"/vol/{name}/data/dev.jsonl", i, min(dev, i + 150)) for i in range(0, dev, 150)]
+    devs = [x for part in score_dev.starmap(chunks) for x in part] if dev else []
+    out = {"scripts": {s: c.get() for s, c in zip(names, calls)}, "dev": devs}
+    Path(f"/tmp/score_{name}.json").write_text(json.dumps(out))
+    print(f"wrote /tmp/score_{name}.json")
