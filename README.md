@@ -148,6 +148,7 @@ modal volume get decider mine/decider_q8_ekv1024.litertlm "$HOME/Library/Applica
 - `composeApp/src/commonTest/` and `composeApp/src/desktopTest/`: the tests.
 - `tune/`: the fine tune of the decider. `tune/CONTRACT.md` is the contract between training and the app, and `tune/prompt.py` is its reference implementation.
 - `rehearsal/`: scored scenarios driven through the packaged app.
+- `~/Library/Logs/Moliere/audio/`: each meeting's audio as the microphone gave it, the newest 500 MB, kept on this Mac only and never sent anywhere, to study a session with `rehearsal/audio.py` or hear it again with `--audio`.
 - `eval/`: the scripts the models are scored on, and the Modal runners. Each line of a script is something said and what the screen should show after it.
 - `fixtures/make_decks.py`: draws the three sample decks into `library/`, which git ignores. They are a company overview, Q3 financials and a product roadmap.
 - `mole/`: the design page the app's look mirrors, `mole/index.html`.
