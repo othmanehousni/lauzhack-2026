@@ -1,0 +1,5 @@
+# Your personal dictionary: names, places, brands and jargon you mouth often, one per line.
+# The corrector can then write them even though the lip model never learned them.
+# Lines starting with # are ignored. Examples (delete or replace):
+# Priya
+# Kubernetes
