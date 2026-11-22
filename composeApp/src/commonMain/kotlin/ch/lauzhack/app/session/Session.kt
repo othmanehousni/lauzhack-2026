@@ -158,22 +158,22 @@ class Session(
             val acted = if (!open.ended && actedOn.n == open.n) actedOn.text.trim().split(SPACE).size else 0
             val end = (if (actedOn.quiet && acted in 1 until words.size) acted - 1 else null)
                 ?: (maxOf(acted, 1) - 1 until words.lastIndex).firstOrNull { words[it].last() in ".?!" } ?: break
-            add(Heard(words.take(end + 1).joinToString(" "), ended = true))
+            add(Heard(words.take(end + 1).joinToString(" "), ended = true, more = true))
             skip += end + 1
             words = words.drop(end + 1)
         }
         val open = later.lastOrNull() ?: heard.value
-        if (words.isNotEmpty()) add(piece.copy(text = words.joinToString(" "))) else if (piece.ended && !open.ended) add(open.copy(ended = true, quiet = false))
+        if (words.isNotEmpty()) add(piece.copy(text = words.joinToString(" "))) else if (piece.ended && !open.ended) add(open.copy(ended = true, quiet = false, more = false))
         if (piece.ended) skip = 0
     }
 
     private fun add(piece: Heard) {
         val last = later.lastOrNull() ?: heard.value
         if (last.ended) {
-            val next = Heard(piece.text, piece.ended, last.n + 1, (last.earlier + last.text).filter(String::isNotBlank).takeLast(EARLIER), piece.quiet)
+            val next = piece.copy(n = last.n + 1, earlier = (last.earlier + last.text).filter(String::isNotBlank).takeLast(EARLIER))
             if (later.isEmpty() && (asked == heard.value || heard.value.text.isEmpty())) _heard.value = next else later += next
         } else {
-            val grown = last.copy(text = piece.text, ended = piece.ended, quiet = piece.quiet)
+            val grown = last.copy(text = piece.text, ended = piece.ended, quiet = piece.quiet, more = piece.more)
             if (later.isEmpty()) _heard.value = grown else later[later.lastIndex] = grown
         }
     }

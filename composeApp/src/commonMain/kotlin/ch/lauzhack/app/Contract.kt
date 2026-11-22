@@ -32,8 +32,12 @@ import kotlinx.serialization.Serializable
 /** What the presenter is saying: the utterance so far, and whether they have stopped. [n] numbers the utterances of a
  * talk, so the same words said twice in a row are two utterances; [earlier] are the few utterances before this one.
  * [quiet]: the voice has gone quiet after these words and they cover all it said, but the recognizer has not finished
- * the utterance, which may yet go on. */
-@Serializable data class Heard(val text: String = "", val ended: Boolean = false, val n: Int = 0, val earlier: List<String> = emptyList(), val quiet: Boolean = false)
+ * the utterance, which may yet go on. [more]: it ended where the recognizer ended a sentence, and words came after it,
+ * which the recognizer also does at a pause inside a sentence: it is not known to be done. */
+@Serializable data class Heard(
+    val text: String = "", val ended: Boolean = false, val n: Int = 0, val earlier: List<String> = emptyList(), val quiet: Boolean = false,
+    val more: Boolean = false,
+)
 
 /** What the audience sees right now. target == null is the bare agent desktop. */
 @Serializable data class OnScreen(val target: Target? = null, val name: String = "")

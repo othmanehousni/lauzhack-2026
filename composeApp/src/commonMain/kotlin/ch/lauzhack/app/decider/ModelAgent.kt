@@ -39,8 +39,9 @@ private const val JOINED = 2 // utterances one goes on from, at most
  * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
  * and the answer becomes a [Move]. An item picked by meaning (`show`, `open`, `search`) is announced as a [Move.Ask] of
  * it, so that a "no" can stop it; until it is on screen, the agent decides on every word and acts on an `undo` that two
- * partial decisions agree on. Otherwise it decides every two words, and at once when the voice stops ([Heard.quiet]),
- * unless it has decided on those words already: then the answer it gave acts without asking the model again. Calls
+ * partial decisions agree on. Otherwise it decides every two words, and at once when the voice stops ([Heard.quiet])
+ * or a sentence ends with more after it ([Heard.more], never decided as done), unless it has decided on those words
+ * already: then the answer it gave acts without asking the model again. Calls
  * run one at a time, and words newer than those of a decision in flight drop it.
  */
 class ModelAgent(
@@ -124,27 +125,29 @@ class ModelAgent(
         if (heard.n != u.n || u.over && heard.text != u.text) begin(heard.n, cat)
         if (u.over) return Move.Nothing
         if (heard.text.isBlank()) return Move.Nothing.also { if (heard.ended) over() }
+        val done = heard.ended && !heard.more
+        val stopped = heard.quiet || heard.more
         val now = listOf(u.before, heard.text).filter(String::isNotBlank).joinToString(" ")
         val earlier = heard.earlier.dropLast(u.parts)
         val words = now.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
-        if (heard.quiet && !heard.ended && spoken(heard.text) == spoken(u.text)) return early(u.said, u.guess, heard.n, cat, agreed = true)
+        if (stopped && !done && spoken(heard.text) == spoken(u.text)) return early(u.said, u.guess, heard.n, cat, agreed = true).also { if (heard.ended) { u.text = heard.text; over() } }
         if (!heard.ended && !heard.quiet && words < u.words + (if (coming != null) 1 else 2)) return Move.Nothing
         val open = (u.deck ?: u.last)?.target?.deck
         val score = cat.scores(queries, now, earlier.lastOrNull(), open)
-        val s = u.start.copy(heard = earlier, now = now, done = heard.ended, candidates = cat.candidates(score, u.offered, open))
-        note("candidates  \"$now\"${if (heard.ended) "" else " (still talking)"}  " +
+        val s = u.start.copy(heard = earlier, now = now, done = done, candidates = cat.candidates(score, u.offered, open))
+        note("candidates  \"$now\"${if (done) "" else " (still talking)"}  " +
             s.candidates.mapIndexed { i, c -> "${i + 1} ${cat.label(c, score)}" }.joinToString(" | "))
-        if (heard.ended) cat.pool(score).forEach(note)
+        if (done) cat.pool(score).forEach(note)
         val g = grammar(s)
-        val said = model(prompt(s), if (heard.ended) g else null).trim().also { answer = it }.takeIf { Regex(g).matches(it) } ?: "nothing"
+        val said = model(prompt(s), if (done) g else null).trim().also { answer = it }.takeIf { Regex(g).matches(it) } ?: "nothing"
         u.text = heard.text
         u.words = words
         val move = move(said, s, cat)
-        if (!heard.ended) {
-            val agreed = heard.quiet || move == u.guess
+        if (!done) {
+            val agreed = stopped || move == u.guess
             u.said = said
             u.guess = move
-            return early(said, move, heard.n, cat, agreed)
+            return early(said, move, heard.n, cat, agreed).also { if (heard.ended) over() }
         }
         over()
         u.said = said

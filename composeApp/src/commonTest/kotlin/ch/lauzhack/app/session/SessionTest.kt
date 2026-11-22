@@ -775,7 +775,8 @@ class SessionTest {
             delay(600)
         }
         delay(2.seconds)
-        assertEquals(listOf("Next slide.", "Next slide.", "Previous slide", "previous slide."), rig.asked.filter { it.second.ended }.map { it.second.text })
+        assertEquals(listOf("Next slide." to true, "Next slide." to false, "Previous slide" to true, "previous slide." to false),
+            rig.asked.filter { it.second.ended }.map { it.second.text to it.second.more })
         assertEquals(listOf("show slide 11", "show slide 12", "show slide 13", "show slide 14"), rig.screen.calls.map { it.second })
     }
 

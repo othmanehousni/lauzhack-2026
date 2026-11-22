@@ -316,6 +316,20 @@ class ModelAgentTest {
     }
 
     @Test
+    fun aSentenceWithMoreAfterItActsAsWhenTheVoiceStopsAndIsNeverDecidedAsDone() = runBlocking {
+        val asked = mutableListOf<Pair<String, String?>>()
+        val answers = ArrayDeque(listOf("next", "nothing", "nothing"))
+        val agent = ModelAgent(catalog, Flat, { p, g -> asked += p to g; answers.removeFirst() })
+        fun now() = asked.last().first.lines().first { it.startsWith("now") } to asked.last().second
+        assertEquals(Move.Show(slide(2).target), agent.anythingToDo(Heard("Next slide.", true, 1, more = true), OnScreen(slide(1).target)))
+        assertEquals("now (speaking): Next slide." to null, now())
+        assertEquals(Move.Nothing, agent.anythingToDo(Heard("The robot learns from five.", true, 2, listOf("Next slide."), more = true), OnScreen(slide(2).target)))
+        assertEquals("now (speaking): The robot learns from five." to null, now())
+        agent.anythingToDo(Heard("photos.", true, 3, listOf("Next slide.", "The robot learns from five.")), OnScreen(slide(2).target))
+        assertEquals("now (done): The robot learns from five. photos.", now().first)
+    }
+
+    @Test
     fun aCommandAfterAShowNotYetOnScreenGoesOnFromItAndDoesNotRepeatIt() {
         val r = Run(slide(1).target, apply = false)
         assertEquals(listOf(Move.Show(slide(2).target)), r.say("Next slide.", "next"))
