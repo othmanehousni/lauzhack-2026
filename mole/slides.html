@@ -41,6 +41,9 @@
   .who { display: grid; align-self: start; font-size: 24px; line-height: 1.4; }
   .who b { font-weight: 600; }
   .who span { color: var(--grey); }
+  /* The person's photo to the left of their name and role; the hairline keeps a white backdrop round on the white slide. */
+  .who:has(.face) { grid-template-columns: auto 1fr; column-gap: 20px; align-items: center; }
+  .who .face { grid-row: span 2; width: 64px; height: 64px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 1px var(--line); }
 
   .ground { position: absolute; left: 80px; right: 80px; top: 640px; border-top: 2px solid var(--fg); }
   .sprite { position: absolute; bottom: 80px; height: auto; pointer-events: none; user-select: none; }
@@ -186,7 +189,7 @@
   <section class="slide s-quote" data-section="Presenting the problem">
     <p class="lead grey">We asked 6 people who present to clients every week.</p>
     <blockquote class="head">“Clients always come up with questions I wasn’t expecting. So I end up searching for documents or running another simulation while explaining what I’m doing.”</blockquote>
-    <p class="who"><b>Mathias Sudres</b><span>Insurance advisor in Switzerland</span></p>
+    <p class="who"><img class="face" src="people/mathias.jpg" alt=""><b>Mathias Sudres</b><span>Insurance advisor in Switzerland</span></p>
     <aside class="notes"><p>We asked 6 people who present to clients every week. Mathias Sudres, an insurance advisor in Switzerland, told us: “Clients always come up with questions I wasn’t expecting. So I end up searching for documents or running another simulation while explaining what I’m doing.”</p></aside>
   </section>
 
@@ -274,10 +277,10 @@
 
   <section class="slide s-voices" data-section="Interviews">
     <blockquote class="title">“…without jumping between ten different windows.”</blockquote>
-    <p class="who"><b>Mathias Sudres</b><span>Insurance advisor in Switzerland</span></p>
+    <p class="who"><img class="face" src="people/mathias.jpg" alt=""><b>Mathias Sudres</b><span>Insurance advisor in Switzerland</span></p>
     <figure class="second">
       <blockquote class="lead">“If this is something that is feasible, it for sure would help us a lot.”</blockquote>
-      <p class="who"><b>Rodolphe Henzi</b><span>Accenture</span></p>
+      <p class="who"><img class="face" src="people/rodolphe.jpg" alt=""><b>Rodolphe Henzi</b><span>Accenture</span></p>
     </figure>
     <div class="ground"></div>
     <img class="sprite" src="sprites/magnifier.png" alt="" style="left: 80px; width: 280px">
