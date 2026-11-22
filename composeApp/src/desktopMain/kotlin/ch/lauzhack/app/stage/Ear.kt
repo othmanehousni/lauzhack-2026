@@ -4,6 +4,7 @@ import ch.lauzhack.app.Heard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -20,6 +21,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStream
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
@@ -100,9 +102,22 @@ class Ear(private val data: File = DATA) {
     }
 }
 
-/** Typed lines as what the presenter said, each one a whole utterance: for tests and dry runs. */
-fun typed(input: InputStream = System.`in`): Flow<Said> = flow {
+internal val WORD = 400.milliseconds  // 150 words a minute
+internal val PAUSE = 700.milliseconds // the silence after which the recognizer finishes an utterance
+
+/** Typed lines as what the presenter said, each one a whole utterance: for tests and dry runs. [paced], a line comes as
+ * speech does: word by word at a speaking rate, then finished after a pause. */
+fun typed(input: InputStream = System.`in`, paced: Boolean = false): Flow<Said> = flow {
     for (line in input.bufferedReader().lineSequence()) {
-        if (line.isNotBlank()) emit(Said(Heard(line.trim(), ended = true), Duration.ZERO, TimeSource.Monotonic.markNow()))
+        if (line.isBlank()) continue
+        val words = line.trim().split(Regex("\\s+"))
+        if (paced) {
+            for (k in 1..words.size) {
+                delay(WORD)
+                emit(Said(Heard(words.take(k).joinToString(" ")), Duration.ZERO, TimeSource.Monotonic.markNow()))
+            }
+            delay(PAUSE)
+        }
+        emit(Said(Heard(words.joinToString(" "), ended = true), Duration.ZERO, TimeSource.Monotonic.markNow()))
     }
 }.flowOn(Dispatchers.IO)

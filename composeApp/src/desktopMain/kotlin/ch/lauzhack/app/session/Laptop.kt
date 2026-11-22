@@ -10,6 +10,7 @@ import ch.lauzhack.app.agent.Embeddings
 import ch.lauzhack.app.agent.Intents
 import ch.lauzhack.app.agent.MoleAgent
 import ch.lauzhack.app.agent.SlideText
+import ch.lauzhack.app.decider.ModelAgent
 import ch.lauzhack.app.link.Link
 import ch.lauzhack.app.link.PhoneServer
 import ch.lauzhack.app.log
@@ -20,7 +21,9 @@ import ch.lauzhack.app.stage.Ear
 import ch.lauzhack.app.stage.HOME
 import ch.lauzhack.app.stage.decks
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -44,31 +47,42 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
+/** What decides during a call: the model, or the rules. */
+interface Brain {
+    /** Loads what is slow to load, before a call or while the shared screen comes up; a call waits for it. */
+    suspend fun warm(library: File, desk: AgentDesktop)
+
+    /** The agent for a call on [desk], which is up, and the names the ear is to expect, most useful first. [scope] is
+     * the call's, for work that runs as long as it does. */
+    suspend fun meet(desk: AgentDesktop, scope: CoroutineScope): Pair<Agent, List<String>>
+}
+
+private const val NAMES = 100 // Apple's limit for SpeechAnalyzer's contextual strings, which recognize short phrases best
+
 /**
  * The laptop's side of the product. Asleep outside a call: no ear, no phone server, no shared screen. When [meeting]
- * gives a call's title, it brings the shared screen up, reads the decks in [library], files and apps into the catalog
- * [agent] decides from, and runs a [Session] on the laptop's ear (or [typed] lines) or the phone's, whichever leads,
- * until the call ends; then all of it stops. A library without a PDF keeps it asleep until one is there. The floater
- * renders [line] and sends taps to [onPick]. [downloads] (a model file, and the fraction of it on disk) is collected to
- * its end before [embedder] is first called. Every line, screen change and decision is [log]ged.
+ * gives a call's title, it brings the shared screen up while [brain] warms, has it read the decks in [library], files,
+ * apps and, while [history] is on, the pages the presenter had open in a browser, and runs a [Session] of its agent on
+ * the laptop's ear (or [typed] lines) or the phone's, whichever leads, until the call ends; then all of it stops. A
+ * library without a PDF keeps it asleep until one is there. The floater renders [line] and sends taps to [onPick].
+ * [downloads] (a model file, and the fraction of it on disk) is collected to its end before [brain] warms. Every line,
+ * screen change and decision is [log]ged.
  */
 class Laptop(
     scope: CoroutineScope,
-    embedder: () -> Embedder,
+    private val brain: Brain,
     private val library: StateFlow<File>,
     private val meeting: StateFlow<String?>,
     private val downloads: Flow<Pair<String, Float>>? = null,
-    private val agent: (Catalog, Intents) -> Agent = ::MoleAgent,
+    private val history: StateFlow<Boolean> = MutableStateFlow(true),
     private val sandbox: String? = "base",
     private val typed: Flow<Heard>? = null,
     private val shots: File? = null, // where a checked run keeps what the audience saw after each change, as PNGs
 ) {
     private val work = CoroutineScope(scope.coroutineContext + Dispatchers.Default.limitedParallelism(1)) // the session's state is one thread's
     private val mole = Mole(work)
-    private var desk = AgentDesktop(library.value, sandbox)
-    private var deskFor = library.value
-    private val embeddings by lazy { Embeddings(embedder()) } // kept across calls: each deck, file and example is embedded once
-    private var intents: Intents? = null
+    private var desk = AgentDesktop(library.value, sandbox, history = history.value)
+    private var deskFor = library.value to history.value
     private val session = MutableStateFlow<Session?>(null)
 
     val line: StateFlow<MoleLine> = mole.line
@@ -95,27 +109,20 @@ class Laptop(
                 }
                 mole.on(Event.Sleep)
             }
-            try { // now, so that a call starts without waiting for the models
+            val warm = async(Dispatchers.Default) { // now, so that a call starts without waiting for the models
                 val t = TimeSource.Monotonic.markNow()
-                if (intents == null) intents = Intents.train(embeddings)
-                log("models ready in ${t.elapsedNow().inWholeMilliseconds} ms")
-            } catch (e: Exception) {
-                currentCoroutineContext().ensureActive()
-                log("models failed: $e")
-                mole.on(Event.Failed("Couldn't load the models.", first(e)))
-            }
-            try { // the first call then embeds only what changed since: 1500 files take half a minute
-                val t = TimeSource.Monotonic.markNow()
-                Catalog.build(embeddings, texts(decks(library.value, DATA)), emptyList(), desk.newestFiles())
-                log("catalog warm in ${t.elapsedNow().inWholeMilliseconds} ms")
-            } catch (e: Exception) {
-                currentCoroutineContext().ensureActive()
-                log("catalog warm-up failed: $e")
+                try {
+                    brain.warm(library.value, desk)
+                    log("models ready in ${t.elapsedNow().inWholeMilliseconds} ms")
+                } catch (e: Exception) { // a call tries again, and says so if it fails
+                    ensureActive()
+                    log("models failed: $e")
+                }
             }
             if (!hasDecks(library.value)) empty(library.value)
             val title = meeting.map { it.orEmpty() }.stateIn(this, SharingStarted.Eagerly, "")
-            combine(meeting.map { it != null }, library) { on, lib -> lib.takeIf { on } }.distinctUntilChanged()
-                .collectLatest { lib -> if (lib != null) meet(title, lib) else mole.on(Event.Sleep) }
+            combine(meeting.map { it != null }, library, history) { on, lib, h -> (lib to h).takeIf { on } }.distinctUntilChanged()
+                .collectLatest { if (it != null) meet(title, it, warm) else mole.on(Event.Sleep) }
         }
     }
 
@@ -125,18 +132,19 @@ class Laptop(
         mole.on(Event.Sleep)
     }
 
-    private suspend fun meet(title: StateFlow<String>, lib: File): Nothing = coroutineScope {
-        log("meeting \"${title.value}\", decks in $lib")
+    private suspend fun meet(title: StateFlow<String>, wants: Pair<File, Boolean>, warm: Deferred<Unit>): Nothing = coroutineScope {
+        val (lib, h) = wants
+        log("meeting \"${title.value}\", decks in $lib, browser history ${if (h) "on" else "off"}")
         if (!hasDecks(lib)) {
             empty(lib)
             while (!hasDecks(lib)) delay(2.seconds)
         }
-        if (lib != deskFor) {
-            desk = AgentDesktop(lib, sandbox)
-            deskFor = lib
+        if (wants != deskFor) {
+            desk = AgentDesktop(lib, sandbox, history = h)
+            deskFor = wants
         }
         val desk = desk
-        val catalog = try {
+        try {
             ready(desk)
         } catch (e: Exception) {
             ensureActive()
@@ -144,12 +152,22 @@ class Laptop(
             mole.on(Event.Failed("Couldn't get the shared screen ready.", first(e)))
             awaitCancellation()
         }
+        val (agent, names) = try {
+            warm.await()
+            mole.on(Event.Setup("Reading your decks and files…"))
+            brain.meet(desk, this)
+        } catch (e: Exception) {
+            ensureActive()
+            log("models failed: $e")
+            mole.on(Event.Failed("Couldn't load the models.", first(e)))
+            awaitCancellation()
+        }
         val ear = Ear().takeIf { typed == null }
         if (ear != null) {
             launch { ear.notes.collect { log("ear: $it") } }
             launch {
                 try {
-                    ear.listen(catalog.vocabulary)
+                    ear.listen(names.filter { it.split(' ').size <= 4 }.take(NAMES).also { log("ear expects ${it.size} of ${names.size} names") })
                 } catch (e: Exception) { // the phone may still hear
                     ensureActive()
                     log("ear failed: $e")
@@ -162,7 +180,7 @@ class Laptop(
         val phones = PhoneServer(mole.line, screen, title, laptopDb)
         phones.start()
         try {
-            val s = Session(logged(agent(catalog, intents!!)), desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone })
+            val s = Session(logged(agent), desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone })
             session.value = s
             launch { phones.picks.collect(s::pick) }
             launch { phones.connected.collect { log(if (it) "phone connected" else "no phone") } }
@@ -194,21 +212,40 @@ class Laptop(
         log("shot    $file")
     }
 
-    /** The shared screen up, and the catalog of what can be put on it. */
-    private suspend fun ready(desk: AgentDesktop): Catalog {
+    /** The shared screen up. */
+    private suspend fun ready(desk: AgentDesktop) {
         mole.on(Event.Setup("Getting the shared screen ready…"))
+        val t = TimeSource.Monotonic.markNow()
         for (note in desk.up()) {
             log("shared screen: $note")
             mole.on(Event.Setup(note.replaceFirstChar(Char::uppercase)))
             delay(3.seconds)
         }
-        mole.on(Event.Setup("Reading your decks and files…"))
+        log("shared screen up in ${t.elapsedNow().inWholeMilliseconds} ms")
+    }
+}
+
+/** The rules decide: MoleAgent over the desk's decks, apps and newest files, each embedded once across calls. */
+class RulesBrain(embedder: () -> Embedder) : Brain {
+    private val embeddings by lazy { Embeddings(embedder()) }
+    private var intents: Intents? = null
+
+    override suspend fun warm(library: File, desk: AgentDesktop) {
+        intents = Intents.train(embeddings)
+        // the first call then embeds only what changed since: 1500 files take half a minute
+        val t = TimeSource.Monotonic.markNow()
+        Catalog.build(embeddings, texts(decks(library, DATA)), emptyList(), desk.newestFiles())
+        log("catalog warm in ${t.elapsedNow().inWholeMilliseconds} ms")
+    }
+
+    override suspend fun meet(desk: AgentDesktop, scope: CoroutineScope): Pair<Agent, List<String>> {
         val t = TimeSource.Monotonic.markNow()
         val slides = texts(desk.decks)
         val catalog = Catalog.build(embeddings, slides, desk.apps, desk.newestFiles())
-        if (intents == null) intents = Intents.train(embeddings)
+        val intents = intents ?: Intents.train(embeddings).also { intents = it }
         log("catalog of ${slides.size} slides, ${catalog.files.size} files, ${desk.apps.size} apps in ${t.elapsedNow().inWholeMilliseconds} ms")
-        return catalog
+        val names = catalog.slides.map { it.deck.replace('_', ' ') } + catalog.slides.map { it.title } + catalog.vocabulary
+        return MoleAgent(catalog, intents) to names.distinct()
     }
 }
 
@@ -225,7 +262,7 @@ private fun logged(agent: Agent): Agent {
         agent.anythingToDo(heard, onScreen).also { move ->
             if (heard != last && heard.text.isNotBlank()) {
                 last = heard
-                val why = (agent as? MoleAgent)?.thought?.reason?.let { " ($it)" }.orEmpty()
+                val why = ((agent as? MoleAgent)?.thought?.reason ?: (agent as? ModelAgent)?.answer)?.let { " ($it)" }.orEmpty()
                 log("decide  ${t.elapsedNow().inWholeMilliseconds} ms  \"${heard.text}\"${if (heard.ended) "" else " (still talking)"}  ->  $move$why")
             }
         }

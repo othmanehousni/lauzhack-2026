@@ -36,9 +36,10 @@ class AgentDesktop(
     history: Boolean = true,
     private val cache: File = CACHE,
     private val files: Files = Files(),  // lists in the background from now on
+    browsers: File = File(HOME, "Library/Application Support"),
 ) {
     private val lock = Mutex()
-    private val history = if (history) History() else null
+    private val history = if (history) History(browsers) else null
     private val drawer = Executors.newSingleThreadExecutor { Thread(it, "recent decks").apply { isDaemon = true; priority = Thread.MIN_PRIORITY } }
     internal val queued: MutableSet<String> = ConcurrentHashMap.newKeySet()
     @Volatile private var recent: List<RecentDeck> = emptyList()
