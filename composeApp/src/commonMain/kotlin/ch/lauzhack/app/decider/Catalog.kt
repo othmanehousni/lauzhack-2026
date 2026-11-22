@@ -6,46 +6,37 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 private const val QUERY = "task: search result | query: "
-const val K = 6                // candidates: r1 was trained on 6, the next contract has 8
-private const val BONUS = 0.04 // for a slide of the deck on screen (tune/CONTRACT.md, Candidates)
+const val K = 6                // candidates
 private const val OWN = 3      // places kept for the meeting's slides (rehearsal/rule.py)
 private const val LEAD = 0.08  // how far something seen lately must lead the eighth best of them (rehearsal/rule.py)
 private val ON_STAGE = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "mp4", "mov", "m4v", "webm") // stage.ON_STAGE
 
-/** What the presenter can ask for, each item embedded once by each of its documents (tune/CONTRACT.md, Candidates): the
- * slides of the [meeting]'s decks, what the presenter saw [recent]ly, and the rest. [vectors] are those of the items'
- * main documents, [more] those of their other documents. */
+/** What the presenter can ask for, each item embedded once (tune/CONTRACT.md, Candidates): the slides of the [meeting]'s
+ * decks, what the presenter saw [recent]ly, and the rest. */
 class Catalog(
     val items: List<Item>,
     private val vectors: List<FloatArray>,
     private val meeting: Set<String> = emptySet(),
     private val recent: Set<Target> = emptySet(),
-    private val more: List<List<FloatArray>> = emptyList(),
 ) {
     private val slides = items.filterIsInstance<Item.Slide>()
     private val index = items.withIndex().associate { it.value to it.index }
-    private fun all(i: Int) = listOf(vectors[i]) + more.getOrElse(i) { emptyList() }
 
-    /** Each vector by its document, for a cache to keep. */
-    val known: Map<String, FloatArray> get() = items.indices.flatMap { docs(items[it]).zip(all(it)) }.toMap()
+    /** Each item's vector by its document, for a cache to keep. */
+    val known: Map<String, FloatArray> get() = items.indices.associate { doc(items[it]) to vectors[it] }
 
     val firstSlide: Item.Slide? get() = slides.firstOrNull()
 
     fun slide(deck: String, page: Int): Item.Slide? = slides.firstOrNull { it.target.deck == deck && it.page == page }
 
-    /** Each item's best cosine over its documents and the queries: [now], [before] with [now], and the last six words of
-     * [now]; plus [BONUS] for a slide of the deck [open] on screen. */
-    suspend fun scores(embedder: Embedder, now: String, before: String?, open: String? = null): DoubleArray {
-        val six = now.split(' ', '\t', '\r', '\n').filter(String::isNotEmpty).takeLast(6).joinToString(" ")
-        val queries = listOfNotNull(now, before?.let { "$it $now" }, six).distinct().map { unit(embedder, QUERY + it) }
-        return DoubleArray(items.size) { i ->
-            val c = items[i]
-            all(i).maxOf { v -> queries.maxOf { dot(it, v) } } + if (c is Item.Slide && c.target.deck == open) BONUS else 0.0
-        }
+    /** Each item's cosine with [now] or with [before] and [now] together, whichever is closer. */
+    suspend fun scores(embedder: Embedder, now: String, before: String?): DoubleArray {
+        val queries = listOfNotNull(now, before?.let { "$it $now" }).map { unit(embedder, QUERY + it) }
+        return DoubleArray(items.size) { i -> queries.maxOf { dot(it, vectors[i]) } }
     }
 
     suspend fun candidates(embedder: Embedder, now: String, before: String?, first: List<Item> = emptyList(), open: String? = null, k: Int = K): List<Item> =
-        candidates(scores(embedder, now, before, open), first, open, k)
+        candidates(scores(embedder, now, before), first, open, k)
 
     /**
      * Candidates at real scale (tune/CONTRACT.md): [first]; then the best [OWN] slides of the meeting's decks and of the
@@ -104,22 +95,17 @@ class Catalog(
     }
 
     companion object {
-        /** [c]'s main document, then those by its name alone. */
-        fun docs(c: Item): List<String> = when (c) {
-            is Item.Slide -> listOf("title: ${c.title} | text: " + (if (c.page == 1) "${c.deck}; " else "") + c.text, "title: ${c.title} | text: none") +
-                if (c.page == 1) listOf("title: ${c.deck} | text: presentation slides") else emptyList()
-            is Item.File -> listOf("title: ${c.name} | text: ${c.folder}", "title: ${c.name} | text: none")
-            is Item.Site -> listOf("title: ${c.name} | text: ${c.url}", "title: ${c.name} | text: ${c.name} website, ${c.url}")
-            is Item.App -> listOf("title: ${c.name} | text: app", "title: ${c.name} | text: ${c.name} app")
+        fun doc(c: Item): String = when (c) {
+            is Item.Slide -> "title: ${c.title} | text: ${c.deck}: ${c.text}"
+            is Item.File -> "title: ${c.name} | text: ${c.folder}"
+            is Item.Site -> "title: ${c.name} | text: ${c.url}"
+            is Item.App -> "title: ${c.name} | text: app"
         }
 
-        /** Embeds each document of each item unless [known] has it. */
+        /** Embeds each item's document unless [known] has it. */
         suspend fun build(
             items: List<Item>, embedder: Embedder, known: Map<String, FloatArray> = emptyMap(), meeting: Set<String> = emptySet(), recent: Set<Target> = emptySet(),
-        ): Catalog {
-            val vectors = items.map { c -> docs(c).map { known[it] ?: unit(embedder, it) } }
-            return Catalog(items, vectors.map { it.first() }, meeting, recent, vectors.map { it.drop(1) })
-        }
+        ): Catalog = Catalog(items, items.map { known[doc(it)] ?: unit(embedder, doc(it)) }, meeting, recent)
 
         fun file(path: String): Item.File {
             val parts = path.split('/')
@@ -138,9 +124,8 @@ internal fun same(a: Target?, b: Target?) = if (a is Target.Slide && b is Target
 /** A picture or video replaces the deck on the stage instead of covering it. */
 internal fun onStage(c: Item) = c is Item.File && c.name.substringAfterLast('.', "").lowercase() in ON_STAGE
 
-/** A name as the decider writes it in `open <words>` (tune/prompt.py, spoken). */
-private fun spelled(name: String) =
-    name.lowercase().map { if (it in 'a'..'z' || it in '0'..'9' || it in " .-'") it else ' ' }.joinToString("").split(' ').filter(String::isNotEmpty).joinToString(" ")
+/** A name as the decider writes it in `open <words>` (tune/build.py, fam_site). */
+private fun spelled(name: String) = name.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it in " .-'" }.trim()
 
 private suspend fun unit(embedder: Embedder, text: String): FloatArray {
     val v = embedder.embed(text).values

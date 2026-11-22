@@ -19,30 +19,22 @@ class CatalogTest {
         override fun diff(embedding1: Vector, embedding2: Vector) = 1 - embedding1.cosineSimilarity(embedding2)
     }
 
-    private val items = (1..10).map { Item.App("App $it", Target.App("App $it")) }
-    private fun axis(i: Int) = List(12) { if (it == i) 1.0 else 0.0 }
-    private fun near(vararg w: Pair<Int, Double>) = List(12) { i -> w.firstOrNull { it.first == i }?.second ?: 0.0 }
-    private fun byAxis(items: List<Item>) = items.indices.flatMap { i -> Catalog.docs(items[i]).map { it to axis(i) } }.toMap()
+    private val items = (1..8).map { Item.App("App $it", Target.App("App $it")) }
+    private fun axis(i: Int) = List(8) { if (it == i) 1.0 else 0.0 }
+    private fun near(vararg w: Pair<Int, Double>) = List(8) { i -> w.firstOrNull { it.first == i }?.second ?: 0.0 }
 
     @Test
-    fun offeredFirstThenTheBestOfAnyDocumentAndQueryUntilSix() = runBlocking {
+    fun offeredFirstThenTheBestOfBothQueriesUntilSix() = runBlocking {
         val q = "task: search result | query: "
-        val now = "please could you open the second one now"
-        val e = Axes(byAxis(items) + mapOf(
-            "title: App 9 | text: App 9 app" to axis(10),
-            "$q$now" to near(0 to 0.9, 1 to 0.5, 2 to 0.4, 3 to 0.3, 4 to 0.2, 5 to 0.1),
-            "${q}open it $now" to near(7 to 0.95, 6 to 0.35),
-            "${q}you open the second one now" to near(10 to 0.8, 9 to 0.6),
+        val e = Axes(items.indices.associate { Catalog.doc(items[it]) to axis(it) } + mapOf(
+            "${q}the second" to near(0 to 0.9, 1 to 0.5, 2 to 0.4, 3 to 0.3, 4 to 0.2, 5 to 0.1),
+            "${q}open it the second" to near(7 to 0.95, 6 to 0.3),
         ))
         val catalog = Catalog.build(items, e)
-        assertEquals(items.flatMap(Catalog::docs), e.asked)
-        val got = catalog.candidates(e, now, "open it", first = listOf(items[2], items[5]))
-        assertEquals(listOf(2, 5, 7, 8, 0, 9).map(items::get), got, "offered, then by the best cosine of any document and query, without repeats")
-
-        fun slide(deck: String) = Item.Slide(deck, 2, 2, "Plan", "", Target.Slide(deck, 2))
-        val decks = Catalog(listOf(slide("A"), slide("B")), List(2) { floatArrayOf(1f) })
-        val flat = Axes(mapOf("${q}x" to listOf(1.0)))
-        assertContentEquals(doubleArrayOf(1.0, 1.04), decks.scores(flat, "x", null, open = "B"), "0.04 for the deck on screen")
+        assertEquals(items.map(Catalog::doc), e.asked)
+        val got = catalog.candidates(e, "the second", "open it", first = listOf(items[2], items[5]))
+        assertEquals(listOf(2, 5, 7, 0, 1, 6).map(items::get), got, "offered, then by the best cosine of either query, without repeats")
+        assertEquals(listOf(0, 1, 2, 3, 4, 5).map(items::get), catalog.candidates(e, "the second", null))
     }
 
     @Test
@@ -55,7 +47,7 @@ class CatalogTest {
         val all = talk + old + files + github
         val catalog = Catalog(all, all.map { floatArrayOf(1f) }, meeting = setOf("Talk"), recent = files.map { it.target }.toSet())
         val crowd = doubleArrayOf(.3, .5, .4, .2, .6, .9, .1) + DoubleArray(10) { .75 - it * .01 } + .55
-        fun pick(score: DoubleArray, first: List<Item> = emptyList(), open: String? = null) = catalog.candidates(score, first, open, k = 6)
+        fun pick(score: DoubleArray, first: List<Item> = emptyList(), open: String? = null) = catalog.candidates(score, first, open)
 
         assertEquals(listOf(github, talk[1], talk[2], talk[0], talk[3]), pick(crowd),
             "no file leads the eighth by 0.08, a recent deck's second page waits until it is open, its first is no standout")
@@ -70,11 +62,11 @@ class CatalogTest {
 
     @Test
     fun knownVectorsAreNotEmbeddedAgain() = runBlocking {
-        val e = Axes(byAxis(items))
+        val e = Axes(items.indices.associate { Catalog.doc(items[it]) to axis(it) })
         val first = Catalog.build(items.take(5), e)
         e.asked.clear()
         val second = Catalog.build(items, e, first.known)
-        assertEquals(items.drop(5).flatMap(Catalog::docs), e.asked)
+        assertEquals(items.drop(5).map(Catalog::doc), e.asked)
         val file = File.createTempFile("vectors", ".bin").apply { deleteOnExit() }
         saveVectors(file, second.known)
         val back = loadVectors(file)
@@ -91,12 +83,10 @@ class CatalogTest {
         val made = items(listOf(page, page.copy(page = 1), page.copy(page = 3)), listOf("Notes"), listOf("/Users/a/Documents/Clients/Dubois/Offer.pdf"), BOOKMARKS.take(1))
         val slide = made[0] as Item.Slide
         assertEquals(Item.Slide("Acme Overview", 2, 3, "The problem", "Pickers are scarce; Labour is costly", Target.Slide("Acme_Overview", 2, "The problem")), slide)
-        assertEquals(listOf("title: The problem | text: Pickers are scarce; Labour is costly", "title: The problem | text: none"), Catalog.docs(slide))
-        assertEquals(listOf("title: The problem | text: Acme Overview; Pickers are scarce; Labour is costly", "title: The problem | text: none",
-            "title: Acme Overview | text: presentation slides"), Catalog.docs(made[1]), "a deck's first slide also by the deck's name")
-        assertEquals(listOf("title: YouTube | text: youtube.com", "title: YouTube | text: YouTube website, youtube.com"), Catalog.docs(made[3]))
-        assertEquals(listOf("title: Notes | text: app", "title: Notes | text: Notes app"), Catalog.docs(made[4]))
-        assertEquals(listOf("title: Offer.pdf | text: Clients / Dubois", "title: Offer.pdf | text: none"), Catalog.docs(made[5]))
+        assertEquals("title: The problem | text: Acme Overview: Pickers are scarce; Labour is costly", Catalog.doc(slide))
+        assertEquals("title: YouTube | text: youtube.com", Catalog.doc(made[3]))
+        assertEquals("title: Notes | text: app", Catalog.doc(made[4]))
+        assertEquals("title: Offer.pdf | text: Clients / Dubois", Catalog.doc(made[5]))
         val catalog = Catalog(made, List(made.size) { floatArrayOf(1f) })
         assertEquals(slide, catalog.itemOf(Target.Slide("Acme_Overview", 2)), "a slide on screen is the catalog's, whatever its title")
         assertEquals(Item.Site("example.org", "example.org/a", Target.Site("https://www.example.org/a/")), catalog.itemOf(Target.Site("https://www.example.org/a/")))
@@ -104,7 +94,5 @@ class CatalogTest {
         assertEquals(made[3], catalog.named("youtube.com"))
         assertEquals(made[4], catalog.named("notes"))
         assertEquals(null, catalog.named("offer.pdf"), "open names apps and bookmarks only")
-        val x = Catalog.site(Target.Site("https://x.com", "X (Twitter)"))
-        assertEquals(x, Catalog(listOf(x), listOf(floatArrayOf(1f))).named("x twitter"), "a name's other characters are spaces, collapsed")
     }
 }
