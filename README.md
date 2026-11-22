@@ -85,7 +85,7 @@ For the phone, run `mise run android` with the phone connected (or `mise run and
 8. In the guest, turn on Remote Login (System Settings > General > Sharing) and allow Accessibility for `sshd-keygen-wrapper`.
 9. On the host, `agent-desktop sandbox status base` answers `running`.
 
-At each meeting start, `Vm.setup` in `stage/Vm.kt` finishes the job when needed: it shares Desktop, Documents and Downloads read only at the same paths, matches your screen size, wallpaper and appearance, installs Chrome and restarts the VM. It patches `agent-desktop`'s VM host to share the folders, so it runs again after an `agent-desktop` update. It also starts the VM when it is stopped. To rerun step 7 later, the script is at `/Volumes/My Shared Files/agent-desktop/guest-setup.sh`.
+At each meeting start, `Vm.setup` in `stage/Vm.kt` finishes the job when needed: it makes the VM's host a part of Molière, with no Dock icon or menu bar of its own, shares Desktop, Documents and Downloads read only at the same paths, matches your screen size, wallpaper and appearance, installs Chrome and restarts the VM. It patches `agent-desktop`'s VM host to share the folders, so it runs again after an `agent-desktop` update. It also starts the VM when it is stopped. To rerun step 7 later, the script is at `/Volumes/My Shared Files/agent-desktop/guest-setup.sh`.
 
 ## Test
 
