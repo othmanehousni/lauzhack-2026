@@ -20,5 +20,5 @@ fun decider(client: LLMClient, model: LLModel = liteRTModel(DECIDER)): suspend (
             if (grammar != null) put(REGEX, JsonPrimitive(grammar))
         },
     )
-    client.execute(prompt("decider", params) { user(text) }, model, emptyList()).textContent()
+    client.execute(prompt("decider", params) { user(text) }, model, emptyList()).textContent().replace('▁', ' ')
 }
