@@ -29,16 +29,26 @@ import kotlinx.serialization.Serializable
     val timeoutMs: Long? = null,
 )
 
-/** What the presenter is saying: the utterance so far, and whether they have stopped. */
-@Serializable data class Heard(val text: String = "", val ended: Boolean = false)
+/** What the presenter is saying: the utterance so far, and whether they have stopped. [n] numbers the utterances of a
+ * talk, so the same words said twice in a row are two utterances; [earlier] are the few utterances before this one. */
+@Serializable data class Heard(val text: String = "", val ended: Boolean = false, val n: Int = 0, val earlier: List<String> = emptyList())
 
 /** What the audience sees right now. target == null is the bare agent desktop. */
 @Serializable data class OnScreen(val target: Target? = null, val name: String = "")
 
-/** The agent's answer to "is there anything to do?". */
+/** The agent's answer to "is there anything to do?". Next, previous, back to the slides, open and search come as a
+ * [Show] of the target they resolve to; close is `Control("close")`. */
 sealed interface Move {
     data class Show(val target: Target) : Move
-    data class Ask(val options: List<Target>) : Move
+    data class Ask(val options: List<Target>) : Move   // one option is a suggestion, several a choice
     data class Control(val name: String) : Move   // scroll, zoom, play, pause, close… on what is on screen
+    data object Wait : Move     // a request is under way, its object not said yet
+    data object Unsure : Move   // a request was made, nothing fits it
+    data object Undo : Move     // the presenter rejects what was just shown
     data object Nothing : Move
+}
+
+/** Whatever decides the moves: the rules in [ch.lauzhack.app.agent.MoleAgent], a model behind the same call. */
+fun interface Agent {
+    suspend fun anythingToDo(heard: Heard, onScreen: OnScreen): Move
 }

@@ -125,8 +125,12 @@ class ParityTest {
     private fun expected(t: Thought): Move = when (val a = t.act) {
         is Action.Show -> Move.Show(a.target)
         is Action.Control -> Move.Control(a.name)
-        is Action.Request -> Move.Nothing
-        null -> if (t.offer.isEmpty()) Move.Nothing else Move.Ask(t.offer)
+        is Action.Request -> Move.Unsure
+        null -> when {
+            t.offer.isNotEmpty() -> Move.Ask(t.offer)
+            t.ended && t.reading?.best == Kind.Unfinished -> Move.Wait
+            else -> Move.Nothing
+        }
     }
 
     /** An action as brain.py prints it: its kind and target. */
