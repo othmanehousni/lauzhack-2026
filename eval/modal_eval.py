@@ -5,6 +5,8 @@ build and the embeddings in Ollama, as on the Mac; the decks are the fixtures. M
   modal run eval/modal_eval.py                                  every eval script, as compare.sh would
   modal run eval/modal_eval.py --args "--threshold 0.6 eval eval/web.jsonl --step 0"
   modal run eval/modal_eval.py --vectors /tmp/vectors.npz      every text the evals embed, for eval/tune.py
+  modal run eval/modal_eval.py --parity .stage/parity          the --router none eval's texts, vectors and decisions, for
+                                                               the Kotlin port's ParityTest
 """
 from pathlib import Path
 
@@ -69,9 +71,74 @@ def vectors_of_evals() -> bytes:
     return Path("/cache/vectors.npz").read_bytes()
 
 
+@app.function(gpu="L4", timeout=1800, volumes={"/cache": cache})
+def parity_of_evals() -> dict[str, bytes]:
+    """The eval as `--router none` runs it, two words at a time, recording every text it embeds with the model's own
+    vector, the slides it read and each decide() call, so the Kotlin port can replay the same run without a model."""
+    import contextlib
+    import io
+    import json
+    import os
+    import sys
+    import tempfile
+
+    import numpy as np
+
+    up()
+    os.chdir("/repo")
+    sys.path.insert(0, "/repo")
+    import brain
+    from intents import INTENTS
+
+    texts, raws, slides, calls, at = [], [], [], [], {"n": -1, "line": 0}
+    scripts = sorted(Path("eval").glob("*.jsonl"))
+
+    def embed(batch: list[str]) -> np.ndarray:
+        v = np.array(brain.ollama("/api/embed", {"model": brain.EMBED, "input": batch, "keep_alive": "1h"})["embeddings"], np.float32)
+        texts.extend(batch)
+        raws.append(v)
+        return v / np.linalg.norm(v, axis=1, keepdims=True)
+
+    catalog, born, decide, heard = brain.Catalog.__init__, brain.Brain.__init__, brain.Brain.decide, brain.Brain.heard
+
+    def read_catalog(self, *a, **k):
+        catalog(self, *a, **k)
+        slides[:] = [{"deck": s.doc, "page": s.page, "title": s.title, "text": s.text} for s in self.slides]
+
+    def new_brain(self, *a, **k):
+        born(self, *a, **k)
+        at["n"], at["line"] = at["n"] + 1, 1
+
+    def record(self, said, end):
+        d = decide(self, said, end)
+        calls.append({"script": scripts[at["n"]].stem, "line": at["line"], "said": said, "end": end,
+                      "do": str(d.do) if d.do else None, "offer": [str(a) for a in d.offer], "why": d.why})
+        return d
+
+    def next_line(self, said):
+        heard(self, said)
+        at["line"] += 1
+
+    brain.embed, brain.CACHE = embed, Path(tempfile.mkdtemp())
+    brain.Catalog.__init__, brain.Brain.__init__, brain.Brain.decide, brain.Brain.heard = read_catalog, new_brain, record, next_line
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        brain.evaluate(scripts, Path("/tmp/library"), brain.Intents(INTENTS), 0.5, 2, fallback=False)
+    print(out.getvalue())
+    vecs = np.concatenate(raws)
+    print(len(texts), "texts embedded,", len(set(texts)), "distinct,", vecs.shape[1], "dimensions,", len(calls), "decisions")
+    return {"texts.json": json.dumps(texts).encode(), "vectors.f32": vecs.astype("<f4").tobytes(),
+            "python.json": json.dumps({"dim": int(vecs.shape[1]), "slides": slides, "calls": calls, "stdout": out.getvalue()}).encode()}
+
+
 @app.local_entrypoint()
-def main(args: str = "eval " + " ".join(sorted(str(p.relative_to(REPO)) for p in (REPO / "eval").glob("*.jsonl"))), vectors: str = ""):
-    if vectors:
+def main(args: str = "eval " + " ".join(sorted(str(p.relative_to(REPO)) for p in (REPO / "eval").glob("*.jsonl"))), vectors: str = "",
+         parity: str = ""):
+    if parity:
+        Path(parity).mkdir(parents=True, exist_ok=True)
+        for name, data in parity_of_evals.remote().items():
+            (Path(parity) / name).write_bytes(data)
+    elif vectors:
         Path(vectors).write_bytes(vectors_of_evals.remote())
     else:
         run.remote(args.split())
