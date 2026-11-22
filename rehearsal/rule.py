@@ -44,5 +44,5 @@ print()
 for r in rows:
     lead = {t: es[0][1] - es[min(7, len(es) - 1)][1] for t, es in r['pool'].items() if len(es) > 1}
     seen = sorted((s for t in ('recent', 'firsts') for _, s in r['pool'].get(t, [])), reverse=True)
-    print(f"{r['say'][:44]:44s} {r['want'][:24]:24s} seen lately {seen[0] - seen[min(7, len(seen) - 1)]:.3f}  " +
+    print(f"{r['say'][:44]:44s} {r['want'][:24]:24s} seen lately {(seen[0] - seen[min(7, len(seen) - 1)]) if seen else 0:.3f}  " +
           ' '.join(f'{t} {v:.3f}' for t, v in lead.items()))
