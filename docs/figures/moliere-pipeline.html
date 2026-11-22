@@ -1,0 +1,79 @@
+<!doctype html><html class="dark"><head><meta charset="utf-8"><style>/* Figure palette. Neutrals share the site's warm sand hue. Every tone has the
+   same four roles: a tint fill, a line (borders), a solid (strokes) and an ink
+   (text on the tint and the canvas, >= 4.5:1 and APCA Lc >= 60). Per role all
+   hues share one lightness and one share of their sRGB chroma ceiling at that
+   lightness, the ceiling capped at the median across hues so green near white
+   and violet at mid lightness do not shout. Hue is constant across roles. Dark
+   is screen-only so print stays light. */
+
+:root {
+  --dg-canvas: var(--color-bg);
+  --dg-panel: oklch(0.968 0.003 100);
+  --dg-panel-edge: oklch(0.925 0.004 100);
+  --dg-surface: oklch(1 0 0);
+  --dg-rule: oklch(0.86 0.005 100);
+  --dg-ink: oklch(0.245 0.007 100);
+  --dg-text: oklch(0.4 0.006 100);
+  --dg-muted: oklch(0.53 0.006 100);
+  --dg-faint: oklch(0.8 0.004 100);
+  --dg-line: oklch(0.7 0.006 100);
+  --dg-hatch: oklch(0.93 0.004 100);
+
+  --dg-blue-tint: oklch(0.935 0.028 255);
+  --dg-blue-line: oklch(0.8 0.077 255);
+  --dg-blue-solid: oklch(0.63 0.146 255);
+  --dg-blue-ink: oklch(0.5 0.132 255);
+  --dg-teal-tint: oklch(0.935 0.03 195);
+  --dg-teal-line: oklch(0.8 0.086 195);
+  --dg-teal-solid: oklch(0.63 0.077 195);
+  --dg-teal-ink: oklch(0.5 0.068 195);
+  --dg-green-tint: oklch(0.935 0.03 138);
+  --dg-green-line: oklch(0.8 0.086 138);
+  --dg-green-solid: oklch(0.63 0.14 138);
+  --dg-green-ink: oklch(0.5 0.124 138);
+  --dg-purple-tint: oklch(0.935 0.03 290);
+  --dg-purple-line: oklch(0.8 0.081 290);
+  --dg-purple-solid: oklch(0.63 0.146 290);
+  --dg-purple-ink: oklch(0.5 0.132 290);
+  --dg-red-tint: oklch(0.935 0.029 22);
+  --dg-red-line: oklch(0.8 0.086 22);
+  --dg-red-solid: oklch(0.63 0.146 22);
+  --dg-red-ink: oklch(0.5 0.132 22);
+}
+
+@media screen {
+  html.dark {
+    --dg-panel: oklch(0.215 0.003 100);
+    --dg-panel-edge: oklch(0.265 0.004 100);
+    --dg-surface: oklch(0.178 0.002 100);
+    --dg-rule: oklch(0.36 0.005 100);
+    --dg-ink: oklch(0.945 0.004 100);
+    --dg-text: oklch(0.83 0.005 100);
+    --dg-muted: oklch(0.7 0.006 100);
+    --dg-faint: oklch(0.36 0.004 100);
+    --dg-line: oklch(0.52 0.006 100);
+    --dg-hatch: oklch(0.25 0.004 100);
+
+    --dg-blue-tint: oklch(0.28 0.051 255);
+    --dg-blue-line: oklch(0.46 0.076 255);
+    --dg-blue-solid: oklch(0.7 0.112 255);
+    --dg-blue-ink: oklch(0.84 0.073 255);
+    --dg-teal-tint: oklch(0.28 0.026 195);
+    --dg-teal-line: oklch(0.46 0.039 195);
+    --dg-teal-solid: oklch(0.7 0.084 195);
+    --dg-teal-ink: oklch(0.84 0.079 195);
+    --dg-green-tint: oklch(0.28 0.048 138);
+    --dg-green-line: oklch(0.46 0.071 138);
+    --dg-green-solid: oklch(0.7 0.119 138);
+    --dg-green-ink: oklch(0.84 0.079 138);
+    --dg-purple-tint: oklch(0.28 0.051 290);
+    --dg-purple-line: oklch(0.46 0.076 290);
+    --dg-purple-solid: oklch(0.7 0.119 290);
+    --dg-purple-ink: oklch(0.84 0.077 290);
+    --dg-red-tint: oklch(0.28 0.051 22);
+    --dg-red-line: oklch(0.46 0.076 22);
+    --dg-red-solid: oklch(0.7 0.119 22);
+    --dg-red-ink: oklch(0.84 0.079 22);
+  }
+}
+ :root{--color-bg:#111110} body{margin:16px;background:var(--color-bg);font-family:Inter,system-ui,sans-serif} .diagram{margin:0;width:fit-content} .diagram__canvas--narrow{display:none} .diagram__caption{font-size:14px;color:gray}</style></head><body><figure class="diagram"><div class="diagram__canvas"><svg width="680" viewBox="0 0 680 200" role="img" aria-label="Architecture: Ear, Retrieval, Decider, Shared screen, with the bar and the phone under the Decider" font-family="var(--font-sans, ui-sans-serif, system-ui, sans-serif)" style="max-width:100%;height:auto;display:block;color:var(--dg-ink)"><path d="M10,10 L670,10 L670,190 L10,190 Z" style="fill:none;stroke:var(--dg-line);stroke-width:1;stroke-dasharray:4 4;stroke-linecap:round;stroke-linejoin:round"/><text x="22" y="29" dominant-baseline="central" font-size="12.5" font-weight="600" style="fill:var(--dg-ink)">Architecture</text><text x="658" y="29" text-anchor="end" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">All on the laptop, voice to screen in 1.5 to 1.8 s</text><rect x="22" y="48" width="135" height="58" style="fill:var(--dg-red-tint);stroke:var(--dg-red-line);stroke-width:1"/><text x="89.5" y="61" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-red-ink)">Ear</text><text x="89.5" y="77" text-anchor="middle" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Speech to text,</text><text x="89.5" y="92" text-anchor="middle" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">on device</text><rect x="189" y="48" width="135" height="58" style="fill:var(--dg-teal-tint);stroke:var(--dg-teal-line);stroke-width:1"/><text x="256.5" y="61" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-teal-ink)">Retrieval</text><text x="256.5" y="77" text-anchor="middle" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">EmbeddingGemma,</text><text x="256.5" y="92" text-anchor="middle" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">8 candidates</text><rect x="356" y="48" width="135" height="58" style="fill:var(--dg-red-tint);stroke:var(--dg-red-line);stroke-width:1"/><text x="423.5" y="61" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-red-ink)">Decider</text><text x="423.5" y="77" text-anchor="middle" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Gemma 3 270M,</text><text x="423.5" y="92" text-anchor="middle" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">fine-tuned by us</text><rect x="523" y="48" width="135" height="58" style="fill:var(--dg-teal-tint);stroke:var(--dg-teal-line);stroke-width:1"/><text x="590.5" y="61" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-teal-ink)">Shared screen</text><text x="590.5" y="77" text-anchor="middle" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Browser in a VM</text><g><path d="M157,77 L189,77" style="stroke:var(--dg-red-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/><path d="M182.49,81.65 L189,77 L182.49,72.35" style="stroke:var(--dg-red-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/></g><g><path d="M324,77 L356,77" style="stroke:var(--dg-teal-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/><path d="M349.49,81.65 L356,77 L349.49,72.35" style="stroke:var(--dg-teal-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/></g><g><path d="M491,77 L523,77" style="stroke:var(--dg-red-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/><path d="M516.49,81.65 L523,77 L516.49,72.35" style="stroke:var(--dg-red-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/></g><rect x="356" y="136" width="302" height="42" style="fill:var(--dg-red-tint);stroke:var(--dg-red-line);stroke-width:1"/><text x="507.0" y="149" text-anchor="middle" dominant-baseline="central" font-size="11" font-family="var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)" style="fill:var(--dg-red-ink)">Bar and phone</text><text x="507.0" y="165" text-anchor="middle" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">announce, stop, undo</text><g><path d="M423.5,106 L423.5,136" style="stroke:var(--dg-red-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/><path d="M418.85,129.49 L423.5,136 L428.15,129.49" style="stroke:var(--dg-red-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/><path d="M428.15,112.51 L423.5,106 L418.85,112.51" style="stroke:var(--dg-red-solid);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/></g><rect x="22" y="139" width="22" height="12" style="fill:var(--dg-red-tint);stroke:var(--dg-red-line);stroke-width:1"/><text x="52" y="145" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Molière</text><rect x="22" y="163" width="22" height="12" style="fill:var(--dg-teal-tint);stroke:var(--dg-teal-line);stroke-width:1"/><text x="52" y="169" dominant-baseline="central" font-size="11.5" style="fill:var(--dg-muted)">Apple and Google</text></svg></div></figure></body></html>
