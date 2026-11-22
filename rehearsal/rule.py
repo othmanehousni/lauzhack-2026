@@ -5,13 +5,16 @@ the first slides of recent decks, and the other pages and older files when those
 above the eighth best of them. For each rule: picks whose wanted item is among the 6 candidates, and lines that want
 nothing done that were offered something seen lately (seen). Then each pick's rank, and each tier's lead over its
 eighth best on every line, which the margin is set above."""
+import os
 import sys
 from itertools import product
 from check import parse, ok
 
 OWN = ('recent', 'firsts', 'files', 'decks')
 
-def candidates(pool, reserve, margin, files, pages, k=6):
+K = int(os.environ.get('K', 6))  # candidates per decision: 6 for r1, 8 for the next contract
+
+def candidates(pool, reserve, margin, files, pages, k=K):
     own = sorted(pool.get('meeting', []), key=lambda e: -e[1])
     seen = sorted(((n, s, t) for t in OWN if (files or t != 'files') and (pages or t != 'decks') for n, s in pool.get(t, [])), key=lambda e: -e[1])
     bar = seen[min(7, len(seen) - 1)][1] + margin if seen and margin is not None else -1
