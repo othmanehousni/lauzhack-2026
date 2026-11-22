@@ -123,6 +123,21 @@ class DecksTest {
     }
 
     @Test
+    fun theLibrarysOtherFilesAreTheMeetingsDocumentsNotSeenLately() = runBlocking {
+        val library = File(tmp, "library")
+        pdf(File(library, "intro.pdf"), slides(3))
+        val sheet = File(library, "Market figures.html").apply { writeText("<title>market</title>") }.modified(Duration.ofHours(1))
+        val numbers = File(library, "Pipeline.xlsx").apply { writeText("x") }
+        File(library, ".DS_Store").writeText("x")
+        File(library, "make.py").writeText("x")
+        File(library, "old").mkdirs()
+        assertEquals(listOf(sheet, numbers).map { it.absolutePath }, documents(library))
+        val desk = AgentDesktop(library, sandbox = null, data = File(tmp, "data"), cache = File(tmp, "cache"), history = false,
+            files = Files { args -> if ("kMDItemFSContentChangeDate >=" in args.last()) spotLine(sheet, Duration.ofMinutes(5)) else "" })
+        assertEquals(emptyList(), desk.settled().files, "opened this morning, it is still the meeting's, not one of the crowd seen lately")
+    }
+
+    @Test
     fun recentDecksOutsideTheLibraryWithoutSetup() = runBlocking {
         val library = File(tmp, "library")
         pdf(File(library, "intro.pdf"), slides(3))

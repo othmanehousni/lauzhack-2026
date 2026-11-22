@@ -71,6 +71,19 @@ class CatalogTest {
     }
 
     @Test
+    fun theMeetingsDocumentsAreOfferedByScoreHoweverMuchWasSeenLately() {
+        val talk = (1..4).map { Item.Slide("Talk", it, 4, "Talk $it", "", Target.Slide("Talk", it)) }
+        val files = (1..10).map { Catalog.file("/u/Docs/f$it.pdf") }
+        val sheet = Catalog.file("/u/Talk/Market figures.html")
+        val all = talk + files + sheet
+        val score = doubleArrayOf(.5, .4, .3, .2) + DoubleArray(10) { .75 - it * .001 } + .7
+        fun pick(recent: List<Item>) = Catalog(all, all.map { floatArrayOf(1f) }, meeting = setOf("Talk"), recent = recent.map { it.target }.toSet())
+            .candidates(score, k = 5)
+        assertEquals(listOf(sheet, talk[0], talk[1], talk[2], talk[3]), pick(files), "a document of the meeting is not one of the crowd")
+        assertEquals(talk, pick(files + sheet), "the same file seen lately among ten others is held back")
+    }
+
+    @Test
     fun knownVectorsAreNotEmbeddedAgain() = runBlocking {
         val e = Axes(byAxis(items))
         val first = Catalog.build(items.take(5), e)
