@@ -48,14 +48,14 @@ Platform-specific, because it depends on one platform's system:
 
 | Source set | Lines of Kotlin |
 | --- | --- |
-| `commonMain` | 3420 |
-| `desktopMain` | 3417 |
+| `commonMain` | 3456 |
+| `desktopMain` | 3426 |
 | `litert` (desktop only) | 974 |
 | `androidMain` | 208 |
 | `androidApp` | 55 |
-| Tests: `commonTest` / `desktopTest` | 1385 / 3849 |
+| Tests: `commonTest` / `desktopTest` | 1485 / 3888 |
 
-The phone app is 93% common code (3420 of 3683 lines). The desktop app is 44% common code (3420 of 7811); the rest drives the Mac's speech, the VM and the model. Recount:
+The phone app is 93% common code (3456 of 3719 lines). The desktop app is 44% common code (3456 of 7856); the rest drives the Mac's speech, the VM and the model. Recount:
 
 ```sh
 for d in composeApp/src/*/ androidApp/src/*/; do echo "$d $(find $d -name '*.kt' | xargs cat | wc -l)"; done
@@ -63,12 +63,12 @@ for d in composeApp/src/*/ androidApp/src/*/; do echo "$d $(find $d -name '*.kt'
 
 ### How it was built with agents
 
-Coding agents worked in parallel git worktrees (the `worktree-agent-*` branches), one task each. A person reviewed each result and merged it, sent it back, or left it out.
+We built Molière with JetBrains Air. Coding agents worked side by side in parallel git worktrees (the `worktree-agent-*` branches), one task each. A person reviewed each result and merged it, sent it back, or left it out.
 
 - One agent wrote the shared words table in five languages ([1e02295](../../commit/1e02295)) while another made the desktop-only VM host part of Molière ([3d4abf8](../../commit/3d4abf8)) and others trained the decider ([cd2fa08](../../commit/cd2fa08)).
-- Model candidates were compared on the same prompts: an untrained Gemma 4 E2B against our trained 270M deciders ([e7cc578](../../commit/e7cc578), [583326c](../../commit/583326c)). The 270M stayed the model.
+- Model candidates were compared on the same 284 cases: an untrained Gemma 4 E2B decided 111 right, our trained 270M decided 230 ([e7cc578](../../commit/e7cc578), [583326c](../../commit/583326c)). The 270M stayed the model.
 - The fine-tune went through rounds, each scored the same way, before one was kept ([56d6aa3](../../commit/56d6aa3) took round 4, [cd2fa08](../../commit/cd2fa08) round 6).
-- Some branches stay unmerged, for example `worktree-agent-aa3d7448044d9b1c3` (a floater change, `2c71dca`).
+- Some results were refused. A decider trained from FunctionGemma got 231 of 340 heard lines right with 19 false switches, against 237 and 12 for plain Gemma, so it was dropped. A change that focuses the ear on one voice stays unmerged until it is checked on a real voice.
 
 ## What the presenter sees
 
