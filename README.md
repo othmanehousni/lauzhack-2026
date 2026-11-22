@@ -1,4 +1,13 @@
-# Molière
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/microphone-dark.png">
+    <img src="mole/sprites/microphone.png" width="300" alt="The Molière mole, in round spectacles and a red bow tie, holding a microphone">
+  </picture>
+</p>
+
+<h1 align="center">Molière</h1>
+
+<p align="center"><b>Automated co-presenter.</b><br>LauzHack 2026 · Alt+F4</p>
 
 Molière listens to you during a call and puts the right slide, file, website or app on the screen you share. You talk to your audience as usual. Molière works out when you are asking for something and drives the shared screen for you.
 
@@ -6,15 +15,27 @@ It is one Kotlin Compose Multiplatform app: a desktop app on your Mac and an And
 
 ## What the presenter sees
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/stopwatch-dark.png">
+  <img src="mole/sprites/stopwatch.png" width="180" align="right" alt="">
+</picture>
+
 A small bar at the bottom of your screen shows what Molière heard and what it is doing. When you ask for something by meaning, such as "So how big is this market really?", the bar first says what it is about to show, for example "Showing slide 5", next to a Stop button that drains for 2.5 seconds. To stop it, say "no", or press Stop on the bar or on the phone. Nothing reaches the shared screen. If you let the wait run out, it is shown. Up to 20 seconds after something is shown, "no, go back" puts the previous screen back.
 
 Commands on what is already on screen act at once: "Next slide please.", "Go to slide 7.", "Scroll down a bit.", "Close that." Chatter and mentions do nothing. "I sent the PDF to Marc this morning." is not a request.
+
+The mole on the bar acts out each step. For one request, as `--demo` plays it: *You're driving.* → *I've got it.* → *Finding slide 7…* → *I found slide 7.* → *Slide 7 is ready.* → *Back to you.* `--playground` shows every moment, one click away.
 
 The phone shows the same mole and the same line as the bar, with the same buttons. It buzzes when something needs you: a light tick for an announce, a firm double buzz for a choice between files, and two soft pulses for a failure.
 
 Outside a call, Molière is asleep: no microphone, no shared screen, no phone link. It wakes when a call app takes the microphone, or when you choose **Start a meeting** from the mole in the menu bar.
 
 ## How a sentence reaches the screen
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/pickaxe-dark.png">
+  <img src="mole/sprites/pickaxe.png" width="180" align="right" alt="">
+</picture>
 
 1. **Hearing.** Apple's speech recognizer (SpeechTranscriber, macOS 26) turns your voice into words on your Mac as you speak. `Ear.kt` builds and runs it from `hear.swift` and tells it which names to expect: your decks, slide titles, websites and apps.
 2. **The session.** `Session.kt` passes each new version of the utterance to the agent, with what the audience sees now. `Contract.kt` is the contract between the ear, the agent and the screen: `Heard` and `OnScreen` go in, a `Move` comes out.
@@ -26,6 +47,11 @@ Outside a call, Molière is asleep: no microphone, no shared screen, no phone li
 Both models run in the app's process through LiteRT-LM. The model alone decides what to show. No word list or pattern does. `tune/CONTRACT.md` defines the state, the prompt, the grammar and what each answer does, and both the training side and the app follow it. The `--rules` flag brings back the hand written rules of the earlier prototype.
 
 ## Run it
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/folder-dark.png">
+  <img src="mole/sprites/folder.png" width="180" align="right" alt="">
+</picture>
 
 You need:
 
@@ -135,6 +161,11 @@ Molière does the rest itself at the start of a meeting, whenever the VM cannot 
 
 ## How it is tested
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/magnifier-dark.png">
+  <img src="mole/sprites/magnifier.png" width="180" align="right" alt="">
+</picture>
+
 The desktop tests cover the session loop against a fake screen, the catalog, the ear's output, the VM setup, and the prompt builder against the 243 cases in `tune/golden.jsonl`, byte for byte. They also check the app's colours and type against `mole/`. The last run recorded in `DEMO.txt` had 30 suites, 102 tests and 0 failures.
 
 ```sh
@@ -178,10 +209,15 @@ modal volume get decider r5/decider_q8_ekv1024.litertlm "$HOME/Library/Applicati
 - `rehearsal/`: scored scenarios driven through the packaged app.
 - `eval/`: the scripts the models are scored on, and the Modal runners. Each line of a script is something said and what the screen should show after it.
 - `fixtures/make_decks.py`: draws the three sample decks into `library/`, which git ignores. They are a company overview, Q3 financials and a product roadmap.
-- `mole/`: the design page the app's look mirrors, `mole/index.html`.
+- `mole/`: the design page the app's look mirrors, `mole/index.html`, and the mole's sprites in `mole/sprites/`. The look is one signal red, ink and white paper, set in Inter. `docs/readme/` holds the sprites cut from light paper, which this page shows in dark mode, as the app does.
 - `DEMO.txt`: setup and a list of things to try, written from commands that were run.
 
 ## What it still gets wrong
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/shovel-dark.png">
+  <img src="mole/sprites/shovel.png" width="180" align="right" alt="">
+</picture>
 
 Section 8 of `DEMO.txt` lists what the scored rehearsals got wrong. These are measured results:
 
