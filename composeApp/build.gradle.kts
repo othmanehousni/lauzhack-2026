@@ -55,18 +55,41 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.ktor.client.okhttp)
         }
-        // The model engine (package engine): LiteRT-LM has the same classes on both targets, so one source dir serves both.
-        listOf("desktopMain", "androidMain").forEach { getByName(it).kotlin.srcDir("src/litert/kotlin") }
+        // The model engine (package engine) runs on the laptop only: the phone decides nothing and loads no model.
+        desktopMain.kotlin.srcDir("src/litert/kotlin")
         // litertlm asks for kotlin-reflect 2.4.0, which lifts kotlin-stdlib past this compiler; only its unused ToolSet API reflects.
-        // A strict version (!!) also holds in :androidApp, which resolves this module's dependencies itself.
-        val reflect = "org.jetbrains.kotlin:kotlin-reflect:${libs.versions.kotlin.get()}!!"
-        desktopMain.dependencies { implementation(libs.litertlm.jvm); implementation(reflect) }
-        androidMain.dependencies { implementation(libs.litertlm.android); implementation(reflect) }
+        desktopMain.dependencies { implementation(libs.litertlm.jvm); implementation("org.jetbrains.kotlin:kotlin-reflect:${libs.versions.kotlin.get()}!!") }
     }
 }
 
 compose.desktop {
     application {
         mainClass = "ch.lauzhack.app.MainKt"
+        // Menus follow dark mode; no Dock icon, the tray and the floater are the app.
+        jvmArgs("-Dapple.awt.application.appearance=system", "-Dapple.awt.UIElement=true")
+        nativeDistributions {
+            packageName = "Moliere" // codesign fails on the bundle when it is named Molière
+            packageVersion = "1.0.0"
+            modules("java.instrument", "java.management", "java.prefs", "java.sql", "jdk.unsupported") // suggestRuntimeModules
+            macOS {
+                bundleID = "ch.lauzhack.moliere"
+                entitlementsFile.set(project.file("entitlements.plist"))
+                // The helpers (hear, meet, ssh) are this app's children, so macOS asks on this app's behalf, in these words.
+                infoPlist {
+                    extraKeysRawXml = """
+                        <key>CFBundleDisplayName</key><string>Molière</string>
+                        <key>NSMicrophoneUsageDescription</key><string>Molière listens to what you say in a call to put the right thing on the shared screen.</string>
+                        <key>NSSpeechRecognitionUsageDescription</key><string>Molière turns what you say into text, on this Mac.</string>
+                        <key>NSCalendarsFullAccessUsageDescription</key><string>Molière shows the title of the meeting you are in, from your calendar.</string>
+                        <key>NSCalendarsUsageDescription</key><string>Molière shows the title of the meeting you are in, from your calendar.</string>
+                        <key>NSLocalNetworkUsageDescription</key><string>Molière talks to your phone and to the shared screen on this network.</string>
+                        <key>LSUIElement</key><true/>
+                    """.trimIndent()
+                }
+            }
+        }
     }
 }
+
+// --typed reads lines from the terminal under ./gradlew :composeApp:run too.
+tasks.matching { it.name == "run" }.configureEach { doFirst { (this as JavaExec).standardInput = System.`in` } }

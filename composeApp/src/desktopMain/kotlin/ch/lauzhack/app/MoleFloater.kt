@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ApplicationScope
+import androidx.compose.ui.window.MenuScope
 import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
@@ -52,7 +53,13 @@ private val Ember = Color(0xFFF2531C)
 private const val RING = 1 // dp of hairline ring around the bar
 
 @Composable
-internal fun ApplicationScope.MoleFloater(lines: StateFlow<MoleLine>, onPick: (Int) -> Unit, onQuit: () -> Unit, theme: MoleTheme = MoleTheme.System) {
+internal fun ApplicationScope.MoleFloater(
+    lines: StateFlow<MoleLine>,
+    onPick: (Int) -> Unit,
+    onQuit: () -> Unit,
+    theme: MoleTheme = MoleTheme.System,
+    tray: @Composable MenuScope.() -> Unit = { Item("Quit Molière", onClick = onQuit) },
+) {
     val line by lines.collectAsState()
     val hidden = line.state == MoleState.Hidden
     // The window goes away once the bar's exit (180 ms wait + 260 ms) is over, so nothing is left to catch clicks.
@@ -72,11 +79,7 @@ internal fun ApplicationScope.MoleFloater(lines: StateFlow<MoleLine>, onPick: (I
             icon = MoleTrayIcon,
             tooltip = "Molière",
             onAction = resetPosition,
-            menu = {
-                Item("Reset floater position", onClick = resetPosition)
-                Separator()
-                Item("Quit Molière", onClick = onQuit)
-            },
+            menu = tray,
         )
     }
 

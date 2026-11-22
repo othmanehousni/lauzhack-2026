@@ -46,7 +46,7 @@ internal fun ApplicationScope.Playground(demo: Demo, onClose: () -> Unit) {
     var wall by remember { mutableStateOf(4) }
     var theme by remember { mutableStateOf(MoleTheme.System) }
     val line by demo.lines.collectAsState()
-    Window(onCloseRequest = onClose, title = "Molière · playground", state = rememberWindowState(size = DpSize(1120.dp, 820.dp))) {
+    Window(onCloseRequest = onClose, title = "Molière playground", state = rememberWindowState(size = DpSize(1120.dp, 820.dp))) {
         // The page runs under a clear title bar, so the window's chrome takes the theme with it.
         LaunchedEffect(window) {
             window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
@@ -69,7 +69,7 @@ internal fun ApplicationScope.Playground(demo: Demo, onClose: () -> Unit) {
                         Chip("Reduced motion", reduce) { reduce = !reduce }
                         Chip("Walk away", phoneLeads) { phoneLeads = !phoneLeads }
                         Chip("Wallpaper", false) { wall = (wall + 1) % WALLS.size }
-                        Chip("Theme · ${theme.name}", false) { theme = MoleTheme.entries[(theme.ordinal + 1) % MoleTheme.entries.size] }
+                        Chip("Theme: ${theme.name}", false) { theme = MoleTheme.entries[(theme.ordinal + 1) % MoleTheme.entries.size] }
                     }
                     Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)).background(WALLS[wall]), Alignment.BottomCenter) {
                         MoleBar(line, demo::pick, Modifier.padding(bottom = 24.dp), theme)

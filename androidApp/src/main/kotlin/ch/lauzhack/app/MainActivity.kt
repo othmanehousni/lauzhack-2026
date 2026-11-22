@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (!hasMic()) mic.launch(Manifest.permission.RECORD_AUDIO)
-        setContent { App() }
+        setContent { App(phone.state, phone::onPick) }
     }
 
     override fun onStart() {

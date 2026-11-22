@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 // The sample lines of mole/index.html (SAMPLES, OFFERS, Q3, CHOICES), so the app and the web design show the same words.
 private const val LINE = "so let's look at the market size"
 
-internal val Offers = listOf(Choice("Home offer — March.pdf", "Sent 12 Mar", Kind.Pdf), Choice("Home offer — revised.pdf", "Sent 2 Apr", Kind.Pdf))
+internal val Offers = listOf(Choice("Home offer (March).pdf", "Sent 12 Mar", Kind.Pdf), Choice("Home offer (revised).pdf", "Sent 2 Apr", Kind.Pdf))
 internal val Q3 = listOf(
     Choice("Q3 review.pptx", "Slide 7", Kind.Slides),
     Choice("Q3 numbers.xlsx", "Edited today", Kind.Sheet),
@@ -37,7 +37,7 @@ internal val Samples: Map<MoleState, MoleLine> = mapOf(
     Unsure to MoleLine(Unsure, heard = "open the, um, thing from the offsite", card = "07"),
     Thinking to MoleLine(Thinking, "Thinking…", "show them how the warehouse robot picks", card = "07"),
     Waiting to MoleLine(Waiting, "Open… what?", "open up, um", card = "07", timeoutMs = 8000),
-    Tunneling to MoleLine(Tunneling, "Step 2 · clicking Search", "search robot grippers on youtube", card = "07"),
+    Tunneling to MoleLine(Tunneling, "Step 2: clicking Search", "search robot grippers on youtube", card = "07"),
     Failed to MoleLine(Failed, "Couldn't find “roadmap”.", "pull up the roadmap", card = "07"),
     Hello to MoleLine(Hello, "Hi. I'm listening.", card = "07"),
     Choosing to Choices[0].second,
@@ -108,8 +108,8 @@ internal class Demo(private val scope: CoroutineScope) {
         beat(MoleLine(Idle), 600)
         val robot = "show them how the warehouse robot picks"
         beat(MoleLine(Thinking, heard = robot), 1400)
-        beat(MoleLine(Tunneling, "Step 1 · opening YouTube", robot), 1500)
-        beat(MoleLine(Tunneling, "Step 2 · clicking Search", robot), 1500)
+        beat(MoleLine(Tunneling, "Step 1: opening YouTube", robot), 1500)
+        beat(MoleLine(Tunneling, "Step 2: clicking Search", robot), 1500)
         beat(MoleLine(Ready, "It's on screen.", robot), 1500)
         beat(MoleLine(Back), 1300)
         beat(MoleLine(Hidden), 1500)

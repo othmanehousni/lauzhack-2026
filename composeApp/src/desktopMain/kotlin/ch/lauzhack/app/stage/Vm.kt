@@ -79,7 +79,7 @@ private fun plist(xml: String): Map<String, Pair<String, String>> {
 /** The app's data: rendered slides, the stage page, the ear. Under Documents, so the VM reads it at the same path. */
 val DATA = File(HOME, "Documents/.mole")
 
-const val TITLE = "Copilot screen"
+const val TITLE = "Molière screen" // a VM started before the rename keeps "Copilot screen" until its next start
 private val AD = File(HOME, ".agent-desktop")
 
 /** Runs a command and returns its stdout. With check, a non-zero exit throws with its stderr. */
