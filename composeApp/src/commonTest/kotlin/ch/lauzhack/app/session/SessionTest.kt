@@ -276,9 +276,8 @@ class SessionTest {
         delay(3.seconds)
         rig.say("pull up the offer")
         rig.until(MoleState.Choosing)
-        val offered = currentTime
         rig.until(MoleState.Hidden)
-        assertEquals(offered + OFFER.inWholeMilliseconds, currentTime, "it fades by itself")
+        assertEquals(rig.time(MoleState.Choosing) + OFFER.inWholeMilliseconds, currentTime, "it fades by itself")
         assertEquals(listOf(MoleState.Choosing, MoleState.Hidden), rig.states().takeLast(2), "quietly, without handing back")
         rig.session.pick(1)
         delay(2.seconds)
