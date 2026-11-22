@@ -1,0 +1,51 @@
+{"say": "hello hello, is this thing on? okay, I can see people joining", "want": [null]}
+{"say": "So for today the plan is to walk Claire and Marc through their home insurance for the year, so let me put up the slights.", "want": ["Home_Insurance_Review p1"]}
+{"say": "here's what we'll cover in the next half hour", "want": ["Home_Insurance_Review p2"]}
+{"say": "right so what you're covered for today, the house and the contents", "want": ["Home_Insurance_Review p3"]}
+{"say": "the deductible is two hundred francs per claim", "want": ["Home_Insurance_Review p3"]}
+{"say": "Marc is going to email the claims history to Claire later", "want": ["keep"]}
+{"say": "And can you pull up the um", "want": ["keep"]}
+{"say": "the yearly cost split by part", "want": ["Home_Insurance_Review p4"]}
+{"say": "zoom in", "want": ["keep"]}
+{"say": "So I was on the phone with the broker this morning and he said prices went up again, so let me show the market slide.", "want": ["Home_Insurance_Review p7"]}
+{"say": "premiums are up twenty six percent since twenty twenty three", "want": ["Home_Insurance_Review p7"]}
+{"say": "Can you pull up the offer we sent the Dubois?", "want": ["choose"]}
+{"say": "the revised one", "want": ["file /Users/hamid/Documents/Clients/Dubois/Home offer — revised.pdf"]}
+{"say": "scroll down to where it says valid until", "want": ["control scroll down"]}
+{"say": "Okay, back to the slides.", "want": ["Home_Insurance_Review p7"]}
+{"say": "Next slide.", "want": ["Home_Insurance_Review p8"]}
+{"say": "uh huh, yeah, yeah.", "want": ["keep"]}
+{"say": "we compared you with two other insurers, insurer a and insurer b", "want": ["Home_Insurance_Review p8"]}
+{"say": "this is slower than the old portal. pull pull up the revised offer slide", "want": ["Home_Insurance_Review p9"]}
+{"say": "can you open the photo of the house", "want": ["file /Users/hamid/Documents/Clients/Dubois/Dubois house.jpg"]}
+{"say": "No, no, no, no, take it down, that's not for everyone.", "want": ["Home_Insurance_Review p9"]}
+{"say": "Ich bin gleich wieder da, ich muss kurz telefonieren.", "want": ["keep"]}
+{"say": "Marc asked about the garden shed, it's in the contract from twenty twenty one.", "want": ["keep"]}
+{"say": "pull it up", "want": ["file /Users/hamid/Documents/Clients/Dubois/Home contract 2021.pdf"]}
+{"say": "page down", "want": ["control scroll down"]}
+{"say": "close it", "want": ["close"]}
+{"say": "Let's switch to the steering deck for a sec.", "want": ["Steering_Committee p1"]}
+{"say": "Slide five please.", "want": ["Steering_Committee p5"]}
+{"say": "we spent one point six of the two point four million", "want": ["Steering_Committee p5"]}
+{"say": "go to the risk slide", "want": ["Steering_Committee p6"]}
+{"say": "I'll show you the timeline next week, we're out of time for it.", "want": ["keep"]}
+{"say": "Can you pull up the risk register, actually no, never mind.", "want": ["keep"]}
+{"say": "can you get the calculator up", "want": ["app Calculator"]}
+{"say": "close", "want": ["close"]}
+{"say": "so I tried to get it up earlier", "want": ["keep"]}
+{"say": "Can you go to you tube?", "want": ["url https://www.youtube.com"]}
+{"say": "search for hail damage cars geneva", "want": ["ask"]}
+{"say": "play", "want": ["control play the video"]}
+{"say": "pause it", "want": ["control pause the video"]}
+{"say": "okay that's enough of that, back to the presentation", "want": ["Steering_Committee p6"]}
+{"say": "the um the", "want": ["keep"]}
+{"say": "Thomas, you're on mute.", "want": ["keep"]}
+{"say": "can you get the q2 numbers up", "want": ["file /Users/hamid/Documents/Finance/Q2 2026/Q2 numbers.xlsx"]}
+{"say": "Close the spreadsheet.", "want": ["close"]}
+{"say": "And the last slide please", "want": ["Steering_Committee p8"]}
+{"say": "previous", "want": ["Steering_Committee p7"]}
+{"say": "Let's go to hugging face dot co", "want": ["url https://huggingface.co"]}
+{"say": "Can you show our internal dashboard?", "want": ["ask"]}
+{"say": "never mind", "want": ["keep"]}
+{"say": "back to slides", "want": ["Steering_Committee p7"]}
+{"say": "Okay that's all I had, thank you everyone", "want": ["keep"]}
