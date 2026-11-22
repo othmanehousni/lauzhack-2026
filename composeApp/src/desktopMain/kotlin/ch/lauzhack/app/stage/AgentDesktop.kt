@@ -4,24 +4,43 @@ import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+
+/** The app's cache, for what is slow to read again: the text of recent decks. */
+val CACHE = File(HOME, "Library/Caches/Moliere")
+
+private const val RECENT_DECKS = 5
+private const val MOST_FILES = 300
+
+/** What the presenter saw lately, each list most recent first. */
+data class Recents(val pages: List<Page>, val files: List<UsedFile>, val decks: List<RecentDeck>)
 
 /** The shared screen the audience sees: a Chrome stage in the agent-desktop sandbox VM, or a Chrome window on this Mac
  * when the VM is not set up or `sandbox` is null. Calls run one at a time, so a loop may ask again before the last call
- * finished. With dry, it prints what it would do. */
+ * finished. With dry, it prints what it would do. With history off, recents() has no pages and no browser's data is read. */
 class AgentDesktop(
     private val library: File,
     private val sandbox: String? = "base",
     private val dry: Boolean = false,
     private val data: File = DATA,
     private val hostPort: Int = HOST_PORT,
+    history: Boolean = true,
+    private val cache: File = CACHE,
+    private val files: Files = Files(),  // lists in the background from now on
 ) {
     private val lock = Mutex()
-    private val files = Files()  // lists in the background from now on
+    private val history = if (history) History() else null
+    private val drawer = Executors.newSingleThreadExecutor { Thread(it, "recent decks").apply { isDaemon = true; priority = Thread.MIN_PRIORITY } }
+    internal val queued: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    @Volatile private var recent: List<RecentDeck> = emptyList()
     internal lateinit var stage: Stage
     private var stageShows = OnScreen()  // what the stage tab shows, under any tab or app
 
@@ -32,6 +51,10 @@ class AgentDesktop(
     var apps: List<String> = emptyList(); private set
 
     var onScreen = OnScreen(); private set
+
+    init {
+        drawer.execute { runCatching { readyDecks(files.recent()) } }  // from now on, so that the first recents() finds them read
+    }
 
     private suspend fun <T> serial(block: suspend () -> T): T = lock.withLock { withContext(Dispatchers.IO) { block() } }
 
@@ -83,10 +106,12 @@ class AgentDesktop(
     suspend fun show(target: Target): OnScreen = serial {
         onScreen = when (target) {
             is Target.Slide -> {
-                val pages = decks.filter { it.deck == target.deck }
+                val other = recent.firstOrNull { it.pages[0].deck == target.deck }
+                val pages = decks.filter { it.deck == target.deck }.ifEmpty { other?.pages.orEmpty() }
                 val i = target.page - 1
                 val slide = pages.getOrNull(i) ?: throw IllegalArgumentException("no page ${target.page} in deck ${target.deck}")
-                stage.show(slide.png, (pages.subList(maxOf(i - 1, 0), i) + pages.drop(i + 1).take(2)).map { it.png })
+                if (other != null) drawMissing(File(other.path), listOf(slide))  // not drawn in the background yet
+                stage.show(slide.png, (pages.subList(maxOf(i - 1, 0), i) + pages.drop(i + 1).take(2)).map { it.png }.filter(File::exists))
                 OnScreen(target.copy(title = slide.title), slide.deck.replace('_', ' ')).also { stageShows = it }
             }
             is Target.File -> {
@@ -120,9 +145,45 @@ class AgentDesktop(
     /** A small JPEG of what the audience sees now, or null when an app covers the stage. */
     suspend fun thumbnail(): ByteArray? = serial { stage.thumbnail() }
 
-    /** The n most recently changed showable files in Desktop, Documents and Downloads. */
+    /** The n showable files in Desktop, Documents and Downloads the presenter used most recently. */
     suspend fun newestFiles(n: Int = 1500): List<String> = withContext(Dispatchers.IO) { files.newest(n) }
 
-    /** The newest showable file whose name holds every word of the query. */
+    /** The most recently used showable file whose name holds every word of the query. */
     suspend fun find(query: String): String? = withContext(Dispatchers.IO) { files.find(query) }
+
+    /** What the presenter saw lately, for the catalog: the pages they had open in a browser, unless history is off; the
+     * files they used or changed; and the slide decks among recent PDFs outside the library, as pages like those of
+     * decks. A deck not read yet is read and drawn in the background, for a later call. show() takes a page's or a
+     * file's target, and a deck page as a Target.Slide. */
+    suspend fun recents(): Recents = withContext(Dispatchers.IO) {
+        val pages = async { history?.pages().orEmpty() }
+        val spots = files.recent()
+        val decks = readyDecks(spots)
+        val listed = decks.map { it.path }.toSet() + pages.await().map { it.url.substringBefore('#') }
+        val used = spots.filter { it.path !in listed && uri(File(it.path)) !in listed }.take(MOST_FILES)
+        Recents(pages.await(), used.map { UsedFile(it.path, Instant.ofEpochMilli(it.seen())) }, decks)
+    }
+
+    /** The RECENT_DECKS most recent PDFs outside the library that may be decks, by Spotlight's count and size of their
+     * pages, as decks once their text is read. The others are read and drawn in the background, for a later call. Only
+     * these decks' pictures are kept. */
+    internal fun readyDecks(spots: List<Spot>): List<RecentDeck> {
+        val names = library.listFiles { f -> f.extension.lowercase() == "pdf" }.orEmpty().map { it.nameWithoutExtension }.toMutableSet()
+        val pdfs = spots.filter { it.path.endsWith(".pdf", ignoreCase = true) && it.pages in 3..MOST_SLIDES && (it.height == 0.0 || it.width / it.height in SCREEN) }
+            .filter { names.add(File(it.path).nameWithoutExtension) }.take(RECENT_DECKS)
+        val keys = pdfs.map { version(File(it.path)) }
+        val ready = pdfs.zip(keys).mapNotNull { (spot, key) ->
+            val pdf = File(spot.path)
+            val out = File(data, "decks/.recent/$key")
+            val known = File(cache, "decks/$key.json")
+            val pages = if (known.isFile) runCatching { recentDeck(pdf, out, known) }.getOrNull() else null
+            if ((!known.isFile || pages.orEmpty().any { !it.png.exists() }) && queued.add(key)) drawer.execute {
+                runCatching { recentDeck(pdf, out, known)?.let { drawMissing(pdf, it) } }
+                queued.remove(key)
+            }
+            pages?.let { RecentDeck(spot.path, Instant.ofEpochMilli(spot.seen()), it) }
+        }
+        File(data, "decks/.recent").listFiles()?.filter { it.name !in keys }?.forEach { it.deleteRecursively() }
+        return ready.also { recent = it }
+    }
 }
