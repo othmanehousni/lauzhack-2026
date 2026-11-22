@@ -25,16 +25,32 @@ internal data class Walk(
     val lead: Link.Lead = Link.Lead(),
     val seen: List<Float> = emptyList(),
     val gain: Float? = null,
+    val weakSamples: Int = 0,
     val db: Float = 0f, // smoothed dB above the calibrated ratio
 )
 
-internal fun Walk.next(laptopDb: Float, phoneDb: Float): Walk {
-    val ratio = phoneDb - laptopDb
-    if (gain == null) {
-        val seen = seen + ratio
-        return if (seen.size < CALIBRATION) copy(seen = seen) else copy(seen = emptyList(), gain = seen.sorted()[seen.size / 2])
+// Mac levels are dBFS. While the phone hears speech, eight consecutive weak Mac samples
+// are enough to use the phone even when pairing away from the desk or Android omits RMS.
+internal fun Walk.next(laptopDb: Float, phoneDb: Float?): Walk {
+    if (!laptopDb.isFinite() || phoneDb?.isFinite() == false) return this
+    if (gain == null || phoneDb == null) {
+        val weak = when {
+            laptopDb < -52f -> (weakSamples.coerceAtLeast(0) + 1).coerceAtMost(8)
+            laptopDb > -44f -> (weakSamples.coerceAtMost(0) - 1).coerceAtLeast(-8)
+            else -> 0
+        }
+        val phone = when (weak) {
+            8 -> true
+            -8 -> false
+            else -> lead.phone
+        }
+        val next = copy(lead = lead.copy(phone = phone), weakSamples = weak)
+        if (gain != null || phoneDb == null || laptopDb <= -44f) return next
+        val samples = seen + (phoneDb - laptopDb)
+        return if (samples.size < CALIBRATION) next.copy(seen = samples)
+        else next.copy(seen = emptyList(), gain = samples.sorted()[samples.size / 2])
     }
-    val db = db + SMOOTHING * (ratio - gain - db)
+    val db = db + SMOOTHING * (phoneDb - laptopDb - gain - db)
     val metres = SEATED_M * 10f.pow(db / 20)
-    return copy(db = db, lead = Link.Lead(phone = metres > if (lead.phone) BACK_M else EDGE_M, metres = metres))
+    return copy(db = db, weakSamples = 0, lead = Link.Lead(phone = metres > if (lead.phone) BACK_M else EDGE_M, metres = metres))
 }

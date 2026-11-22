@@ -14,6 +14,9 @@ import kotlin.io.encoding.Base64
 
 /** The laptop serves the phone on this TCP port and sends its beacon, "the-mole <port>", to this UDP port. Over USB: `adb reverse tcp:47474 tcp:47474`. */
 const val PORT = 47474
+// Binary WebSocket frames carry 100 ms of mono signed PCM16, little endian.
+internal const val PCM_RATE = 16_000
+internal const val PCM_BYTES = PCM_RATE / 10 * 2
 internal const val BEACON = "the-mole"
 internal const val PATH = "/phone"
 
@@ -21,13 +24,15 @@ internal const val PATH = "/phone"
 @Serializable
 sealed interface Link {
     // Laptop to phone.
+    @Serializable @SerialName("accept-pcm16le-16000") data object AcceptAudio : Link
     @Serializable @SerialName("line") data class Line(val line: MoleLine) : Link
     @Serializable @SerialName("screen") data class Screen(val name: String = "", @Serializable(Base64Bytes::class) val thumbnail: ByteArray? = null) : Link // a small PNG or JPEG
     @Serializable @SerialName("lead") data class Lead(val phone: Boolean = false, val metres: Float = SEATED_M) : Link
     @Serializable @SerialName("meeting") data class Meeting(val title: String) : Link
 
     // Phone to laptop.
-    @Serializable @SerialName("level") data class Level(val db: Float, val speech: Boolean) : Link
+    @Serializable @SerialName("level") data class Level(val db: Float?, val speech: Boolean) : Link
+    @Serializable @SerialName("mic") data class Mic(val ready: Boolean) : Link
     @Serializable @SerialName("words") data class Words(val heard: Heard) : Link
     @Serializable @SerialName("pick") data class Pick(val index: Int) : Link
 }

@@ -2,7 +2,9 @@ package ch.lauzhack.app.stage
 
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.LOGS
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -13,6 +15,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
@@ -58,12 +61,12 @@ class Ear(private val data: File = DATA) {
 
     /** hear.swift as a program in the app's data, built again when the source changes. Its Info.plist names why it
      * needs the microphone. */
-    fun built(): File {
+    fun built(): File = synchronized(Ear::class.java) {
         val source = File(data, "hear.swift")
         val exe = File(data, "hear")
         val swift = Ear::class.java.getResource("/stage/hear.swift")!!.readText()
         val plist = File(data, "hear.plist")
-        if (source.exists() && source.readText() == swift && plist.exists() && plist.readText() == PLIST && exe.lastModified() >= source.lastModified()) return exe
+        if (source.exists() && source.readText() == swift && plist.exists() && plist.readText() == PLIST && exe.lastModified() >= source.lastModified()) return@synchronized exe
         if (exec(listOf("xcode-select", "-p"), check = false).isBlank()) error("the ear needs Xcode's command line tools: xcode-select --install")
         data.mkdirs()
         source.writeText(swift)
@@ -71,24 +74,48 @@ class Ear(private val data: File = DATA) {
         exec(listOf("swiftc", "-O", "-swift-version", "5", "-parse-as-library", source.path, "-o", exe.path,
             "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", plist.path),
             what = "building hear.swift")
-        return exe
+        exe
     }
 
     /** Listens, listening for `names` (apps, websites, slide titles) in particular, until the helper stops or this is
-     * cancelled. With `files`, it hears those instead of the microphone, at the pace they would be spoken. */
-    suspend fun listen(names: List<String>, files: List<File> = emptyList()) = withContext(Dispatchers.IO) {
-        val log = File(data, "hear.log")
-        val keep = System.getenv("HEAR_KEEP")?.let(::File) ?: if (files.isEmpty()) recording() else null
-        val p = ProcessBuilder(listOf(built().path) + files.map { it.path }).redirectError(log)
-            .apply { if (keep != null) environment()["HEAR_KEEP"] = keep.path }.start()
-        p.outputStream.bufferedWriter().use { w -> names.map(String::trim).filter(String::isNotEmpty).forEach { w.write(it + "\n") }; w.write("\n") }
+     * cancelled. [pcm] supplies live phone audio. With [files], it hears recorded audio at speaking pace. */
+    suspend fun listen(names: List<String>, files: List<File> = emptyList(), pcm: Flow<ByteArray>? = null) = withContext(Dispatchers.IO) {
+        val log = File(data, if (pcm == null) "hear.log" else "hear-phone.log")
+        val args = if (pcm == null) files.map { it.path } else listOf("--phone-pcm") + names
+        // Only the laptop's own audio is kept: the phone's helper would otherwise inherit HEAR_KEEP and write the same file.
+        val keep = if (pcm != null) null else System.getenv("HEAR_KEEP")?.let(::File) ?: if (files.isEmpty()) recording() else null
+        val p = ProcessBuilder(listOf(built().path) + args).redirectError(log)
+            .apply { if (keep != null) environment()["HEAR_KEEP"] = keep.path else environment().remove("HEAR_KEEP") }.start()
+        // A cancelled meeting must unblock both the pipe reader and the writer, even during model startup.
+        val cleanup = launch(start = CoroutineStart.UNDISPATCHED) {
+            try { awaitCancellation() } finally { p.destroyForcibly() }
+        }
+        val writer = launch {
+            try {
+                p.outputStream.use { out ->
+                    if (pcm != null) pcm.collect { out.write(it); out.flush() }
+                    else out.bufferedWriter().use { w ->
+                        names.map(String::trim).filter(String::isNotEmpty).forEach { w.write(it + "\n") }
+                        w.write("\n")
+                    }
+                }
+            } catch (e: java.io.IOException) {
+                currentCoroutineContext().ensureActive()
+                throw e
+            }
+        }
         val code = try {
-            read(p.inputStream.bufferedReader())
+            p.inputStream.bufferedReader().use { read(it) }
             p.waitFor()
+        } catch (e: java.io.IOException) {
+            currentCoroutineContext().ensureActive()
+            throw e
         } finally {
-            p.destroy()
+            cleanup.cancel()
+            writer.cancel()
             if (keep?.isFile == true) ch.lauzhack.app.log("ear: recorded ${keep.name}, ${exec(listOf("afinfo", keep.path), check = false).substringAfter("estimated duration: ").substringBefore(" ")} s")
         }
+        currentCoroutineContext().ensureActive()
         if (code != 0) error("hear.swift stopped with code $code: ${log.readText().trim()}")
     }
 

@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.lifecycleScope
 import ch.lauzhack.app.link.Phone
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -32,7 +33,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (!hasMic()) mic.launch(Manifest.permission.RECORD_AUDIO)
-        setContent { App(phone.state, phone::onPick) }
+        setContent { App(phone.state, phone::onPick, phone.micIssue.collectAsState().value) }
     }
 
     override fun onNewIntent(intent: Intent) {

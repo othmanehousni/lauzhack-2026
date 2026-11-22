@@ -72,7 +72,7 @@ internal class Rig(private val scope: TestScope, shows: Target? = null, script: 
     val screen = FakeScreen(scope, shows)
     val mole = Mole(scope.backgroundScope, scope.testTimeSource)
     val window = MutableStateFlow(ANNOUNCE)
-    val session = Session(Agent { h, s -> asked += scope.currentTime to h; script(h, s) }, screen, mole, laptop, phone, phoneLeads, scope.testTimeSource, window)
+    val session = Session(Agent { h, s -> asked += scope.currentTime to h; script(h, s) }, screen, mole, microphoneWords(laptop, phone) { phoneLeads.value }, phoneLeads, scope.testTimeSource, window)
     val lines = mutableListOf<Pair<Long, MoleLine>>()
 
     init {

@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** The phone: what the laptop says, or, while there is no laptop to say it, that the mole is looking for it. */
 @Composable
-fun App(phone: StateFlow<PhoneState>, onPick: (Int) -> Unit) {
+fun App(phone: StateFlow<PhoneState>, onPick: (Int) -> Unit, micIssue: String? = null) {
     val s by phone.collectAsState()
-    MolePhone(s.line, s.onScreenName, s.thumbnail, s.phoneLeads, s.meeting, onPick, connected = s.connected)
+    MolePhone(s.line, s.onScreenName, s.thumbnail, s.phoneLeads, s.meeting, onPick, connected = s.connected, micIssue = micIssue)
 }
