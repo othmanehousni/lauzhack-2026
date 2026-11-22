@@ -43,6 +43,7 @@ import java.io.File
 import javax.imageio.ImageIO
 import kotlin.math.log10
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -63,7 +64,8 @@ private const val NAMES = 100 // Apple's limit for SpeechAnalyzer's contextual s
  * The laptop's side of the product. Asleep outside a call: no ear, no phone server, no shared screen. When [meeting]
  * gives a call's title, it brings the shared screen up while [brain] warms, has it read the decks in [library], files,
  * apps and, while [history] is on, the pages the presenter had open in a browser, and runs a [Session] of its agent on
- * the laptop's ear (or [typed] lines) or the phone's, whichever leads, until the call ends; then all of it stops. A
+ * the laptop's ear (hearing [audio] files instead of the microphone when given, or [typed] lines) or the phone's,
+ * whichever leads, with the [window] the presenter chose before an announce is shown, until the call ends; then all of it stops. A
  * library without a PDF keeps it asleep until one is there. The floater renders [line] and sends taps to [onPick].
  * [downloads] (a model file, and the fraction of it on disk) is collected to its end before [brain] warms. Every line,
  * screen change and decision is [log]ged.
@@ -77,6 +79,8 @@ class Laptop(
     private val history: StateFlow<Boolean> = MutableStateFlow(true),
     private val sandbox: String? = "base",
     private val typed: Flow<Heard>? = null,
+    private val audio: List<File> = emptyList(),
+    private val window: StateFlow<Duration> = MutableStateFlow(ANNOUNCE),
     private val shots: File? = null, // where a checked run keeps what the audience saw after each change, as PNGs
 ) {
     private val work = CoroutineScope(scope.coroutineContext + Dispatchers.Default.limitedParallelism(1)) // the session's state is one thread's
@@ -167,9 +171,11 @@ class Laptop(
         val ear = Ear().takeIf { typed == null }
         if (ear != null) {
             launch { ear.notes.collect { log("ear: $it") } }
+            launch { ear.said.collect { log("ear     ${if (it.heard.ended) "final" else "live "}  \"${it.heard.text}\"  unchanged ${it.ago.inWholeMilliseconds} ms") } }
             launch {
                 try {
-                    ear.listen(names.filter { it.split(' ').size <= 4 }.take(NAMES).also { log("ear expects ${it.size} of ${names.size} names") })
+                    ear.listen(names.filter { it.split(' ').size <= 4 }.take(NAMES).also { log("ear expects ${it.size} of ${names.size} names") }, audio)
+                    if (audio.isNotEmpty()) log("ear: heard every file")
                 } catch (e: Exception) { // the phone may still hear
                     ensureActive()
                     log("ear failed: $e")
@@ -182,7 +188,7 @@ class Laptop(
         val phones = PhoneServer(mole.line, screen, title, laptopDb)
         phones.start()
         try {
-            val s = Session(logged(agent), desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone })
+            val s = Session(logged(agent), desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone }, window = window)
             session.value = s
             launch { phones.picks.collect(s::pick) }
             launch { phones.connected.collect { log(if (it) "phone connected" else "no phone") } }
@@ -278,17 +284,22 @@ private fun logged(agent: Agent): Agent {
  */
 internal fun AgentDesktop.asScreen(): SharedScreen = object : SharedScreen {
     override val onScreen get() = this@asScreen.onScreen
-    override suspend fun show(target: Target) = afresh { this@asScreen.show(target) }
-    override suspend fun control(name: String) = afresh { this@asScreen.control(name) }
-    override suspend fun close() = afresh { this@asScreen.close() }
+    override suspend fun show(target: Target) = afresh("show $target") { this@asScreen.show(target) }
+    override suspend fun control(name: String) = afresh(name) { this@asScreen.control(name) }
+    override suspend fun close() = afresh("close") { this@asScreen.close() }
 }
 
-private suspend fun <T> AgentDesktop.afresh(call: suspend () -> T): T = try {
-    call()
-} catch (e: Exception) {
-    currentCoroutineContext().ensureActive()
-    if (e !is IllegalArgumentException) quietly { up() }
-    throw e
+private suspend fun <T> AgentDesktop.afresh(what: String, call: suspend () -> T): T {
+    val t = TimeSource.Monotonic.markNow()
+    log("call    $what")
+    return try {
+        call().also { log("called  ${t.elapsedNow().inWholeMilliseconds} ms  $what") }
+    } catch (e: Exception) {
+        log("called  ${t.elapsedNow().inWholeMilliseconds} ms  $what  failed: $e")
+        currentCoroutineContext().ensureActive()
+        if (e !is IllegalArgumentException) quietly { up() }
+        throw e
+    }
 }
 
 private suspend fun <T> quietly(block: suspend () -> T): T? = try {

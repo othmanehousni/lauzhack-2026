@@ -17,6 +17,7 @@ import ch.lauzhack.app.mole.Demo
 import ch.lauzhack.app.mole.MoleTheme
 import ch.lauzhack.app.mole.Playground
 import ch.lauzhack.app.session.Laptop
+import ch.lauzhack.app.session.ANNOUNCE
 import ch.lauzhack.app.session.RulesBrain
 import ch.lauzhack.app.session.hasDecks
 import ch.lauzhack.app.stage.HOME
@@ -42,6 +43,7 @@ import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
 import java.util.prefs.Preferences
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -51,6 +53,9 @@ import kotlin.time.Duration.Companion.seconds
  *   --typed       lines from standard input instead of the microphone, one line one utterance; starts a meeting,
  *                 and keeps what the audience saw after each change in ~/Library/Logs/Moliere/screens
  *   --paced       with --typed, each line comes as speech does: word by word at 150 words a minute, then finished
+ *   --audio FILE… the ear hears these audio files (or every one in a folder), in order, instead of the microphone;
+ *                 starts a meeting, and keeps the screens as --typed does
+ *   --window MS   how long an announce waits before it is shown, for this run (the tray's Wait before showing)
  *   --library DIR the decks for this run instead of the chosen folder
  *   --host        a Chrome window on this Mac as the shared screen instead of the VM
  *   --rules       the rules decide even when decider.litertlm is in the models folder
@@ -75,6 +80,7 @@ fun main(args: Array<String>) {
 
     val engines = desktopEngines()
     val detector = MeetingDetector()
+    val audio = audio(args)
     val typed = if ("--typed" in args) {
         val lines = Channel<Heard>(Channel.UNLIMITED)
         CoroutineScope(Dispatchers.IO).launch { // not app's: a read of stdin does not cancel
@@ -85,9 +91,14 @@ fun main(args: Array<String>) {
         }
         lines.receiveAsFlow()
     } else null
-    if (typed == null) app.launch { detector.run() } else detector.start("Typed lines")
+    when {
+        typed != null -> detector.start("Typed lines")
+        audio.isNotEmpty() -> detector.start("Audio files")
+        else -> app.launch { detector.run() }
+    }
     val model = "--rules" !in args && File(engines.modelsDir, DECIDER).isFile
     val history = MutableStateFlow("--no-history" !in args && prefs.getBoolean("history", true))
+    val window = MutableStateFlow((args.after("--window")?.toLong() ?: prefs.getLong("window", ANNOUNCE.inWholeMilliseconds)).milliseconds)
     val laptop = Laptop(
         app,
         if (model) ModelBrain(engines) else RulesBrain(engines::embedder),
@@ -97,17 +108,21 @@ fun main(args: Array<String>) {
         history,
         sandbox = if ("--host" in args) null else "base",
         typed = typed,
-        shots = if (typed != null) File(LOGS, "screens").also { it.deleteRecursively() } else null,
+        audio = audio,
+        window = window,
+        shots = if (typed != null || audio.isNotEmpty()) File(LOGS, "screens").also { it.deleteRecursively() } else null,
     )
     log("Molière: decks in ${library.value}, ${if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, " +
-        "${if (typed != null) "typed lines" else "the microphone"}, ${if (model) "the model decides" else "the rules decide"}, " +
-        "browser history ${if (history.value) "on" else "off"}")
+        "${if (typed != null) "typed lines" else if (audio.isNotEmpty()) "${audio.size} audio files" else "the microphone"}, " +
+        "${if (model) "the model decides" else "the rules decide"}, browser history ${if (history.value) "on" else "off"}, " +
+        "announces wait ${window.value.inWholeMilliseconds} ms")
 
     application {
         var theme by remember { mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System)) }
         val meeting by detector.meeting.collectAsState()
         val lib by library.collectAsState()
         val browsing by history.collectAsState()
+        val wait by window.collectAsState()
         val empty by produceState(false, lib) { while (true) { value = !hasDecks(lib); delay(3.seconds) } }
         MoleFloater(laptop.line, laptop::onPick, ::exitApplication, theme) {
             if (meeting == null) Item("Start a meeting", onClick = { detector.start("Meeting") })
@@ -127,6 +142,13 @@ fun main(args: Array<String>) {
                 prefs.putBoolean("history", it)
                 prefs.flush()
             })
+            Menu("Wait before showing") {
+                for ((label, ms) in WAITS) CheckboxItem(label, checked = wait.inWholeMilliseconds == ms, onCheckedChange = {
+                    window.value = ms.milliseconds
+                    prefs.putLong("window", ms)
+                    prefs.flush()
+                })
+            }
             Separator()
             Menu("Theme") {
                 for (t in MoleTheme.entries) CheckboxItem(t.name, checked = t == theme, onCheckedChange = { // a tray menu has no radio items
@@ -142,6 +164,15 @@ fun main(args: Array<String>) {
 }
 
 private fun Array<String>.after(flag: String) = getOrNull(indexOf(flag).takeIf { it >= 0 }?.plus(1) ?: -1)
+
+private val WAITS = listOf("2.5 seconds" to 2500L, "1.5 seconds" to 1500L, "None" to 0L)
+
+/** The files after --audio, up to the next flag; a folder is every audio file in it, by name. */
+private fun audio(args: Array<String>): List<File> =
+    args.dropWhile { it != "--audio" }.drop(1).takeWhile { !it.startsWith("--") }.map { File(it).absoluteFile }.flatMap { f ->
+        if (!f.isDirectory) listOf(f)
+        else f.listFiles { x -> x.extension.lowercase() in setOf("aiff", "aif", "wav", "m4a", "caf", "mp3") }.orEmpty().sortedBy { it.name }
+    }
 
 private fun chooseFolder(start: File): File? {
     System.setProperty("apple.awt.fileDialogForDirectories", "true")
