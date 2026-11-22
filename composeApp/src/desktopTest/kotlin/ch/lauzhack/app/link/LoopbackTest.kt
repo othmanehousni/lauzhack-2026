@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.first
@@ -74,6 +75,18 @@ class LoopbackTest {
                 laptopDb.value = -50f
                 repeat(30) { phone.level(-10f, speech = true) }
                 phone.state.first { it.phoneLeads && it.metres > 4f }
+                // A phone that stops sending levels (screen off, its recognizer gone) hands the lead back.
+                assertEquals(false, withTimeout(4.seconds) { laptop.lead.first { !it.phone } }.phone)
+                phone.level(-10f, speech = true)
+                laptop.lead.first { it.phone }
+
+                // One phone at a time: a second one is refused while the first is connected.
+                val otherScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+                val other = LaptopClient(otherScope, HttpClient(CIO) { install(WebSockets) }, port = port)
+                delay(1.5.seconds)
+                assertEquals(false, other.state.value.connected)
+                assertEquals(true, phone.state.value.connected)
+                otherScope.cancel()
 
                 laptop.stop()
                 val gone = phone.state.first { !it.connected && it.trouble != null }

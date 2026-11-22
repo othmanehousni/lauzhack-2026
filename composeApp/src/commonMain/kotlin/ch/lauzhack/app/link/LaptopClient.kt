@@ -74,7 +74,8 @@ class LaptopClient(
         session?.outgoing?.trySend(Frame.Text(message.encode()))
     }
 
-    /** False if it could not connect; true once a session it opened has ended. */
+    /** False if it could not connect, or the laptop closed without a word, as it does to a second phone; true once a
+     * session the laptop spoke in has ended. Connected means spoken to, so a refused phone never reads as connected. */
     private suspend fun talk(address: String): Boolean {
         val ws = try {
             withTimeout(3.seconds) {
@@ -85,9 +86,13 @@ class LaptopClient(
             return false
         }
         session = ws
-        _state.update { it.copy(connected = true, trouble = null) }
+        var spoke = false
         try {
-            for (frame in ws.incoming) if (frame is Frame.Text) decode(frame.readText())?.let(::show)
+            for (frame in ws.incoming) if (frame is Frame.Text) decode(frame.readText())?.let {
+                if (!spoke) _state.update { s -> s.copy(connected = true, trouble = null) }
+                spoke = true
+                show(it)
+            }
         } catch (e: Exception) {
             currentCoroutineContext().ensureActive()
         } finally {
@@ -95,7 +100,7 @@ class LaptopClient(
             ws.cancel()
             _state.value = PhoneState() // nothing the laptop said holds once it is gone
         }
-        return true
+        return spoke
     }
 
     private fun show(message: Link) {
