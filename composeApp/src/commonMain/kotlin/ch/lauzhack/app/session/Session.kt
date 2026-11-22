@@ -9,8 +9,13 @@ import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.agent.ON_STAGE
 import ch.lauzhack.app.agent.suffix
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -24,12 +29,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -46,16 +52,19 @@ interface SharedScreen {
 
 internal val THINK = 1.seconds // an agent slower than this over new words shows the mole thinking
 internal val UNDO = 8.seconds  // how long "no, not that" takes back what just went up
-internal val ANNOUNCE = 2500.milliseconds // how long an announce can be stopped before it is shown
+internal val ANNOUNCE = 2500.milliseconds // how long an announce can be stopped before it is shown, unless the presenter chose otherwise
+internal val STALL = 5.seconds // a screen call that has not answered by then has failed
 private const val EARLIER = 3  // utterances handed to the agent with each one
 
 /**
- * One meeting. Twice a second it asks [given] whether there is anything to do about what the presenter is saying and
- * what the audience sees, carries the move out on [agentDesktop] at once, and tells [mole] what really happens. Words
- * come from [laptop], or from [phone] while [phoneLeads]. An [Move.Ask] of one target is announced and shown once
- * [window] has run, unless the presenter stops it ([Move.Undo], or [pick] of a negative index); several are a choice.
- * It keeps what is on screen and what was there before, the offer in play, the presenter's picks, and the last few
- * utterances. Run it on one thread: its state changes between suspensions.
+ * One meeting. Each time the words change it asks [given] whether there is anything to do about what the presenter is
+ * saying and what the audience sees, and carries the move out on [agentDesktop] at once, telling [mole] what really
+ * happens. Words come from [laptop], or from [phone] while [phoneLeads]. Moves reach the screen one at a time, in the
+ * order they were decided, each call failing after [STALL]; the agent keeps deciding meanwhile. An [Move.Ask] of one
+ * target is announced and shown once [window] has run, unless the presenter stops it ([Move.Undo], or [pick] of a
+ * negative index), or at once with no window; several are a choice. It keeps what is on screen and what was there
+ * before, the offer in play, the presenter's picks, and the last few utterances. Run it on one thread: its state
+ * changes between suspensions.
  */
 class Session(
     private val given: Agent,
@@ -65,7 +74,7 @@ class Session(
     private val phone: Flow<Heard> = emptyFlow(),
     private val phoneLeads: Flow<Boolean> = flowOf(false),
     private val time: TimeSource = TimeSource.Monotonic,
-    private val window: Duration = ANNOUNCE,
+    private val window: StateFlow<Duration> = MutableStateFlow(ANNOUNCE),
 ) {
     private class Coming(val target: Target, val said: String) // by identity: announced again, it is a fresh window
 
@@ -86,7 +95,7 @@ class Session(
     private var stopped: Target? = null                // an announce turned down, not announced again until the next change
     private val picks = mutableMapOf<Set<Target>, Target>() // the presenter's answer to each choice offered
     private val taps = Channel<Int>(Channel.UNLIMITED)
-    private val turn = Mutex()                         // one move at a time, from the loop, a tap or a window ending
+    private val turn = Mutex()                         // one move at a time, in order, from the loop, a tap or a window ending
 
     /** A tap on row [index] of the options, on the bar or the phone; a negative index turns them down. */
     fun pick(index: Int) {
@@ -100,36 +109,40 @@ class Session(
         launch { leads.drop(1).collect { mole.on(Event.Hello(if (it) "On your phone now." else "Back on the laptop.")) } }
         launch { leads.flatMapLatest { if (it) phone else laptop }.collect(::hear) }
         launch { for (i in taps) turn.withLock { if (i < 0) stop() else offered().getOrNull(i)?.let { show(it, said = "", pick = i) } } }
-        val agent = Agent { heard, onScreen ->
-            val slow = if (heard != asked) launch { delay(THINK); mole.on(Event.Thinking(heard.text)) } else null
-            asked = heard
-            try {
-                given.anythingToDo(heard, onScreen)
-            } catch (e: Exception) { // a model that failed once must not end the meeting
-                currentCoroutineContext().ensureActive()
-                println("the agent failed on \"${heard.text}\": $e")
-                Move.Nothing
-            } finally {
-                slow?.cancel()
-                mole.on(Event.Answered)
+        launch {
+            while (true) {
+                val h = heard.first { it != asked && it.text.isNotBlank() }
+                val move = decide(h)
+                if (fresh(move)) launch { turn.withLock { act(move, h.text) } } // the screen may be slow: the next words are decided meanwhile
+                if (h.ended && heard.value == h) later.removeFirstOrNull()?.let { _heard.value = it }
             }
         }
-        flow { while (true) { emit(agent.anythingToDo(heard.value, onScreen.value)); delay(500.milliseconds) } }
-            .collect { move ->
-                turn.withLock {
-                    if (fresh(move)) when (move) {
-                        is Move.Show -> show(move.target)
-                        is Move.Ask -> ask(move.options)
-                        is Move.Control -> control(move.name)
-                        Move.Wait -> mole.on(Event.Wait(waiting(asked.text), asked.text))
-                        Move.Unsure -> mole.on(Event.Unsure(asked.text))
-                        Move.Undo -> undo()
-                        Move.Nothing -> Unit
-                    }
-                    if (heard.value.ended) later.removeFirstOrNull()?.let { _heard.value = it }
-                }
-            }
         awaitCancellation()
+    }
+
+    private suspend fun CoroutineScope.decide(heard: Heard): Move {
+        val slow = launch { delay(THINK); mole.on(Event.Thinking(heard.text)) }
+        asked = heard
+        return try {
+            given.anythingToDo(heard, onScreen.value)
+        } catch (e: Exception) { // a model that failed once must not end the meeting
+            currentCoroutineContext().ensureActive()
+            println("the agent failed on \"${heard.text}\": $e")
+            Move.Nothing
+        } finally {
+            slow.cancel()
+            mole.on(Event.Answered)
+        }
+    }
+
+    private suspend fun CoroutineScope.act(move: Move, said: String) = when (move) {
+        is Move.Show -> show(move.target, said)
+        is Move.Ask -> ask(move.options, said)
+        is Move.Control -> control(move.name, said)
+        Move.Wait -> mole.on(Event.Wait(waiting(said), said))
+        Move.Unsure -> mole.on(Event.Unsure(said))
+        Move.Undo -> undo(said)
+        Move.Nothing -> Unit
     }
 
     private fun hear(piece: Heard) {
@@ -157,7 +170,7 @@ class Session(
     private fun offered(): List<Target> =
         coming?.let { listOf(it.target) } ?: if (mole.line.value.state == MoleState.Choosing) offer else emptyList()
 
-    private suspend fun show(target: Target, said: String = asked.text, pick: Int? = null, first: String? = null) {
+    private suspend fun CoroutineScope.show(target: Target, said: String, pick: Int? = null, first: String? = null) {
         if (same(target, onScreen.value.target)) return
         val options = offered()
         val i = pick ?: options.indexOfFirst { same(it, target) }.takeIf { it >= 0 } // by tap, by voice, or by staying on it
@@ -165,22 +178,24 @@ class Session(
         change(showing(target, i, options.size, first), said, undoable = true) { agentDesktop.show(target) }
     }
 
-    private suspend fun CoroutineScope.ask(options: List<Target>) {
-        picks[options.toSet()]?.let { return show(it, first = "Same as before: ${name(it)}.") }
+    private suspend fun CoroutineScope.ask(options: List<Target>, said: String) {
+        picks[options.toSet()]?.let { return show(it, said, first = "Same as before: ${name(it)}.") }
         if (options.size > 1) {
             if (offered() == options) return
             coming = null
             offer = options
-            return mole.on(Event.Offer(options.map(::choice), asked.text))
+            return mole.on(Event.Offer(options.map(::choice), said))
         }
         val t = options[0]
         if (same(t, coming?.target) || same(t, onScreen.value.target) || same(t, stopped)) return
-        val c = Coming(t, asked.text)
+        val w = window.value
+        if (w <= Duration.ZERO) return show(t, said)
+        val c = Coming(t, said)
         coming = c
         offer = emptyList()
-        mole.on(Event.Coming(choice(t), "Showing ${name(t)}", c.said, card(t), window.inWholeMilliseconds))
+        mole.on(Event.Coming(choice(t), "Showing ${name(t)}", c.said, card(t), w.inWholeMilliseconds))
         launch {
-            delay(window)
+            delay(w)
             turn.withLock { if (coming === c) show(t, c.said) }
         }
     }
@@ -194,25 +209,26 @@ class Session(
         mole.on(Event.Dismiss)
     }
 
-    private suspend fun control(name: String) =
-        if (name == "close") change(controlling(name), asked.text, undoable = true) { agentDesktop.close() }
-        else change(controlling(name), asked.text, undoable = false) { agentDesktop.control(name); null }
+    private suspend fun CoroutineScope.control(name: String, said: String) =
+        if (name == "close") change(controlling(name), said, undoable = true) { agentDesktop.close() }
+        else change(controlling(name), said, undoable = false) { agentDesktop.control(name); null }
 
-    private suspend fun undo() {
+    private suspend fun CoroutineScope.undo(said: String) {
         if (offered().isNotEmpty()) return stop()
         val (was, at) = before ?: return
         if (at.elapsedNow() > UNDO) return
         before = null
         val now = onScreen.value.target
-        change(undoing(was.target), asked.text, undoable = false) {
+        change(undoing(was.target), said, undoable = false) {
             // a tab or app comes off to bare what is under it; what is on the stage itself is replaced
             val under = if (was.target == null || inFront(now)) agentDesktop.close() else null
             if (was.target == null || same(under?.target, was.target)) under else agentDesktop.show(was.target)
         }
     }
 
-    /** Runs a change of the screen, once more if it fails, and tells the mole each step as it happens. */
-    private suspend fun change(c: Change, said: String, undoable: Boolean, call: suspend () -> OnScreen?) {
+    /** Runs a change of the screen, once more if it fails but not if it stalls, and tells the mole each step as it
+     * happens. A change that fails leaves nothing for a "no" to take back. */
+    private suspend fun CoroutineScope.change(c: Change, said: String, undoable: Boolean, call: suspend () -> OnScreen?) {
         val was = onScreen.value
         offer = emptyList()
         coming = null
@@ -220,18 +236,32 @@ class Session(
         mole.on(Event.Start(c, said))
         repeat(2) { attempt ->
             try {
-                call()?.let { _onScreen.value = it }
+                bounded(call)?.let { _onScreen.value = it }
                 if (undoable) before = was to time.markNow()
                 return mole.on(Event.Done)
             } catch (e: Exception) {
                 currentCoroutineContext().ensureActive()
-                if (attempt == 0) {
+                if (attempt == 0 && e !is TimeoutCancellationException) {
                     mole.on(Event.Retry)
                 } else {
                     _onScreen.value = agentDesktop.onScreen
-                    mole.on(Event.Failed(c.failed, plain(e)))
+                    before = null
+                    return mole.on(Event.Failed(c.failed, plain(e)))
                 }
             }
+        }
+    }
+
+    /** [call], given up after [STALL]. It runs outside this scope, so a call stuck where it cannot be cancelled is not
+     * waited for; once it ends, the screen is read again. */
+    private suspend fun <T> CoroutineScope.bounded(call: suspend () -> T): T {
+        val c = CoroutineScope(currentCoroutineContext().minusKey(Job)).async(start = CoroutineStart.UNDISPATCHED) { call() }
+        try {
+            return withTimeout(STALL) { c.await() }
+        } catch (e: CancellationException) {
+            c.cancel()
+            if (e is TimeoutCancellationException) launch { c.join(); _onScreen.value = agentDesktop.onScreen }
+            throw e
         }
     }
 }

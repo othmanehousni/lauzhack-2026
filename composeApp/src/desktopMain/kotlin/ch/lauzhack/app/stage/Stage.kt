@@ -35,6 +35,7 @@ import java.io.File
 import java.net.URLEncoder
 import java.util.Base64
 import javax.imageio.ImageIO
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
@@ -125,11 +126,11 @@ class Stage(private val vm: Vm?, data: File, private val port: Int, private val 
     private suspend fun socket(tab: String) =
         sockets.getOrPut(tab) { client.webSocketSession("ws://127.0.0.1:$port/devtools/page/$tab") }
 
-    internal suspend fun call(tab: String, method: String, params: JsonObject = JsonObject(emptyMap())): JsonObject {
+    internal suspend fun call(tab: String, method: String, params: JsonObject = JsonObject(emptyMap()), wait: Duration = 15.seconds): JsonObject {
         val ws = socket(tab)
         val id = ++calls
         ws.send(buildJsonObject { put("id", id); put("method", method); put("params", params) }.toString())
-        return withTimeout(15.seconds) {  // the VM can take seconds when it is busy
+        return withTimeout(wait) {  // the VM can take seconds when it is busy
             var msg: JsonObject
             do msg = Json.parseToJsonElement((ws.incoming.receive() as Frame.Text).readText()).jsonObject
             while (msg["id"]?.jsonPrimitive?.intOrNull != id)
@@ -288,7 +289,7 @@ class Stage(private val vm: Vm?, data: File, private val port: Int, private val 
         val still = file?.let { runCatching { ImageIO.read(it) }.getOrNull() }  // null for videos, SVG, WebP
         if (still != null) return small(still).also { thumb = file to it }
         return small(ImageIO.read(Base64.getDecoder().decode(
-            call(front, "Page.captureScreenshot", buildJsonObject { put("format", "jpeg"); put("quality", 80) }).str("data")
+            call(front, "Page.captureScreenshot", buildJsonObject { put("format", "jpeg"); put("quality", 80) }, wait = 3.seconds).str("data")
         ).inputStream()))
     }
 }

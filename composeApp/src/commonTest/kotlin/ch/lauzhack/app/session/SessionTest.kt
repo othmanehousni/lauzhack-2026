@@ -71,7 +71,8 @@ internal class Rig(private val scope: TestScope, shows: Target? = null, script: 
     val asked = mutableListOf<Pair<Long, Heard>>()
     val screen = FakeScreen(scope, shows)
     val mole = Mole(scope.backgroundScope, scope.testTimeSource)
-    val session = Session(Agent { h, s -> asked += scope.currentTime to h; script(h, s) }, screen, mole, laptop, phone, phoneLeads, scope.testTimeSource)
+    val window = MutableStateFlow(ANNOUNCE)
+    val session = Session(Agent { h, s -> asked += scope.currentTime to h; script(h, s) }, screen, mole, laptop, phone, phoneLeads, scope.testTimeSource, window)
     val lines = mutableListOf<Pair<Long, MoleLine>>()
 
     init {
@@ -134,7 +135,7 @@ class SessionTest {
         rig.say("next slide") // the same words again: a second utterance
         delay(3.seconds)
         assertEquals(listOf("show slide 7", "show slide 8", "show slide 9"), rig.screen.calls.map { it.second })
-        assertTrue(rig.asked.count { it.second.text == "next slide" } >= 6, "the agent was asked about each \"next slide\" again and again")
+        assertEquals(2, rig.asked.count { it.second.text == "next slide" }, "the agent was asked about each \"next slide\" once, as it ended")
         assertEquals(listOf(1, 2, 3, 4), rig.asked.map { it.second.n }.filter { it > 0 }.distinct())
         assertEquals(listOf("can you show slide seven please", "show slide seven", "next slide"), rig.asked.last().second.earlier)
     }
@@ -456,12 +457,12 @@ class SessionTest {
         rig.start()
         delay(3.seconds)
 
-        // at the agent's first answer after the announce
+        // at once
         val first = rig.announced("which brings us to the margin")
         rig.say("no")
         assertEquals(MoleLine(MoleState.Back, "Okay, not shown."), rig.until(MoleState.Back))
-        assertEquals(first + 500, rig.decided("no"))
-        assertEquals(first + 500, rig.time(MoleState.Back, after = first))
+        assertEquals(first + 140, rig.decided("no"))
+        assertEquals(first + 140, rig.time(MoleState.Back, after = first))
         delay(3.seconds)
         assertEquals(emptyList(), rig.screen.calls)
 
@@ -713,7 +714,8 @@ class SessionTest {
         rig.phoneLeads.value = false // the lead changes hands inside the window: the announce keeps the line
         rig.until(MoleState.Picked)
         assertEquals(listOf(margin + 2500 to "show slide 8"), rig.screen.calls)
-        assertTrue(rig.lines.none { it.first in margin until margin + 2500 && it.second.state != MoleState.Retrieving }, "no hello over the announce")
+        val window = rig.lines.dropWhile { it.second.state != MoleState.Retrieving }.takeWhile { it.first < margin + 2500 }
+        assertTrue(window.all { it.second.state == MoleState.Retrieving }, "no hello over the announce")
         rig.until(MoleState.Hidden)
 
         rig.phoneLeads.value = true
@@ -726,5 +728,149 @@ class SessionTest {
         delay(4.seconds)
         assertEquals(listOf(margin + 2500 to "show slide 8"), rig.screen.calls)
         assertTrue(rig.asked.none { "hail" in it.second.text })
+    }
+
+    @Test
+    fun eachPieceIsAskedAboutWhenItIsHeardAndTheMoveGoesUpInTheAgentsTime() = runTest {
+        val rig = Rig(this, slide(6)) { h, s ->
+            delay(if (h.ended) 250 else 100)
+            if (h.ended && h.text == "next slide please") Move.Show(slide((s.target as Target.Slide).page + 1)) else Move.Nothing
+        }
+        rig.start()
+        delay(3.seconds)
+        val start = currentTime
+        rig.say("next slide please", every = 400.milliseconds)
+        rig.until(MoleState.Hidden)
+        assertEquals(listOf(start, start + 400, start + 800), rig.asked.map { it.first }, "each piece at once, and once")
+        assertEquals(listOf(start + 800 + 250 to "show slide 7"), rig.screen.calls)
+    }
+
+    @Test
+    fun rapidCommandsEachGoUpInTheAgentsTimeWithoutQueueing() = runTest {
+        val rig = Rig(this, slide(1)) { h, s ->
+            if (!h.ended) return@Rig Move.Nothing
+            delay(250)
+            if (h.text == "Next slide.") Move.Show(slide((s.target as Target.Slide).page + 1)) else Move.Nothing
+        }
+        rig.start()
+        delay(3.seconds)
+        val start = currentTime
+        repeat(4) {
+            rig.laptop.emit(Heard("Next slide.", ended = true))
+            delay(600)
+        }
+        rig.until(MoleState.Hidden)
+        assertEquals((0..3).map { start + it * 600 + 250 to "show slide ${it + 2}" }, rig.screen.calls)
+        assertEquals(slide(5), rig.session.onScreen.value.target)
+    }
+
+    @Test
+    fun aSlowScreenKeepsThePresenterHeardAndANoOrANewCommandMeanwhileIsNotLost() = runTest {
+        val rig = Rig(this, slide(6)) { h, _ ->
+            if (!h.ended) return@Rig Move.Nothing
+            when (h.text) {
+                "open the gripper video" -> Move.Show(youtube)
+                "no, not that" -> Move.Undo
+                "show slide nine" -> Move.Show(slide(9))
+                else -> Move.Nothing
+            }
+        }
+        rig.start()
+        delay(3.seconds)
+
+        // a call that answers after 3 s: the no said during it takes it back the moment it is up
+        rig.screen.latency = 3.seconds
+        val open = currentTime
+        rig.laptop.emit(Heard("open the gripper video", ended = true))
+        delay(1.seconds)
+        rig.screen.latency = 30.milliseconds
+        rig.laptop.emit(Heard("no, not that", ended = true))
+        rig.mole.line.first { it.title == "Slide 6 is back." }
+        assertEquals(open + 1000, rig.decided("no, not that"), "heard and decided while the call runs")
+        rig.until(MoleState.Hidden)
+        assertEquals(listOf(open to "show Robot gripper demo", open + 3000 to "close"), rig.screen.calls)
+        assertEquals(slide(6), rig.session.onScreen.value.target)
+
+        // a call that takes 10 s gives up after STALL; the no said during it has nothing to take back, and the
+        // command said after it goes up at once
+        rig.screen.latency = 10.seconds
+        val slow = currentTime
+        rig.laptop.emit(Heard("open the gripper video", ended = true))
+        delay(2.seconds)
+        rig.screen.latency = 30.milliseconds
+        rig.laptop.emit(Heard("no, not that", ended = true))
+        delay(1.seconds)
+        rig.laptop.emit(Heard("show slide nine", ended = true))
+        assertEquals(MoleLine(MoleState.Failed, "Couldn't show Robot gripper demo.", "The shared screen didn't answer."), rig.until(MoleState.Failed))
+        assertEquals(slow + STALL.inWholeMilliseconds, currentTime)
+        assertEquals(slow + 2000, rig.decided("no, not that"))
+        assertEquals(slow + 3000, rig.decided("show slide nine"))
+        rig.until(MoleState.Hidden)
+        assertEquals(listOf(slow to "show Robot gripper demo", slow + STALL.inWholeMilliseconds to "show slide 9"), rig.screen.calls.drop(2))
+        assertEquals(slide(9), rig.session.onScreen.value.target)
+        assertEquals("Slide 9 is ready.", rig.line(MoleState.Ready).title)
+    }
+
+    @Test
+    fun aCallThatNeverAnswersFailsAfterTheStallAndTheNextOneGoesUp() = runTest {
+        val rig = Rig(this, slide(6)) { h, _ ->
+            if (!h.ended) return@Rig Move.Nothing
+            when (h.text) {
+                "close that" -> Move.Control("close")
+                "show slide nine" -> Move.Show(slide(9))
+                else -> Move.Nothing
+            }
+        }
+        rig.start()
+        delay(3.seconds)
+        rig.screen.latency = Duration.INFINITE
+        val close = currentTime
+        rig.laptop.emit(Heard("close that", ended = true))
+        assertEquals(MoleLine(MoleState.Failed, "Couldn't close.", "The shared screen didn't answer."), rig.until(MoleState.Failed))
+        assertEquals(close + STALL.inWholeMilliseconds, currentTime)
+        assertEquals(
+            listOf(MoleState.Heard to null, MoleState.Working to "On it…", MoleState.Failed to "Couldn't close."),
+            rig.lines.map { it.second.state to it.second.title }.dropWhile { it.first != MoleState.Heard },
+            "not tried again: it stalled",
+        )
+        assertEquals(slide(6), rig.session.onScreen.value.target)
+        rig.screen.latency = 30.milliseconds
+        rig.until(MoleState.Hidden)
+        rig.say("show slide nine")
+        rig.until(MoleState.Hidden)
+        assertEquals(listOf(close to "close", rig.decided("show slide nine") to "show slide 9"), rig.screen.calls)
+        assertEquals(slide(9), rig.session.onScreen.value.target)
+    }
+
+    @Test
+    fun anAnnounceWaitsAsLongAsThePresenterChose() = runTest {
+        val rig = Rig(this, slide(7)) { h, _ ->
+            if (!h.ended) return@Rig Move.Nothing
+            when (h.text) {
+                "which brings us to the margin" -> Move.Ask(listOf(slide(8)))
+                "and the costs" -> Move.Ask(listOf(slide(9)))
+                "and the risks" -> Move.Ask(listOf(slide(10)))
+                "no, not that" -> Move.Undo
+                else -> Move.Nothing
+            }
+        }
+        rig.start()
+        delay(3.seconds)
+        for ((said, ms) in listOf("which brings us to the margin" to 2500L, "and the costs" to 1500L)) {
+            rig.window.value = ms.milliseconds
+            val at = rig.announced(said)
+            assertEquals(ms, rig.mole.line.value.timeoutMs, "the bar's and the phone's Stop drain for as long")
+            rig.until(MoleState.Hidden)
+            assertEquals(at + ms, rig.screen.calls.last().first)
+        }
+        rig.window.value = Duration.ZERO // none: shown at once, and a no takes it back after
+        rig.say("and the risks")
+        rig.until(MoleState.Ready)
+        rig.say("no, not that")
+        rig.until(MoleState.Hidden)
+        val risks = rig.decided("and the risks")
+        assertEquals(listOf(risks to "show slide 10", rig.decided("no, not that") to "show slide 9"), rig.screen.calls.drop(2))
+        assertEquals(2, rig.lines.count { it.second.state == MoleState.Retrieving }, "no announce without a window")
+        assertEquals(slide(9), rig.session.onScreen.value.target)
     }
 }
