@@ -3,7 +3,9 @@ package ch.lauzhack.app.link
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.wifi.WifiManager
+import android.os.CombinedVibration
 import android.os.SystemClock
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import androidx.compose.ui.graphics.ImageBitmap
@@ -56,7 +58,10 @@ class Phone(context: Context, scope: CoroutineScope) {
     fun listen(on: Boolean) = if (on) ears.start() else ears.stop()
 
     init {
-        val vibrator = app.getSystemService(VibratorManager::class.java).defaultVibrator
+        val vibrator = app.getSystemService(VibratorManager::class.java)
+        // Asked for like a call: these short effects would count as touch feedback, which Android drops while the app is
+        // in the background or the phone locked, in battery saver, and with touch feedback turned off.
+        val attention = VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_COMMUNICATION_REQUEST).build()
         val buzz = mapOf(
             MoleState.Choosing to VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK), // a pick is needed: two firm taps
             MoleState.Retrieving to VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK),       // coming, and can still be stopped
@@ -64,7 +69,9 @@ class Phone(context: Context, scope: CoroutineScope) {
             MoleState.Failed to VibrationEffect.createWaveform(longArrayOf(0, 70, 110, 70), intArrayOf(0, 90, 0, 50), -1),
         )
         scope.launch { // each new choice, announce or failure buzzes once; the presenter's own words do not
-            state.map { it.line.copy(heard = "") }.distinctUntilChanged().collect { line -> buzz[line.state]?.let(vibrator::vibrate) }
+            state.map { it.line.copy(heard = "") }.distinctUntilChanged().collect { line ->
+                buzz[line.state]?.let { vibrator.vibrate(CombinedVibration.createParallel(it), attention) }
+            }
         }
     }
 }
