@@ -27,8 +27,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * The phone as the Android screen sees it: [state] for MolePhone, [onPick] for its taps. Hears with the on-device
- * recognizer while [listen] is on (the activity is started and the microphone granted), and buzzes once each time
- * the mole starts choosing. Build it on the main thread.
+ * recognizer while [listen] is on (the activity is started and the microphone granted), and buzzes when the mole needs
+ * the presenter: a choice, an announce that can still be stopped, a failure, each its own pattern. Build it on the main thread.
  */
 class Phone(context: Context, scope: CoroutineScope) {
     private val app = context.applicationContext
@@ -57,9 +57,14 @@ class Phone(context: Context, scope: CoroutineScope) {
 
     init {
         val vibrator = app.getSystemService(VibratorManager::class.java).defaultVibrator
-        val buzz = VibrationEffect.createWaveform(longArrayOf(0, 12, 60, 12), -1)
-        scope.launch {
-            state.map { it.line.state }.distinctUntilChanged().collect { if (it == MoleState.Choosing) vibrator.vibrate(buzz) }
+        val buzz = mapOf(
+            MoleState.Choosing to VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK), // a pick is needed: two firm taps
+            MoleState.Retrieving to VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK),       // coming, and can still be stopped
+            // it failed and needs you: two long soft pulses, the second fainter; a phone without amplitude control plays them at full
+            MoleState.Failed to VibrationEffect.createWaveform(longArrayOf(0, 70, 110, 70), intArrayOf(0, 90, 0, 50), -1),
+        )
+        scope.launch { // each new choice, announce or failure buzzes once; the presenter's own words do not
+            state.map { it.line.copy(heard = "") }.distinctUntilChanged().collect { line -> buzz[line.state]?.let(vibrator::vibrate) }
         }
     }
 }
