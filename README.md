@@ -20,8 +20,9 @@ It is one Kotlin Compose Multiplatform app: a desktop app on your Mac and an And
 | An app running on at least 2 platforms | Desktop (`jvm("desktop")` target in `:composeApp`, run with `./gradlew :composeApp:run`) and Android (`android` target in `:composeApp`, app module `:androidApp`, run with `./gradlew :androidApp:installDebug`). The phone is the companion: it shows the bar's state, sends Stop and picks, and can be the microphone. | [settings.gradle.kts](settings.gradle.kts), [composeApp/build.gradle.kts](composeApp/build.gradle.kts), [androidApp/build.gradle.kts](androidApp/build.gradle.kts) |
 | Shared logic in commonMain | The session loop, the agent's prompt and policy, the catalog, the phone link client, the words and the UI are written once. | [composeApp/src/commonMain](composeApp/src/commonMain/kotlin/ch/lauzhack/app) |
 | Jetpack Compose / Compose Multiplatform for UI | The bar, the mole and the phone screen are common Compose code. | [mole/MoleBar.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/mole/MoleBar.kt), [mole/MolePhone.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/mole/MolePhone.kt) |
-| Dark/light mode | `MoleColors` has a light and a dark palette; `MoleTheme` follows the system or is forced from the tray menu. | [mole/Theme.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/mole/Theme.kt) |
-| Localization (multi-language support) | Every word a person reads is in English, Deutsch, Français, Italiano or Rumantsch, chosen from the system language or the settings. The app hears English only. | [Lang.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/Lang.kt) |
+| User Experience and Interface: is it polished and native-feeling on each platform | The desktop has a main window, a floating bar that never takes focus, and a tray menu; the phone has its own screen from the same Compose code. | [main window](docs/readme/window.png), [in a meeting](docs/readme/window-meeting.png), [settings](docs/readme/window-settings.png), [mole/Home.kt](composeApp/src/desktopMain/kotlin/ch/lauzhack/app/mole/Home.kt), [mole/MolePhone.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/mole/MolePhone.kt) |
+| Dark/light mode | `MoleColors` has a light and a dark palette; `MoleTheme` follows the system or is forced from the tray menu. | [mole/Theme.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/mole/Theme.kt), [the window in light](docs/readme/window.png), [the window in dark](docs/readme/window-dark.png) |
+| Localization (multi-language support) | Every word a person reads is in English, Deutsch, Français, Italiano or Rumantsch, chosen from the system language or the settings. The app hears English only. | [Lang.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/Lang.kt), [the window in German](docs/readme/window-de.png) |
 | Kotlin backend integration | The laptop is the backend: a Ktor server on the desktop serves the phone over a WebSocket on the local network, and a common Ktor client on the phone talks to it. | [PhoneServer.kt](composeApp/src/desktopMain/kotlin/ch/lauzhack/app/link/PhoneServer.kt), [LaptopClient.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/link/LaptopClient.kt) |
 | Shared AI/agent logic with Koog | Koog is a commonMain dependency. The agent (`ModelAgent`, `Catalog`, `Prompt`) is in commonMain and finds candidates through Koog's `Embedder` interface. The model runs through Koog's `LLMClient` for LiteRT-LM, adapted from Koog's sources to the JVM; that part is desktop-only, as the phone loads no model. | [decider/ModelAgent.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/decider/ModelAgent.kt), [engine/LiteRTLLMClient.kt](composeApp/src/litert/kotlin/ch/lauzhack/app/engine/LiteRTLLMClient.kt) |
 
@@ -82,6 +83,23 @@ A small bar at the bottom of your screen shows what Molière heard and what it i
 The phone shows the same mole and line as the bar, with the same buttons, and buzzes when something needs you.
 
 Outside a call, Molière does not listen and has no phone link. It wakes when a call app takes the microphone, or when you choose **Start a meeting** from the mole in the menu bar.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/window-dark.png">
+  <img src="docs/readme/window.png" alt="Molière's main window, asleep: a rail on the left, a dark banner with the Start a meeting button, the phone and on screen status card, the decks and language cards on the right, and the list of things to say." width="760">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/window-meeting-dark.png">
+  <img src="docs/readme/window-meeting.png" alt="Molière's main window in a meeting: the banner says what is on screen and offers End the meeting, the phone is connected, and the list shows what Molière heard and showed." width="760">
+</picture>
+
+The main window shows whether Molière is asleep or in a meeting, with the button to start or end one, whether the phone is connected, what is on screen, your decks and the things you can say. In a meeting the list becomes what Molière heard and what it showed. The window follows the system's light or dark mode, and the settings (decks folder, wait before showing, theme, language) are one page away on the rail.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/window-settings-dark.png">
+  <img src="docs/readme/window-settings.png" alt="Molière's settings page: decks folder, use browser history, wait before showing, theme and language." width="760">
+</picture>
 
 ## Mime mode
 
