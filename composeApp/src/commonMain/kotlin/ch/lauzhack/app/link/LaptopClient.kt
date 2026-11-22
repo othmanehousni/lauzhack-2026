@@ -93,7 +93,7 @@ class LaptopClient(
         } finally {
             session = null
             ws.cancel()
-            _state.update { it.copy(connected = false, line = MoleLine(), phoneLeads = false) }
+            _state.value = PhoneState() // nothing the laptop said holds once it is gone
         }
         return true
     }
