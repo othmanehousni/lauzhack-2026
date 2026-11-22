@@ -129,6 +129,8 @@ class RecentsLeverTest {
             val b = lone.map { it.path }.toSet()
             println("  of the 14 days' files: ${(a intersect b).size} in both, ${(a - b).size} from Spotlight only, ${(b - a).size} from the walk only")
             println("  Spotlight's only, by kind: ${(a - b).groupingBy { (if (File(it).isDirectory) "folder " else "") + it.substringAfterLast('.').lowercase() }.eachCount()}")
+            val top = lone.filter { alone.wanted(it.path) }.take(300)
+            println("  the 300 newest files recents() offers: ${top.count { it.path !in a }} not in Spotlight's answer; by kind ${top.groupingBy { it.path.substringAfterLast('.').lowercase() }.eachCount()}; by folder ${top.groupingBy { p -> roots.first { p.path.startsWith(it.path) }.name }.eachCount()}; oldest ${(System.currentTimeMillis() - top.last().seen()) / 60_000} min ago")
             val both = Files(roots, note = { said += it }).also { it.newest() }
             val joined = both.recent()
             val warm = List(5) { timed { both.recent() }.second }

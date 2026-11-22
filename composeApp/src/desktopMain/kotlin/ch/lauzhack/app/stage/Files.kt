@@ -213,8 +213,8 @@ class Files(
             val a = runCatching { Nio.readAttributes(File(p).toPath(), "unix:lastModifiedTime,ctime", LinkOption.NOFOLLOW_LINKS) }.getOrNull()
             a?.let { p to ((it["lastModifiedTime"] as FileTime).toMillis() to (it["ctime"] as FileTime).toMillis()) }
         }
-        // Setting the last-use attribute changes a file's status time; a file whose status did not change after its
-        // content was last used no later than that.
+        // Setting the last-use attribute changes a file's status time: a file whose status has not changed since its
+        // content did was not opened since, and its attribute need not be read.
         val ask = times.filter { (p, t) -> t.second > t.first + 2000 && opened[p]?.first != t.second }
         val got = lastUsed(ask.map { it.first })
         for ((p, t) in ask) opened[p] = t.second to (got[p] ?: 0L)
@@ -269,7 +269,7 @@ class Files(
             "png", "jpg", "jpeg", "gif", "heic", "heif", "tif", "tiff", "bmp", "webp", "avif", "svg",
             "mov", "mp4", "m4v", "mts", "webm", "avi", "mpg", "mpeg", "pdf",
             "key", "pptx", "ppt", "odp", "numbers", "xlsx", "xls", "ods", "pages", "docx", "doc", "odt", "rtfd", "epub",
-            "html", "htm", "md", "markdown", "rtf", "csv", "tsv", "txt",
+            "html", "htm", "shtml", "md", "markdown", "rtf", "csv", "tsv", "txt",
         )
     }
 }
