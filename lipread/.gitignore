@@ -1,0 +1,18 @@
+# environment and caches
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# downloaded or trained models (setup.sh, train_corrector.py)
+/mlx_weights/
+/models/
+/data/
+*.pth
+*.safetensors
+
+# personal data: recordings, lip and voice profiles
+/calib/
+/profile/
+*.npz
+*.wav
