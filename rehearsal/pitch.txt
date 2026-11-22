@@ -1,0 +1,16 @@
+# the Molière pitch, presented by Molière from pitch/ (fixtures/make_pitch.sh): the deck and slide 8's two diagrams
+Hi everyone, can you all hear me okay? || keep
+Let's open the Molière pitch. || slide pitch 1
+Next slide please. || slide pitch 2
+Next slide. || slide pitch 3
+Go to slide 4. || slide pitch 4
+So what was the real issue? || slide pitch 5 pick
+Next slide please. || slide pitch 6
+Go to slide 8. || slide pitch 8
+Let me show you the architecture diagram. || file architecture
+And here is our tech stack. || file tech stack
+Go back to slide 8. || slide pitch 8
+Show me the notetakers slide. || slide pitch 9 pick
+I'm happy to take questions at the end. || keep
+Show me the B2B slide. || slide pitch 11 pick
+Go to slide 12. || slide pitch 12
