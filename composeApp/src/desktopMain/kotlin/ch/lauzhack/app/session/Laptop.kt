@@ -114,9 +114,11 @@ class Laptop(
                 try {
                     brain.warm(library.value, desk)
                     log("models ready in ${t.elapsedNow().inWholeMilliseconds} ms")
+                    true
                 } catch (e: Exception) { // a call tries again, and says so if it fails
                     ensureActive()
                     log("models failed: $e")
+                    false
                 }
             }
             if (!hasDecks(library.value)) empty(library.value)
@@ -132,7 +134,7 @@ class Laptop(
         mole.on(Event.Sleep)
     }
 
-    private suspend fun meet(title: StateFlow<String>, wants: Pair<File, Boolean>, warm: Deferred<Unit>): Nothing = coroutineScope {
+    private suspend fun meet(title: StateFlow<String>, wants: Pair<File, Boolean>, warm: Deferred<Boolean>): Nothing = coroutineScope {
         val (lib, h) = wants
         log("meeting \"${title.value}\", decks in $lib, browser history ${if (h) "on" else "off"}")
         if (!hasDecks(lib)) {
@@ -153,7 +155,7 @@ class Laptop(
             awaitCancellation()
         }
         val (agent, names) = try {
-            warm.await()
+            if (!warm.await()) brain.warm(lib, desk)
             mole.on(Event.Setup("Reading your decks and files…"))
             brain.meet(desk, this)
         } catch (e: Exception) {
