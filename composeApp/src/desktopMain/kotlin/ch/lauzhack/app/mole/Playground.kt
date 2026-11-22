@@ -26,7 +26,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ApplicationScope
@@ -34,7 +36,11 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
 import ch.lauzhack.app.MoleState
 
-private val WALLS = listOf(Color(0xFF141416), Color(0xFFF2531C), Color(0xFF1F1C1A), Color.White, Color(0xFFDFE6DC)) // index.html's wallpapers, not themed
+// index.html's wallpapers, not themed: the call, red, black, white and a photo-like gradient.
+private val WALLS = listOf(
+    SolidColor(Color(0xFF141416)), SolidColor(MoleColors.Light.ember), SolidColor(Color.Black), SolidColor(Color.White),
+    Brush.verticalGradient(0f to Color(0xFF4A87B1), .55f to Color(0xFFA3D0DC), 1f to Color(0xFF8EA071)),
+)
 
 /** `--playground`: every state one click away, on the bar and on the phone, with slow-mo, reduced motion and the theme. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -46,7 +52,7 @@ internal fun ApplicationScope.Playground(demo: Demo, onClose: () -> Unit) {
     var wall by remember { mutableStateOf(4) }
     var theme by remember { mutableStateOf(MoleTheme.System) }
     val line by demo.lines.collectAsState()
-    Window(onCloseRequest = onClose, title = "Molière · playground", state = rememberWindowState(size = DpSize(1120.dp, 820.dp))) {
+    Window(onCloseRequest = onClose, title = "Molière playground", state = rememberWindowState(size = DpSize(1120.dp, 820.dp))) {
         // The page runs under a clear title bar, so the window's chrome takes the theme with it.
         LaunchedEffect(window) {
             window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
@@ -62,6 +68,7 @@ internal fun ApplicationScope.Playground(demo: Demo, onClose: () -> Unit) {
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         for ((label, l) in Choices) Chip(label, line == l) { demo.show(l) }
+                        Chip("Announce", line == Announce) { demo.show(Announce) }
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Chip("Play story", false) { demo.play() }
@@ -69,7 +76,7 @@ internal fun ApplicationScope.Playground(demo: Demo, onClose: () -> Unit) {
                         Chip("Reduced motion", reduce) { reduce = !reduce }
                         Chip("Walk away", phoneLeads) { phoneLeads = !phoneLeads }
                         Chip("Wallpaper", false) { wall = (wall + 1) % WALLS.size }
-                        Chip("Theme · ${theme.name}", false) { theme = MoleTheme.entries[(theme.ordinal + 1) % MoleTheme.entries.size] }
+                        Chip("${theme.name} theme", false) { theme = MoleTheme.entries[(theme.ordinal + 1) % MoleTheme.entries.size] }
                     }
                     Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)).background(WALLS[wall]), Alignment.BottomCenter) {
                         MoleBar(line, demo::pick, Modifier.padding(bottom = 24.dp), theme)
@@ -90,5 +97,5 @@ private fun Chip(label: String, on: Boolean, onClick: () -> Unit) {
     Box(
         Modifier.height(32.dp).clip(RoundedCornerShape(8.dp)).background(if (on) c.ink else c.fill).clickable(onClick = onClick).padding(horizontal = 12.dp),
         Alignment.Center,
-    ) { BasicText(label, style = type(13f, 13f, 500, color = if (on) c.paper else c.ink)) }
+    ) { BasicText(label, style = type(13f, 13f, 500, -.039f, if (on) c.paper else c.ink)) }
 }

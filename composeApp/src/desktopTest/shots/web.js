@@ -13,6 +13,7 @@
     "choosing-two": ["choosing", CHOICES[0].words],
     "choosing-three": ["choosing", CHOICES[1].words],
     picked: ["picked", CHOICES[2].words],
+    announce: ["retrieving", { card: "07", ...ANNOUNCE }],
     "choosing-kinds": ["choosing", {
       heard: "show them the launch",
       options: [{ name: "lauzhack.ch", meta: "Site", kind: "site" }, { name: "Team photo.jpg", meta: "Image", kind: "image" }, { name: "Notes.txt", meta: "File", kind: "other" }],

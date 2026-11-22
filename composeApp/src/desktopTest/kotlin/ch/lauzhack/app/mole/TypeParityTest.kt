@@ -1,31 +1,32 @@
 package ch.lauzhack.app.mole
 
+import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextMeasurer
-import androidx.compose.ui.text.font.createFontFamilyResolver
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
-import java.io.File
+import androidx.compose.ui.text.rememberTextMeasurer
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/** [type] sets a line as wide as Chrome 148 on macOS sets it in -apple-system (SFNS.ttf, with its optical size and trak). */
+/** [type] sets a line as wide as Chrome 148 sets it in mole/fonts' Inter, with its optical size, weight and tracking. */
 class TypeParityTest {
     @Test
     fun widthsMatchChrome() {
-        if (!File("/System/Library/Fonts/SFNS.ttf").exists()) return
-        val text = "Home offer — revised.pdf Sent 12 Mar Which one? pull up the offer"
-        val measurer = TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr)
-        // getBoundingClientRect().width of that line in a white-space: nowrap span, by size and weight.
+        val text = "Home offer revised.pdf Sent 12 Mar Which one? pull up the offer"
+        // getBoundingClientRect().width of that line in a white-space: nowrap span, by size, weight and letter-spacing (px).
         val chrome = listOf(
-            Triple(12f, 400, 377.734), Triple(12f, 500, 385.203), Triple(12.5f, 500, 398.875), Triple(13f, 500, 412.359),
-            Triple(14f, 500, 439.641), Triple(15f, 500, 466.281), Triple(15f, 600, 475.563), Triple(15.5f, 700, 499.188),
-            Triple(22f, 600, 660.422),
+            listOf(12f, 400f, 0f, 364.219f), listOf(12f, 500f, 0f, 367.5f), listOf(13f, 400f, -.039f, 392.109f),
+            listOf(13f, 500f, -.084f, 392.828f), listOf(14f, 400f, -.084f, 419.625f), listOf(15f, 500f, -.135f, 448.875f),
+            listOf(15f, 600f, -.135f, 453.203f), listOf(15.5f, 600f, -.31f, 456.656f), listOf(22f, 600f, -.396f, 634f),
         )
-        for ((size, weight, want) in chrome) {
-            val got = measurer.measure(text, type(size, size, weight, color = Color.Black)).multiParagraph.intrinsics.maxIntrinsicWidth
-            assertTrue(abs(got - want) < 1, "$size px / $weight: Compose $got, Chrome $want")
+        var got = emptyList<Float>()
+        ImageComposeScene(1, 1) {
+            val measurer = rememberTextMeasurer()
+            got = chrome.map { (size, weight, tracking) ->
+                measurer.measure(text, type(size, size, weight.toInt(), tracking, Color.Black)).multiParagraph.intrinsics.maxIntrinsicWidth
+            }
+        }.apply { render(); close() }
+        for ((case, width) in chrome.zip(got)) {
+            assertTrue(abs(width - case[3]) < 1, "${case[0]} px / ${case[1].toInt()}: Compose $width, Chrome ${case[3]}")
         }
     }
 }

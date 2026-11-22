@@ -11,7 +11,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.font.FontFamily
 
 @Composable
 internal actual fun systemReducesMotion(): Boolean {
@@ -34,7 +33,3 @@ internal actual fun SystemBars(paper: Color) {
         view.windowInsetsController?.setSystemBarsAppearance(if (light) bars else 0, bars)
     }
 }
-
-internal actual fun moleFont(size: Float, weight: Int, mono: Boolean): FontFamily = if (mono) FontFamily.Monospace else FontFamily.Default
-
-internal actual fun trak(size: Float) = 0f

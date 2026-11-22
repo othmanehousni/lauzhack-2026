@@ -15,8 +15,8 @@ class MoleColorsTest {
     private val roles: Map<String, (MoleColors) -> Color> = mapOf(
         "--paper" to MoleColors::paper, "--ink" to MoleColors::ink, "--figure" to MoleColors::figure, "--lens" to MoleColors::lens,
         "--stack" to MoleColors::stack, "--rim" to MoleColors::rim, "--bridge" to MoleColors::bridge, "--tie" to MoleColors::tie,
-        "--tie-fold" to MoleColors::tieFold, "--tie-knot" to MoleColors::tieKnot, "--ember" to MoleColors::ember, "--sage" to MoleColors::sage,
-        "--plum" to MoleColors::plum, "--hairline" to MoleColors::hairline, "--rule" to MoleColors::rule, "--wash" to MoleColors::wash,
+        "--tie-fold" to MoleColors::tieFold, "--tie-knot" to MoleColors::tieKnot, "--ember" to MoleColors::ember,
+        "--hairline" to MoleColors::hairline, "--rule" to MoleColors::rule, "--wash" to MoleColors::wash,
         "--hover" to MoleColors::hover, "--hint" to MoleColors::hint, "--heard" to MoleColors::heard,
     )
     private val phone: Map<String, (MoleColors) -> Color> = mapOf(
@@ -29,7 +29,8 @@ class MoleColorsTest {
         val css = tokens(File("../mole/mole.css").readText())
         val page = tokens(File("../mole/index.html").readText())
         val all = css + page
-        assertEquals(css.keys - "--ease-out" - "--slow", roles.keys, "every colour token of mole.css has a role in MoleColors")
+        // --sage stays in mole.css for slides.html alone; nothing of the mole draws with it.
+        assertEquals(css.keys - "--ease-out" - "--slow" - "--sage", roles.keys, "every colour token of mole.css has a role in MoleColors")
         for ((name, role) in roles + phone) for ((dark, colors) in listOf(false to MoleColors.Light, true to MoleColors.Dark)) {
             assertEquals(resolve(all.getValue(name), dark, all), role(colors), "$name, ${if (dark) "dark" else "light"}")
         }

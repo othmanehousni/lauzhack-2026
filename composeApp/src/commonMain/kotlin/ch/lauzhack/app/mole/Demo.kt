@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 // The sample lines of mole/index.html (SAMPLES, OFFERS, Q3, CHOICES), so the app and the web design show the same words.
 private const val LINE = "so let's look at the market size"
 
-internal val Offers = listOf(Choice("Home offer — March.pdf", "Sent 12 Mar", Kind.Pdf), Choice("Home offer — revised.pdf", "Sent 2 Apr", Kind.Pdf))
+internal val Offers = listOf(Choice("Home offer March.pdf", "Sent 12 Mar", Kind.Pdf), Choice("Home offer revised.pdf", "Sent 2 Apr", Kind.Pdf))
 internal val Q3 = listOf(
     Choice("Q3 review.pptx", "Slide 7", Kind.Slides),
     Choice("Q3 numbers.xlsx", "Edited today", Kind.Sheet),
@@ -37,12 +37,15 @@ internal val Samples: Map<MoleState, MoleLine> = mapOf(
     Unsure to MoleLine(Unsure, heard = "open the, um, thing from the offsite", card = "07"),
     Thinking to MoleLine(Thinking, "Thinking…", "show them how the warehouse robot picks", card = "07"),
     Waiting to MoleLine(Waiting, "Open… what?", "open up, um", card = "07", timeoutMs = 8000),
-    Tunneling to MoleLine(Tunneling, "Step 2 · clicking Search", "search robot grippers on youtube", card = "07"),
+    Tunneling to MoleLine(Tunneling, "Step 2, clicking Search", "search robot grippers on youtube", card = "07"),
     Failed to MoleLine(Failed, "Couldn't find “roadmap”.", "pull up the roadmap", card = "07"),
     Hello to MoleLine(Hello, "Hi. I'm listening.", card = "07"),
     Choosing to Choices[0].second,
     Picked to Choices[2].second,
 )
+
+/** index.html's ANNOUNCE: retrieving with the one thing it is about to show, shown when the time is up unless stopped. */
+internal val Announce = MoleLine(Retrieving, "Showing slide 7", LINE, listOf(Choice("Market size", "Slide 7", Kind.Slides)), card = "07", timeoutMs = 2500)
 
 /** Plays index.html's story on a loop, and its pickLive when a row is picked, until the agent drives the mole. */
 internal class Demo(private val scope: CoroutineScope) {
@@ -59,11 +62,14 @@ internal class Demo(private val scope: CoroutineScope) {
 
     fun play() = restart { while (true) story() }
 
-    // Picking a row plays the rest: it opens, lands on screen, and hands back.
+    // Picking a row plays the rest: it opens, lands on screen, and hands back. Stop (-1) on an announce hands back with
+    // nothing shown.
     fun pick(i: Int) = restart {
-        val card = "${i + 1}"
-        beat(MoleLine(Picked, "Opening the ${listOf("first", "second", "third").getOrElse(i) { "chosen" }} one…", "", options, i, card), 1100)
-        beat(MoleLine(Ready, "It's on screen.", card = card), 1600)
+        val card = if (i < 0) "07" else "${i + 1}"
+        if (i >= 0) {
+            beat(MoleLine(Picked, "Opening the ${listOf("first", "second", "third").getOrElse(i) { "chosen" }} one…", "", options, i, card), 1100)
+            beat(MoleLine(Ready, "It's on screen.", card = card), 1600)
+        }
         beat(MoleLine(Back, card = card), 1500)
         beat(MoleLine(Idle, card = card), 2000)
         while (true) story()
@@ -91,8 +97,8 @@ internal class Demo(private val scope: CoroutineScope) {
         stream(market)
         beat(MoleLine(Heard, "I've got it.", market, card = "07"), 1000)
         beat(MoleLine(Working, "Finding slide 7…", market, card = "07"), 2000)
-        beat(MoleLine(Retrieving, "I found slide 7.", market, card = "07"), 1300)
-        beat(MoleLine(Ready, "Slide 7 is ready.", market, card = "07"), 1700)
+        beat(Announce.copy(heard = market), Announce.timeoutMs!!)
+        beat(MoleLine(Ready, "It's on screen.", market, card = "07"), 1700)
         beat(MoleLine(Back, card = "07"), 1500)
         beat(MoleLine(Hidden), 2700)
         beat(MoleLine(Hello, "On your phone now."), 1800)
@@ -108,8 +114,8 @@ internal class Demo(private val scope: CoroutineScope) {
         beat(MoleLine(Idle), 600)
         val robot = "show them how the warehouse robot picks"
         beat(MoleLine(Thinking, heard = robot), 1400)
-        beat(MoleLine(Tunneling, "Step 1 · opening YouTube", robot), 1500)
-        beat(MoleLine(Tunneling, "Step 2 · clicking Search", robot), 1500)
+        beat(MoleLine(Tunneling, "Step 1, opening YouTube", robot), 1500)
+        beat(MoleLine(Tunneling, "Step 2, clicking Search", robot), 1500)
         beat(MoleLine(Ready, "It's on screen.", robot), 1500)
         beat(MoleLine(Back), 1300)
         beat(MoleLine(Hidden), 1500)

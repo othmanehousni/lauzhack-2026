@@ -2,15 +2,18 @@ package ch.lauzhack.app.mole
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +33,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,12 +44,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -53,6 +59,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
@@ -77,9 +84,11 @@ internal val TITLES = mapOf(
     Tunneling to "On it…", Failed to "Couldn't do that.", Hello to "Hi. I'm listening.", Choosing to "Which one?", Picked to "Opening it…",
 )
 private val OPEN = setOf(Choosing, Picked) // states that show the options panel above the bar
-private val PULSE = setOf(Working, Retrieving, Thinking, Tunneling, Picked)
+private val NEEDS_YOU = setOf(Unsure, Waiting, Failed, Choosing) // the only states with the red dot
 private val NUMBERS = listOf("one", "two", "three", "four", "five")
 private const val HEARD_MAX = 44 // a live transcript keeps its newest words
+private const val SAY_NO = "Say “no” to stop"
+private const val ANNOUNCE_MS = 2500L
 
 internal class Span(val text: String, val id: Int, enter: Boolean, val shift: Float, val blur: Float) {
     val alpha = Animatable(if (enter) 0f else 1f)
@@ -98,6 +107,10 @@ internal class Words {
     var options by mutableStateOf(emptyList<Choice>()) // kept until new ones arrive
     var pick by mutableStateOf<Int?>(null)
     var label by mutableStateOf("07") // the card's number, kept until changed
+    // Retrieving with exactly one option: about to show it, unless stopped within [announceMs].
+    var announce by mutableStateOf(false)
+    var announceMs = ANNOUNCE_MS
+    var announced by mutableIntStateOf(0) // counts announces, so each one restarts the countdown
     private var ids = 0
 
     val open get() = state in OPEN && options.isNotEmpty()
@@ -107,12 +120,18 @@ internal class Words {
     fun set(line: MoleLine, reduce: Boolean) {
         val prev = state
         state = line.state
+        val next = line.state == Retrieving && line.options.size == 1
+        if (next && (!announce || line.options != options)) {
+            announceMs = line.timeoutMs ?: ANNOUNCE_MS
+            announced++
+        }
+        announce = next
         if (line.state == Hidden) return
         if (line.options.isNotEmpty()) options = line.options
         pick = line.pick
         if (line.card.isNotEmpty()) label = line.card
         else if (line.state == Picked && line.pick != null) label = "${line.pick + 1}"
-        swap(line.title ?: TITLES.getValue(line.state), animate = prev != Hidden, reduce)
+        swap(line.title ?: if (announce) line.options[0].name else TITLES.getValue(line.state), animate = prev != Hidden, reduce)
         oneLine = line.heard.isEmpty()
         if (line.heard.isNotEmpty()) heard = if (line.heard.length > HEARD_MAX) "…" + line.heard.takeLast(HEARD_MAX - 1).trimStart() else line.heard
     }
@@ -168,6 +187,7 @@ fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier
         Row(Modifier.height(76.dp).padding(start = 10.dp, end = 22.dp), Arrangement.spacedBy(6.dp), Alignment.CenterVertically) {
             MolePuppet(words.state, line.timeoutMs, words.front, words.back, Modifier.align(Alignment.Bottom).padding(bottom = 9.dp).size(83.dp, 62.dp))
             BarWords(words, Modifier.weight(1f))
+            Stop(words, phone = false, enabled = !hidden, onPick, Modifier.padding(start = 8.dp))
         }
     }
 }
@@ -176,48 +196,77 @@ fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier
 private fun BarWords(w: Words, modifier: Modifier) {
     val c = LocalMoleColors.current
     val reduce = reduceMotion()
-    val away = w.state == Idle || w.state == Back
-    val dx = animateDpAsState(if (away) (-16).dp else 0.dp, if (reduce) snap() else css(260))
-    val dy = animateDpAsState(if (w.oneLine) 8.5.dp else 0.dp, if (reduce) snap() else css(260))
+    val needsYou = w.state in NEEDS_YOU
+    // The words sit where the dot would be and move right only when it shows.
+    val dx = animateDpAsState(if (needsYou) 0.dp else (-16).dp, if (reduce) snap() else css(260))
+    val dy = animateDpAsState(if (w.oneLine && !w.announce) 8.5.dp else 0.dp, if (reduce) snap() else css(260))
     Box(modifier) {
-        Dot(w.state, dy)
+        Dot(needsYou, dy)
         Column(Modifier.graphicsLayer { translationX = dx.value.toPx(); translationY = dy.value.toPx() }.padding(start = 16.dp)) {
-            Title(w, type(15f, 20f, tracking = -.15f, color = c.ink), TextAlign.Start)
-            Heard(w, type(12.5f, 16f, tracking = -.15f, color = c.heard), Modifier.padding(top = 1.dp).height(16.dp), TextAlign.Start)
+            Title(w, type(15f, 20f, tracking = -.135f, color = c.ink), TextAlign.Start)
+            Heard(w, type(13f, 16f, 400, -.039f, c.heard), type(13f, 16f, 400, -.039f, c.hint), Modifier.padding(top = 1.dp).height(16.dp), TextAlign.Start)
         }
     }
 }
 
 @Composable
-private fun Dot(state: MoleState, dy: State<Dp>) {
+private fun Dot(shown: Boolean, dy: State<Dp>) {
     val c = LocalMoleColors.current
     val reduce = reduceMotion()
-    val away = state == Idle || state == Back
-    val alpha = animateFloatAsState(if (away) 0f else 1f, css(160))
-    val scale = animateFloatAsState(if (away) .4f else 1f, if (reduce) snap() else css(220))
-    // Unsure and failed are ember; asking you, not driving, is plum.
-    val color = animateColorAsState(
-        when (state) { Unsure, Failed -> c.ember; Choosing -> c.plum; else -> c.sage },
-        if (reduce) snap() else css(200, easing = Ease),
-    )
-    val pulse = clock(state in PULSE)
+    val alpha = animateFloatAsState(if (shown) 1f else 0f, css(160))
+    val scale = animateFloatAsState(if (shown) 1f else .4f, if (reduce) snap() else css(220))
     Box(
         Modifier.offset(y = 6.dp)
             .graphicsLayer {
                 translationY = dy.value.toPx()
-                this.alpha = alpha.value * if (state in PULSE) pulse(pulse.value) else 1f
+                this.alpha = alpha.value
                 scaleX = scale.value
                 scaleY = scale.value
             }
             .size(8.dp)
-            .drawBehind { drawRoundRect(color.value, cornerRadius = CornerRadius(2.dp.toPx())) },
+            .drawBehind { drawRoundRect(c.ember, cornerRadius = CornerRadius(2.dp.toPx())) },
     )
 }
 
-// @keyframes mole-pulse { 50% { opacity: .35 } }, 1 s ease-in-out per half.
-private fun pulse(t: Float): Float {
-    val p = t % 1f
-    return if (p < .5f) 1 - .65f * EaseInOut.transform(p * 2) else .35f + .65f * EaseInOut.transform(p * 2 - 1)
+/**
+ * The announce's stop (mole.css .mole-stop): an ink pill whose fill drains to the left as the time to stop runs out, over
+ * a quiet track. A 32 dp pill in a 40 dp target on the bar; on the phone, a 56 dp bar a thumb cannot miss. onPick(-1).
+ */
+@Composable
+internal fun Stop(w: Words, phone: Boolean, enabled: Boolean, onPick: (Int) -> Unit, modifier: Modifier) {
+    val c = LocalMoleColors.current
+    val reduce = reduceMotion()
+    val shown = animateFloatAsState(if (w.announce) 1f else 0f, css(160))
+    if (!w.announce && shown.value == 0f) return
+    val left = remember { Animatable(1f) }
+    val slow = LocalSlowMotion.current
+    LaunchedEffect(w.announced) {
+        left.snapTo(1f)
+        left.animateTo(0f, tween((w.announceMs * slow).roundToInt(), easing = LinearEasing))
+    }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val press = animateFloatAsState(if (pressed && !reduce) .96f else 1f, css(160))
+    val height = if (phone) 56.dp else 32.dp
+    val pill = RoundedCornerShape(height / 2)
+    val label = if (phone) type(15f, 56f, 600, -.135f, c.ink) else type(13f, 32f, 500, -.039f, c.ink)
+    Box(
+        modifier
+            .height(if (phone) 56.dp else 40.dp)
+            .graphicsLayer { alpha = shown.value; scaleX = press.value; scaleY = press.value }
+            .clickable(interaction, indication = null, enabled = enabled && w.announce, role = Role.Button) { onPick(-1) },
+        Alignment.Center,
+    ) {
+        Box(Modifier.then(if (phone) Modifier.fillMaxWidth() else Modifier).height(height).background(c.wash, pill).padding(horizontal = 14.dp), Alignment.Center) {
+            BasicText("Stop", style = label, softWrap = false, maxLines = 1)
+        }
+        Box(
+            Modifier.matchParentSize().padding(vertical = if (phone) 0.dp else 4.dp)
+                .drawWithContent { clipRect(right = size.width * left.value) { this@drawWithContent.drawContent() } }
+                .background(c.ink, pill),
+            Alignment.Center,
+        ) { BasicText("Stop", style = label.copy(color = c.paper), softWrap = false, maxLines = 1) }
+    }
 }
 
 /** Seconds since [running] turned true, on the frame clock; 0 while not running. */
@@ -274,17 +323,21 @@ internal fun Title(w: Words, style: TextStyle, align: TextAlign) {
     }
 }
 
+// The second line: what was heard, or during an announce, how to stop it by voice.
 @Composable
-internal fun Heard(w: Words, style: TextStyle, modifier: Modifier, align: TextAlign) {
-    val alpha = animateFloatAsState(if (w.oneLine) 0f else 1f, css(200))
-    BasicText(
-        "“${w.heard}”",
-        modifier.fillMaxWidth().graphicsLayer { this.alpha = alpha.value },
-        style.copy(textAlign = align),
-        overflow = TextOverflow.Ellipsis,
-        softWrap = false,
-        maxLines = 1,
-    )
+internal fun Heard(w: Words, style: TextStyle, say: TextStyle, modifier: Modifier, align: TextAlign) {
+    val heard = animateFloatAsState(if (w.oneLine || w.announce) 0f else 1f, css(200))
+    val sayNo = animateFloatAsState(if (w.announce) 1f else 0f, css(200))
+    Box(modifier.fillMaxWidth()) {
+        for ((text, alpha, look) in listOf(Triple("“${w.heard}”", heard, style), Triple(SAY_NO, sayNo, say))) BasicText(
+            text,
+            Modifier.fillMaxWidth().graphicsLayer { this.alpha = alpha.value },
+            look.copy(textAlign = align),
+            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+            maxLines = 1,
+        )
+    }
 }
 
 // The options panel: rows open like grid-template-rows 0fr → 1fr, content pinned to the top and clipped.
@@ -295,7 +348,7 @@ internal fun Options(w: Words, phone: Boolean, enabled: Boolean, onPick: (Int) -
     val open = w.open
     val grow = animateFloatAsState(if (open) 1f else 0f, if (reduce) snap() else css(320))
     val fade = animateFloatAsState(if (open) 1f else 0f, if (open) css(220, 90) else css(140))
-    val hint = type(12f, 16f, tracking = -.15f, color = c.hint)
+    val hint = type(12f, 16f, 400, color = c.hint)
     Box(
         Modifier
             .clipToBounds()
@@ -307,13 +360,13 @@ internal fun Options(w: Words, phone: Boolean, enabled: Boolean, onPick: (Int) -
             .padding(horizontal = 10.dp),
     ) {
         Column(Modifier.fillMaxWidth()) {
-            Row(
+            BasicText(
+                say(w.options.size),
                 Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = if (phone) 16.dp else 14.dp, bottom = 8.dp),
-                if (phone) Arrangement.Center else Arrangement.SpaceBetween,
-            ) {
-                BasicText(say(w.options.size), style = hint, softWrap = false, maxLines = 1)
-                if (!phone) BasicText("Only you see this", style = hint, softWrap = false, maxLines = 1) // everything on the phone is the presenter's alone
-            }
+                hint.copy(textAlign = if (phone) TextAlign.Center else TextAlign.Start),
+                softWrap = false,
+                maxLines = 1,
+            )
             Column(
                 Modifier
                     .then(if (phone) Modifier else Modifier.drawBehind { drawRect(c.rule, Offset(0f, size.height - 1.dp.toPx()), Size(size.width, 1.dp.toPx())) })
@@ -359,8 +412,8 @@ private fun Option(i: Int, choice: Choice, on: Boolean, picked: Boolean, phone: 
         Spacer(Modifier.width(10.dp))
         Glyph(choice.kind)
         Spacer(Modifier.width(10.dp))
-        val name = type(14f, 20f, tracking = -.15f, color = c.ink)
-        val meta = type(12f, 20f, tracking = -.15f, color = c.hint)
+        val name = type(14f, 20f, 400, -.084f, c.ink)
+        val meta = type(12f, 20f, 400, color = c.hint)
         if (phone) {
             // On two versions of one file the end of the name is the difference, so the date drops under it.
             Column(Modifier.weight(1f)) {
@@ -377,19 +430,20 @@ private fun Option(i: Int, choice: Choice, on: Boolean, picked: Boolean, phone: 
 
 private val CHECK = svg("M2.6 6.3l2.2 2.2 4.6-4.9")
 
+// The number you can say, bare; it fills with ink only on the row that is picked.
 @Composable
 private fun Key(i: Int, on: Boolean, check: Boolean) {
     val c = LocalMoleColors.current
-    val bg = animateColorAsState(if (on) c.ink else c.wash, css(150, easing = Ease))
-    val fg = animateColorAsState(if (on) c.paper else c.ink, css(150, easing = Ease))
+    val bg = animateColorAsState(if (on) c.ink else c.ink.copy(alpha = 0f), css(150, easing = Ease))
+    val fg = animateColorAsState(if (on) c.paper else c.hint, css(150, easing = Ease))
     Box(Modifier.size(20.dp).drawBehind { drawRoundRect(bg.value, cornerRadius = CornerRadius(6.dp.toPx())) }, Alignment.Center) {
         if (check) Canvas(Modifier.size(12.dp)) {
             scale(size.width / 12f, Offset.Zero) { drawPath(CHECK, fg.value, style = Stroke(1.6f, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
-        } else BasicText("${i + 1}", style = type(11f, 11f, 600, -.15f, fg.value, mono = true))
+        } else BasicText("${i + 1}", style = type(12f, 12f, 500, color = Color.Unspecified, tabular = true), color = { fg.value })
     }
 }
 
-// Tiny cut-paper documents in the card's style: cream paper, ink edge, faded ink lines. Same shapes as GLYPHS in mole.js.
+// Tiny cut-paper documents in the card's style: white paper, ink edge, faded ink lines. Same shapes as GLYPHS in mole.js.
 private class Glyph(val paper: Path, val lines: Path)
 
 private fun rect(x: Float, y: Float, w: Float, h: Float, r: Float) = Path().apply { addRoundRect(RoundRect(x, y, x + w, y + h, r, r)) }
