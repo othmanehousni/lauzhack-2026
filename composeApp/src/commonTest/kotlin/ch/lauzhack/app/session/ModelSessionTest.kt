@@ -27,7 +27,8 @@ private fun page(p: Int, title: String) = Item.Slide("Talk", p, 4, title, "", Ta
 private val pages = listOf(page(1, "Intro"), page(2, "The problem"), page(3, "Roadmap"), page(4, "Costs"))
 private val PACE = 400.milliseconds // 150 words a minute
 
-/** Every text the same vector: the candidates are the slides in order. */
+/** Every text the same vector: the candidates are the slides in order, each scoring 0.71 with its deck on screen, so
+ * that a pick of one is a guess, announced for the whole window. */
 private object Same : Embedder {
     override suspend fun embed(text: String) = Vector(listOf(1.0, 0.0))
     override fun diff(embedding1: Vector, embedding2: Vector) = 1 - embedding1.cosineSimilarity(embedding2)
@@ -38,7 +39,7 @@ private object Same : Embedder {
  * as the decider does. */
 private class Talk(scope: TestScope) {
     val prompts = mutableListOf<String>()
-    val agent = ModelAgent(Catalog(pages, List(4) { floatArrayOf(1f, 0f) }), Same, { p, _ ->
+    val agent = ModelAgent(Catalog(pages, List(4) { floatArrayOf(0.67f, 0f) }), Same, { p, _ ->
         delay(200)
         prompts += p
         val now = p.lines().first { it.startsWith("now (") }.substringAfter("): ")

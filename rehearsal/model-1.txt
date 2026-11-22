@@ -34,7 +34,7 @@ Close that. || slide Product_Roadmap 5
 Search for warehouse robot grippers. || site google.com/search
 Close that. || slide Product_Roadmap 5
 # veto inside the window
-@1.2
+@0.5
 Here is the team behind all this. || pick
 @6
 No, not that one. || slide Product_Roadmap 5 stopped
