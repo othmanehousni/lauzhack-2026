@@ -2,7 +2,7 @@
 each tier by cosine), to choose those of tune/CONTRACT.md, Candidates at real scale. A rule keeps `reserve` places for
 the meeting's slides, offers bookmarks and apps at any score, and offers what the presenter saw lately (recent files,
 the first slides of recent decks, and the other pages and older files when those are in) only when it scores `margin`
-above the eighth best of them, or is the best of them and scores `alone` above the second. For each rule: picks whose wanted item is among the 6 candidates, and lines that want
+above the eighth best of them, or is the best of them and scores `alone` above the second. For each rule: picks whose wanted item is among the K candidates, and lines that want
 nothing done that were offered something seen lately (seen). Then each pick's rank, and each tier's lead over its
 eighth best on every line, which the margin is set above."""
 import os
@@ -12,7 +12,7 @@ from check import parse, ok
 
 OWN = ('recent', 'firsts', 'files', 'decks')
 
-K = int(os.environ.get('K', 6))  # candidates per decision: 6 for r1, 8 for the next contract
+K = int(os.environ.get('K', 8))  # candidates per decision, as decider/Catalog.kt offers
 
 def candidates(pool, reserve, margin, files, pages, alone=None, k=K):
     own = sorted(pool.get('meeting', []), key=lambda e: -e[1])

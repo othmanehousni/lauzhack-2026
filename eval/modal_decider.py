@@ -5,7 +5,7 @@ Volume, the decision model from the decider Volume, both mounted read-only.
 
   export JAVA_HOME=<a JDK 21> ANDROID_HOME=<the Android SDK>
   export MODAL_PROFILE=$(~/Desktop/lemodb-proto/switch.sh) MODAL_IMAGE_BUILDER_VERSION=2025.06
-  modal run eval/modal_decider.py                                  every script, with derisk/decider_q8_ekv1024.litertlm
+  modal run eval/modal_decider.py                                  every script, with r4/decider_q8_ekv1024.litertlm, the installed model
   modal run eval/modal_decider.py --model r1/decider.litertlm --scripts talk,web --out replay.txt
 """
 import os
@@ -87,7 +87,7 @@ def replay(model: str, scripts: str) -> str:
 
 
 @app.local_entrypoint()
-def main(model: str = "derisk/decider_q8_ekv1024.litertlm", scripts: str = "", out: str = ""):
+def main(model: str = "r4/decider_q8_ekv1024.litertlm", scripts: str = "", out: str = ""):
     text = replay.remote(model, scripts)
     if out:
         Path(out).write_text(text)
