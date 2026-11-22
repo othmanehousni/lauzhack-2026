@@ -304,6 +304,18 @@ class ModelAgentTest {
         assertEquals(Move.Show(slide(2).target), about.say("so anyway", "next").last(), "nor does next, of words that surely match the next slide")
     }
 
+    @Test
+    fun aSlideNumberSaidIsTheSlideShown() {
+        fun on2(words: String, answer: String) = Run(slide(2).target, apply = false).say(words, answer).last()
+        assertEquals(Move.Show(slide(1).target), on2("slide one", "slide 3"), "the model misread the number")
+        assertEquals(Move.Show(slide(3).target), on2("slate three", "show 1"), "a pick by title, the number as the recognizer hears it")
+        assertEquals(Move.Show(slide(1).target), on2("1st slide", "next"))
+        assertEquals(Move.Nothing, on2("slide nine", "slide 3"), "not in the deck")
+        assertEquals(Move.Show(slide(3).target), on2("page three", "slide 3"), "no slide number said: the model's")
+        assertEquals(listOf(1, 6, 12, 1, 7, 3, null, null), listOf("No, sorry, back to slide one.", "Go to slate six.", "slide 5, no, slide 12", "Uh, to the 1st slide.",
+            "the seventh slide", "Go to slide. Three.", "slide 2026", "next slide please").map(::slideSaid))
+    }
+
     /** The move [answer] makes, at the end of an utterance, with GitHub just shown over slide 2. */
     private fun mapped(answer: String, start: Target = slide(2).target): Move {
         val r = Run(start)

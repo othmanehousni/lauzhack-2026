@@ -48,6 +48,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 private const val NAMES = 100 // Apple's limit for SpeechAnalyzer's contextual strings, which recognize short phrases best
+private val SAID = listOf("slide", "slides", "next slide", "previous slide", "go to slide", "go back to slide") // heard as "slate", "flight", "lights"
 
 /**
  * The laptop's side of the product. Asleep outside a call: no ear, no phone server, no shared screen. When [meeting]
@@ -176,7 +177,7 @@ class Laptop(
             mole.on(Event.Failed(ui.couldntLoad, first(e)))
             awaitCancellation()
         }
-        val vocabulary = names.filter { it.split(' ').size <= 4 }.take(NAMES)
+        val vocabulary = (SAID + names.filter { it.split(' ').size <= 4 }).take(NAMES)
         val ear = Ear().takeIf { typed == null }
         if (ear != null) {
             launch { ear.notes.collect { log("ear: $it") } }

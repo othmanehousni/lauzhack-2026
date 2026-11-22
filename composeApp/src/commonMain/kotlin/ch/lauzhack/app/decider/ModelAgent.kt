@@ -55,6 +55,21 @@ private val REQUEST = Regex("\\b(show(s|ing|n)?|open(s|ing)?|see|look|display|pl
 private val ONWARD = Regex("\\b(next|forward|following|ahead|onward|advance|continue|skip|proceed|(move|moving|go|going|carry|keep) on|keep going)\\b")
 private val BACKWARD = Regex("\\b(previous|back|backwards?|before|prior|earlier|last|rewind|return)\\b")
 
+private val NUMBERS = listOf("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+    "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty")
+private val ORDINALS = listOf("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth")
+private val SLIDE_N = Regex("\\b(?:slides?|slate) (?:number )?(\\d{1,2}|${NUMBERS.joinToString("|")})\\b")
+private val NTH_SLIDE = Regex("\\b(?:(\\d{1,2})(?:st|nd|rd|th)|(${ORDINALS.joinToString("|")})) slide\\b")
+
+/** The slide number [words] say last, if they say one: "slide one", "slides 7", "the 1st slide", and "slate six", as the
+ * recognizer hears "slide six". The model answers `slide 12` to "back to slide one", or picks a slide by its title. */
+internal fun slideSaid(words: String): Int? {
+    val plain = spoken(words).joinToString(" ")
+    val m = (SLIDE_N.findAll(plain) + NTH_SLIDE.findAll(plain)).maxByOrNull { it.range.first } ?: return null
+    val said = m.groupValues.drop(1).first(String::isNotEmpty)
+    return said.toIntOrNull() ?: (NUMBERS.indexOf(said) + 1).takeIf { it > 0 } ?: (ORDINALS.indexOf(said) + 1)
+}
+
 /**
  * The agent of tune/CONTRACT.md: [catalog] retrieves the candidates with [embedder], [model] answers one line of the
  * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
@@ -295,15 +310,23 @@ class ModelAgent(
             val meant = c != null && doubt(c, s.candidates, cat, score, meaning = true, named = false) == 0.0
             return if (meant || said.containsMatchIn(words)) show(c) else Move.Nothing
         }
+        val number = slideSaid(words) // when the answer goes to a slide of the deck, the number said is the slide
         return when (said.substringBefore(' ')) {
             "wait" -> Move.Wait
             "unsure" -> Move.Unsure
-            "show" -> arg.toInt().let { if (it <= s.offered.size) show(s.candidates[it - 1]) else pick(s.candidates[it - 1], meaning = true) } // an offered one is the presenter's choice
+            "show" -> arg.toInt().let {
+                val c = s.candidates[it - 1]
+                when {
+                    it <= s.offered.size -> show(c) // an offered one is the presenter's choice
+                    number != null && c is Item.Slide && c.target.deck == deck?.target?.deck -> show(page(number))
+                    else -> pick(c, meaning = true)
+                }
+            }
             "ask" -> Move.Ask(arg.split(' ').map { s.candidates[it.toInt() - 1].target }.distinct())
-            "slide" -> show(page(arg.toInt()))
-            "next" -> step(ONWARD, 1)
-            "previous" -> step(BACKWARD, -1)
-            "slides" -> show(s.behind ?: u.last ?: cat.firstSlide)
+            "slide" -> show(page(number ?: arg.toInt()))
+            "next" -> if (number != null) show(page(number)) else step(ONWARD, 1)
+            "previous" -> if (number != null) show(page(number)) else step(BACKWARD, -1)
+            "slides" -> if (number != null) show(page(number)) else show(s.behind ?: u.last ?: cat.firstSlide)
             "open" -> cat.exactly(arg)?.let { pick(it, named = true) } ?: cat.named(arg)?.let(::pick)
                 ?: if ('.' in arg) pick(Catalog.site(Target.Site("https://" + arg.replace(" ", ""), arg))) else Move.Unsure
             "search" -> pick(Catalog.site(search(arg)))
