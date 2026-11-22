@@ -11,7 +11,64 @@
 
 Molière listens to you during a call and puts the right slide, file, website or app on the screen you share. You talk to your audience as usual; Molière works out when you are asking for something and drives the shared screen for you.
 
-It is one Kotlin Compose Multiplatform app: a desktop app on your Mac and an Android companion on the phone in your hand. Speech recognition and both models run on the Mac, inside the app. There is no model server.
+It is one Kotlin Compose Multiplatform app: a desktop app on your Mac and an Android companion on the phone in your hand. Speech recognition and both models run on the Mac, inside the app. There is no model server. For the jury: [JetBrains challenge](#jetbrains-challenge).
+
+## JetBrains challenge
+
+| Requirement or extra point | How Molière meets it | Where to see it |
+| --- | --- | --- |
+| An app running on at least 2 platforms | Desktop (`jvm("desktop")` target in `:composeApp`, run with `./gradlew :composeApp:run`) and Android (`android` target in `:composeApp`, app module `:androidApp`, run with `./gradlew :androidApp:installDebug`). The phone is the companion: it shows the bar's state, sends Stop and picks, and can be the microphone. | [settings.gradle.kts](settings.gradle.kts), [composeApp/build.gradle.kts](composeApp/build.gradle.kts), [androidApp/build.gradle.kts](androidApp/build.gradle.kts) |
+| Shared logic in commonMain | The session loop, the agent's prompt and policy, the catalog, the phone link client, the words and the UI are written once. | [composeApp/src/commonMain](composeApp/src/commonMain/kotlin/ch/lauzhack/app) |
+| Jetpack Compose / Compose Multiplatform for UI | The bar, the mole and the phone screen are common Compose code. | [mole/MoleBar.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/mole/MoleBar.kt), [mole/MolePhone.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/mole/MolePhone.kt) |
+| Dark/light mode | `MoleColors` has a light and a dark palette; `MoleTheme` follows the system or is forced from the tray menu. | [mole/Theme.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/mole/Theme.kt) |
+| Localization (multi-language support) | Every word a person reads is in English, Deutsch, Français, Italiano or Rumantsch, chosen from the system language or the settings. The app hears English only. | [Lang.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/Lang.kt) |
+| Kotlin backend integration | The laptop is the backend: a Ktor server on the desktop serves the phone over a WebSocket on the local network, and a common Ktor client on the phone talks to it. | [PhoneServer.kt](composeApp/src/desktopMain/kotlin/ch/lauzhack/app/link/PhoneServer.kt), [LaptopClient.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/link/LaptopClient.kt) |
+| Shared AI/agent logic with Koog | Koog is a commonMain dependency. The agent (`ModelAgent`, `Catalog`, `Prompt`) is in commonMain and finds candidates through Koog's `Embedder` interface. The model runs through Koog's `LLMClient` for LiteRT-LM, adapted from Koog's sources to the JVM; that part is desktop-only, as the phone loads no model. | [decider/ModelAgent.kt](composeApp/src/commonMain/kotlin/ch/lauzhack/app/decider/ModelAgent.kt), [engine/LiteRTLLMClient.kt](composeApp/src/litert/kotlin/ch/lauzhack/app/engine/LiteRTLLMClient.kt) |
+
+### What is shared, what is platform-specific
+
+Shared, in `composeApp/src/commonMain/kotlin/ch/lauzhack/app`:
+
+- `Contract.kt`: what the ear, the agent and the screen exchange.
+- `session`: the loop from words to moves, the mole line as a state machine, offers and undo.
+- `decider`: the agent's prompt, grammar, catalog of candidates and decision policy.
+- `engine`: where the models are stored.
+- `link`: the phone's Ktor client and the messages between laptop and phone.
+- `mole`: the Compose UI, the themes and the mole's rig.
+- `Lang.kt`: the words in five languages.
+
+Platform-specific, because it depends on one platform's system:
+
+- `desktopMain`: the microphone and Apple's speech recognizer (`stage/Ear.kt`), the shared-screen VM and its browser (`stage`), meeting detection, the Ktor server, the tray and windows (`Main.kt`).
+- `litert`: the LiteRT-LM model engine, added to the desktop source set only.
+- `androidMain`: the phone's microphone (`link/Ears.kt`), its link and buzzes (`link/Phone.kt`), its system theme.
+- `androidApp`: the Android activity that hosts the common UI.
+
+### The measured share
+
+| Source set | Lines of Kotlin |
+| --- | --- |
+| `commonMain` | 3420 |
+| `desktopMain` | 3417 |
+| `litert` (desktop only) | 974 |
+| `androidMain` | 208 |
+| `androidApp` | 55 |
+| Tests: `commonTest` / `desktopTest` | 1385 / 3849 |
+
+The phone app is 93% common code (3420 of 3683 lines). The desktop app is 44% common code (3420 of 7811); the rest drives the Mac's speech, the VM and the model. Recount:
+
+```sh
+for d in composeApp/src/*/ androidApp/src/*/; do echo "$d $(find $d -name '*.kt' | xargs cat | wc -l)"; done
+```
+
+### How it was built with agents
+
+Coding agents worked in parallel git worktrees (the `worktree-agent-*` branches), one task each. A person reviewed each result and merged it, sent it back, or left it out.
+
+- One agent wrote the shared words table in five languages ([1e02295](../../commit/1e02295)) while another made the desktop-only VM host part of Molière ([3d4abf8](../../commit/3d4abf8)) and others trained the decider ([cd2fa08](../../commit/cd2fa08)).
+- Model candidates were compared on the same prompts: an untrained Gemma 4 E2B against our trained 270M deciders ([e7cc578](../../commit/e7cc578), [583326c](../../commit/583326c)). The 270M stayed the model.
+- The fine-tune went through rounds, each scored the same way, before one was kept ([56d6aa3](../../commit/56d6aa3) took round 4, [cd2fa08](../../commit/cd2fa08) round 6).
+- Some branches stay unmerged, for example `worktree-agent-aa3d7448044d9b1c3` (a floater change, `2c71dca`).
 
 ## What the presenter sees
 
