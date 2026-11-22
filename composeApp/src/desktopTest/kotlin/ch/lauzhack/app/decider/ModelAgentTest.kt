@@ -85,17 +85,32 @@ class ModelAgentTest {
         val prompt get() = asked.last().first
     }
 
+    private fun scored(vararg s: Double) = Catalog(listOf(slide(1), slide(2), github, notes), s.map { floatArrayOf(it.toFloat(), sqrt(1 - it * it).toFloat()) }, meeting = setOf("Talk"))
+
     @Test
     fun aPickIsSureWhenItLeadsTheOthersAndScoresAsAMatchDoes() {
-        fun scored(vararg s: Double) = Catalog(listOf(slide(1), slide(2), github, notes), s.map { floatArrayOf(it.toFloat(), sqrt(1 - it * it).toFloat()) }, meeting = setOf("Talk"))
         val r = Run(apply = false)
         fun doubt(answer: String) = (r.say("that", answer).single() as Move.Ask).doubt
-        r.agent.catalog = scored(0.82, 0.70, 0.77, 0.60)
-        assertEquals(listOf(0.0, 1.0, 1.0), listOf(doubt("show 1"), doubt("open github"), doubt("search the market")), "a search has no score")
-        r.agent.catalog = scored(0.80, 0.70, 0.78, 0.60)
-        assertEquals(listOf(0.5, 1.0), listOf(doubt("show 1"), doubt("show 2")), "the best by a little, and not the best")
+        r.agent.catalog = scored(0.82, 0.71, 0.77, 0.60) // candidates by score: slide 1, GitHub, slide 2, Notes
+        assertEquals(listOf(0.0, 1.0, 1.0), listOf(doubt("show 1"), doubt("show 2"), doubt("search the market")), "a search has no score")
+        assertEquals(listOf(0.0, 1.0), listOf(doubt("open github"), doubt("open gitub")), "a name said exactly needs no lead, one heard nearly does")
+        r.agent.catalog = scored(0.80, 0.71, 0.78, 0.60)
+        assertEquals(listOf(0.5, 0.5, 1.0), listOf(doubt("show 1"), doubt("show 2"), doubt("show 3")), "the best by a little, within 0.03 of it, far behind")
         r.agent.catalog = scored(0.73, 0.60, 0.62, 0.60)
+        assertEquals(0.5, doubt("show 1"), "far ahead, scoring as a likely match")
+        r.agent.catalog = scored(0.71, 0.60, 0.62, 0.60)
         assertEquals(1.0, doubt("show 1"), "far ahead, but scoring as anything does: a request for what is not there")
+    }
+
+    @Test
+    fun aCandidateItsScoresDoNotBackIsNotShown() {
+        val r = Run()
+        r.agent.catalog = scored(0.69, 0.60, 0.65, 0.60)
+        assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Unsure), r.say("show me that one now", "show 1", "show 1", "show 1"), "not even while it is said")
+        assertEquals(1.0, (r.say("open notes", "open notes").single() as Move.Ask).doubt, "the presenter asked to open it")
+        r.say("which one", "ask 1 3")
+        assertEquals(Move.Show(slide(1).target), r.say("the first", "show 1").last(), "a candidate offered is the presenter's choice")
+        assertEquals(Move.Show(slide(2).target), r.say("next", "next").last())
     }
 
     @Test

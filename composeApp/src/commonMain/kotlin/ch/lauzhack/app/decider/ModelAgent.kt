@@ -35,18 +35,23 @@ private val JOIN = 2.seconds
 private const val JOINED = 2 // utterances one goes on from, at most
 
 /** A pick is sure when it leads every other candidate by [SURE] and scores at least [MATCH], what unrelated items do
- * not reach (rehearsal/sure.py: no wrong pick of the scored runs was both). */
+ * not reach (rehearsal/sure.py: no wrong pick of the scored runs was both); likely when it is within [CLOSE] of the
+ * best and scores at least [LIKELY]; a candidate picked by meaning under [BACKED] is not shown, no wanted one was. */
 private const val SURE = 0.04
 private const val MATCH = 0.75
+private const val CLOSE = 0.03
+private const val LIKELY = 0.72
+private const val BACKED = 0.70
 
 /**
  * The agent of tune/CONTRACT.md: [catalog] retrieves the candidates with [embedder], [model] answers one line of the
  * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
  * and the answer becomes a [Move]. An item picked by meaning (`show`, `open`, `search`) is a [Move.Ask] of it, with how
- * long it waits for a "no" that would stop it; until it is on screen, the agent decides on every word and acts on an
- * `undo` that two partial decisions agree on. Otherwise it decides every two words, and at once when the voice stops ([Heard.quiet])
- * or a sentence ends with more after it ([Heard.more], never decided as done), unless it has decided on those words
- * already: then the answer it gave acts without asking the model again. Calls
+ * long it waits for a "no" that would stop it, or [Move.Unsure] at the end when its score does not back it; until it is
+ * on screen, the agent decides on every word and acts on an `undo` that two partial decisions agree on. Otherwise it
+ * decides every two words, and at once when the voice stops ([Heard.quiet]) or a sentence ends with more after it
+ * ([Heard.more], never decided as done), unless it has decided on those words already: then the answer it gave acts
+ * without asking the model again. Calls
  * run one at a time, and words newer than those of a decision in flight drop it.
  */
 class ModelAgent(
@@ -172,7 +177,7 @@ class ModelAgent(
     /** [move], for answer [said] to words not yet finished, if it may act before the end and is [agreed]: the decision
      * before gave it too, or the voice has stopped on these words. */
     private fun early(said: String, move: Move, n: Int, cat: Catalog, agreed: Boolean): Move {
-        val kind = said.substringBefore(' ') in EARLY || said == "undo" && coming != null
+        val kind = said.substringBefore(' ') in EARLY && move != Move.Unsure || said == "undo" && coming != null
         if (!kind || !agreed || move == Move.Nothing || move in u.taken || move == u.moving) return Move.Nothing
         take(move, n, cat)
         return move
@@ -263,19 +268,20 @@ class ModelAgent(
         val arg = said.substringAfter(' ', "")
         val now = front ?: stage
         fun show(c: Item?) = if (c == null || same(c.target, now?.target)) Move.Nothing else Move.Show(c.target)
-        fun pick(c: Item?) = show(c).let { if (it is Move.Show) Move.Ask(listOf(it.target), doubt(c!!, s.candidates, cat, score)) else it }
+        fun pick(c: Item?, meaning: Boolean = false, named: Boolean = false) =
+            show(c).let { if (it is Move.Show) doubt(c!!, s.candidates, cat, score, meaning, named)?.let { d -> Move.Ask(listOf(it.target), d) } ?: Move.Unsure else it }
         val deck = u.deck ?: u.last ?: cat.firstSlide
         fun page(p: Int) = deck?.let { cat.slide(it.target.deck, p) }
         return when (said.substringBefore(' ')) {
             "wait" -> Move.Wait
             "unsure" -> Move.Unsure
-            "show" -> arg.toInt().let { if (it <= s.offered.size) show(s.candidates[it - 1]) else pick(s.candidates[it - 1]) } // an offered one is the presenter's choice
+            "show" -> arg.toInt().let { if (it <= s.offered.size) show(s.candidates[it - 1]) else pick(s.candidates[it - 1], meaning = true) } // an offered one is the presenter's choice
             "ask" -> Move.Ask(arg.split(' ').map { s.candidates[it.toInt() - 1].target }.distinct())
             "slide" -> show(page(arg.toInt()))
             "next" -> show(deck?.let { page(it.page + 1) })
             "previous" -> show(deck?.let { page(it.page - 1) })
             "slides" -> show(s.behind ?: u.last ?: cat.firstSlide)
-            "open" -> cat.named(arg)?.let(::pick)
+            "open" -> cat.exactly(arg)?.let { pick(it, named = true) } ?: cat.named(arg)?.let(::pick)
                 ?: if ('.' in arg) pick(Catalog.site(Target.Site("https://" + arg.replace(" ", ""), arg))) else Move.Unsure
             "search" -> pick(Catalog.site(search(arg)))
             "click" -> Move.Control("click:$arg")
@@ -286,16 +292,17 @@ class ModelAgent(
         }
     }
 
-    /** How much of the presenter's window a pick of [c] waits: none when it is sure, half when it is the best of the
-     * [candidates] and scores as a match does, all of it for a guess, and for an address or a search, which no score
-     * backs. */
-    private fun doubt(c: Item, candidates: List<Item>, cat: Catalog, score: DoubleArray): Double {
+    /** How much of the presenter's window a pick of [c] waits: none when it is sure, half when it is likely, all of it
+     * otherwise, and for an address or a search, which no score backs; null for a candidate picked by [meaning] that
+     * its score does not back. An item [named] exactly needs no lead: its name tells it from those that score as it does. */
+    private fun doubt(c: Item, candidates: List<Item>, cat: Catalog, score: DoubleArray, meaning: Boolean, named: Boolean): Double? {
         val s = cat.score(c, score) ?: return 1.0
+        if (meaning && s < BACKED) return null
         val lead = s - (candidates.filter { it != c }.mapNotNull { cat.score(it, score) }.maxOrNull() ?: return 1.0)
         return when {
-            s < MATCH || lead <= 0 -> 1.0
-            lead >= SURE -> 0.0
-            else -> 0.5
+            s >= MATCH && (lead >= SURE || named) -> 0.0
+            s >= LIKELY && lead > -CLOSE -> 0.5
+            else -> 1.0
         }
     }
 }

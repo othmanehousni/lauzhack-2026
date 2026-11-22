@@ -106,9 +106,12 @@ class Catalog(
 
     /** The app or bookmark the decider named in `open <words>`, by its name or address; else the one whose name, or
      * address for words with a dot, has letters closest to theirs, at [NEAR] or more: the recognizer mishears names. */
-    fun named(words: String): Item? = items.firstOrNull {
+    fun named(words: String): Item? = exactly(words) ?: near(letters(words), address = '.' in words)
+
+    /** The app or bookmark the decider named in `open <words>` by its very name or address. */
+    fun exactly(words: String): Item? = items.firstOrNull {
         it is Item.App && spelled(it.name) == words || it is Item.Site && (spelled(it.name) == words || it.url == words)
-    } ?: near(letters(words), address = '.' in words)
+    }
 
     private fun near(heard: String, address: Boolean): Item? {
         val names = items.mapNotNull { c -> (if (address) (c as? Item.Site)?.url else (c as? Item.App)?.name ?: (c as? Item.Site)?.name)?.let { letters(it) to c } }
