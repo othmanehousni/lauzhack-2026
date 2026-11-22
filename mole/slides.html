@@ -1,404 +1,293 @@
 <!doctype html>
-<html data-theme="light">
+<html lang="en" data-theme="light">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width">
-<title>Moliere · Alt+F4</title>
+<title>Molière</title>
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="mole.css">
 <style>
-  /* Colour 2 · Signal red on white, with black and red slides for rhythm. Fonts E · Inter Tight only. */
-  :root { --paper: #ffffff; --ink: #111111; --ember: #e5251b; --lens: #f5eedf; --ember-deep: #a3150e; --ember-light: #ff6f63; }
   :root {
-    --display: "Inter Tight", -apple-system, "Segoe UI", system-ui, sans-serif;
-    --text: "Inter Tight", -apple-system, "Segoe UI", system-ui, sans-serif;
-    --muted: rgb(17 17 17 / .58);
-    --faint: rgb(17 17 17 / .38);
-    --hair: rgb(17 17 17 / .14);
-    --ease: cubic-bezier(.2, .8, .2, 1);
+    --bg: oklch(1 0 0);
+    --fg: oklch(0.205 0 0);
+    --grey: oklch(0.5 0 0);
+    --line: oklch(0.88 0 0);
+    --fill: oklch(0.965 0 0);
+    --red: oklch(0.59 0.24 28.5);
+    --sans: "Inter", system-ui, sans-serif;
   }
-  html, body { height: 100%; margin: 0; overflow: hidden; background: #0b0b0b; }
-  body { font: 400 24px/1.4 var(--text); color: var(--ink); -webkit-font-smoothing: antialiased; font-kerning: normal; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--fg); }
+  body { font: 400 24px/1.4 var(--sans); color: var(--fg); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  h1, h2, p, ul, figure, blockquote { margin: 0; padding: 0; }
+  ul { list-style: none; }
 
-  /* The deck is laid out at 1280 × 720 and scaled to fit the window. */
   .stage { position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; translate: -50% -50%; scale: var(--fit, 1); }
-  .slide { position: absolute; inset: 0; padding: 72px 84px; box-sizing: border-box; background: var(--paper); overflow: hidden; }
+  .slide { position: absolute; inset: 0; box-sizing: border-box; padding: 120px 80px 112px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto 1fr; column-gap: 32px; background: var(--bg); overflow: hidden; }
   .slide[hidden] { display: none; }
-  .slide.dark { --ember: #ff4a3d; background: var(--ink); color: var(--paper); --muted: rgb(255 255 255 / .62); --faint: rgb(255 255 255 / .4); --hair: rgb(255 255 255 / .16); }
-  .slide.hot { background: var(--ember); color: #fff; }
+  .slide > * { grid-column: 1 / -1; }
   .notes { display: none; }
+  .slide > :is(.label, .foot, .ground, .sprite, .solo) { grid-column: auto; }
 
-  /* -- type ------------------------------------------------------------------------------------------------------- */
-  .d { font-family: var(--display); font-weight: 650; letter-spacing: -0.035em; margin: 0; }
-  .d.it { font-weight: 500; letter-spacing: -0.03em; }
-  .d.xxl { font-size: 141px; line-height: .92; letter-spacing: -0.045em; }
-  .d.xl { font-size: 101px; line-height: .94; letter-spacing: -0.04em; }
-  .d.l { font-size: 72px; line-height: .98; letter-spacing: -0.03em; }
-  .d.m { font-size: 51px; line-height: 1.02; }
-  .d.s { font-size: 31px; line-height: 1.06; letter-spacing: -0.01em; }
-  .it { font-style: italic; }
-  .lead { font: 400 25px/1.42 var(--text); color: var(--muted); letter-spacing: -0.005em; margin: 0; text-wrap: pretty; }
-  .small { font: 500 16px/1.3 var(--text); color: var(--muted); letter-spacing: .005em; margin: 0; }
-  .ember { color: var(--ember); }
-  cite { font: 500 14px/1 var(--text); font-style: normal; color: var(--faint); letter-spacing: .02em; }
-  /* A placeholder still to fill: underlined in persimmon dots, so it reads as a gap without shouting. */
-  .ph { text-decoration: underline dotted var(--ember); text-decoration-thickness: .08em; text-underline-offset: .2em; }
-  .d .ph { text-decoration: none; color: var(--ember); }
-  .d .name { color: var(--ember); }
+  .figure { font-size: 240px; line-height: .9; font-weight: 700; letter-spacing: -0.045em; margin-inline-start: -0.05em; }
+  .display { font-size: 96px; line-height: 1; font-weight: 700; letter-spacing: -0.035em; text-wrap: balance; }
+  .title { font-size: 64px; line-height: 1.08; font-weight: 650; letter-spacing: -0.028em; text-wrap: balance; }
+  .head { font-size: 48px; line-height: 1.15; font-weight: 500; letter-spacing: -0.02em; text-wrap: pretty; }
+  .lead { font-size: 32px; line-height: 1.3; font-weight: 400; letter-spacing: -0.012em; text-wrap: pretty; }
+  .body { font-size: 24px; line-height: 1.4; font-weight: 400; letter-spacing: -0.006em; text-wrap: pretty; }
+  .small { font-size: 18px; line-height: 1.3; font-weight: 500; }
+  .grey { color: var(--grey); }
+  .red { color: var(--red); }
+  blockquote { text-indent: -0.4em; }
+  .who { display: grid; align-self: start; font-size: 24px; line-height: 1.4; }
+  .who b { font-weight: 600; }
+  .who span { color: var(--grey); }
 
-  .who { display: flex; align-items: center; gap: 14px; font: 400 19px/1.3 var(--text); color: var(--muted); }
-  .who b { color: var(--ink); font-weight: 600; }
-  .badge { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--paper); font: 600 14px/1 var(--text); letter-spacing: .04em; }
+  .label { position: absolute; left: 80px; top: 48px; font: 500 18px/24px var(--sans); color: var(--grey); }
+  .foot { position: absolute; left: 80px; right: 80px; bottom: 48px; display: flex; justify-content: space-between; font: 600 18px/24px var(--sans); }
+  .foot span + span { font-weight: 500; color: var(--grey); font-variant-numeric: tabular-nums; }
+  .ground { position: absolute; left: 80px; right: 80px; top: 608px; border-top: 2px solid var(--fg); }
+  .sprite { position: absolute; bottom: 112px; height: auto; pointer-events: none; user-select: none; }
+  .flip { scale: -1 1; }
 
-  /* The ground line most slides stand on, and the mole standing on it. */
-  .ground { position: absolute; left: 0; right: 0; bottom: 118px; border-top: 2px solid var(--ink); }
+  .s-cover .head { margin-top: 24px; }
+
+  .s-nick .title { grid-column: 1 / 7; }
+  .s-nick > .body { grid-column: 7 / -1; padding-top: 8px; }
+  .steps { align-self: end; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; column-gap: 32px; }
+  .steps li { display: grid; grid-row: span 2; grid-template-rows: subgrid; }
+  .steps span { grid-row: 2; }
+  .steps b { margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+
+  .s-num { grid-template-rows: 1fr; }
+  .stat, .study { display: flex; flex-direction: column; }
+  .stat { grid-column: 1 / 9; }
+  .stat .lead { margin-top: 24px; max-width: 20em; }
+  .study { grid-column: 9 / -1; justify-content: flex-end; }
+  .stat .small, .study .small { margin-top: auto; padding-top: 16px; }
+  .study .small { margin-top: 16px; }
+
+  .s-quote { grid-template-rows: auto auto 1fr; }
+  .s-quote blockquote { grid-column: 1 / 12; margin-top: 48px; }
+  .s-quote .who { margin-top: 40px; }
+
+  .s-realize { align-content: start; }
+  .s-realize .head { grid-column: 1 / 11; }
+  .s-realize .display { margin-top: 56px; }
+
+  .s-solution { grid-template-rows: auto auto 1fr; }
+  .s-solution .title, .pitch { grid-column: 1 / 8; }
+  .pitch { margin-top: 32px; }
+  .points { margin-top: 32px; display: grid; gap: 16px; }
+  .desk { grid-column: 8 / -1; grid-row: 1 / -1; align-self: center; display: grid; justify-items: center; gap: 24px; padding: 24px; border-radius: 24px; background: var(--fill); }
+  .desk .mole-bar { zoom: 1.18; }
+  .screen { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; background: var(--bg); outline: 2px solid var(--fg); overflow: hidden; }
+  .screen > div { position: absolute; inset: 0; padding: 22px 24px; opacity: 0; transition: opacity .3s ease; }
+  .screen[data-on="6"] > [data-n="6"], .screen[data-on="7"] > [data-n="7"] { opacity: 1; }
+  .screen small { display: block; margin-top: 18px; font: 500 14px/1 var(--sans); color: var(--grey); }
+  .screen h3 { margin: 8px 0 0; font: 650 24px/1.1 var(--sans); letter-spacing: -0.02em; }
+  .screen ul { margin-top: 12px; display: grid; gap: 4px; font: 400 16px/1.25 var(--sans); }
+  .screen em { position: absolute; right: 14px; bottom: 12px; font: 500 14px/1 var(--sans); font-style: normal; color: var(--grey); font-variant-numeric: tabular-nums; }
+  .screen .bars { position: absolute; left: 24px; bottom: 22px; display: flex; align-items: flex-end; gap: 10px; height: 96px; }
+  .screen .bars i { width: 30px; border-radius: 2px 2px 0 0; background: var(--line); }
+  .screen .bars i:last-child { background: var(--red); }
+  .tag { position: absolute; left: 0; top: 0; padding: 4px 9px 5px 8px; border-bottom-right-radius: 6px; background: var(--fg); color: var(--bg); font: 600 14px/1 var(--sans); }
+
+  .live { display: inline-block; width: .24em; height: .24em; margin-left: .22em; border-radius: 50%; background: var(--red); vertical-align: .24em; }
+  .solo { position: absolute; left: 80px; bottom: calc(112px - var(--w) * 0.8 / 154); --w: 400px; }
   .solo .mole-bar { width: auto; background: none; box-shadow: none; border-radius: 0; }
-  .solo .mole-row { height: auto; padding: 0; flex-direction: column; align-items: flex-start; gap: 18px; }
-  .solo .mole-fig { width: var(--w, 420px); height: auto; aspect-ratio: 154 / 114.8; margin: 0; }
-  .solo .mole-heard, .solo .m-ground { display: none; }
-  .solo .mole-title { font: italic 500 22px/28px var(--display); letter-spacing: -0.01em; }
-  .solo .mole-text .mole-words { --wy: 0px; }
-  .solo .mole-text .mole-dot { top: 11px; translate: none; }
-  .solo.quiet .mole-text { display: none; }
-  /* Puts the figure's own ground (0.8 units above its bottom edge) on the slide's ground line. */
-  .stand { position: absolute; right: 84px; bottom: calc(119px - var(--w) * 0.8 / 154 - var(--below, 0px)); }
+  .solo .mole-row { height: auto; padding: 0; gap: 56px; align-items: flex-end; }
+  .solo .mole-text { padding-bottom: 48px; }
+  .solo .mole-fig { width: var(--w); height: auto; aspect-ratio: 154 / 114.8; margin: 0; }
+  .solo .m-ground, .solo .mole-dot { display: none; }
+  .solo .mole-words, .solo .mole-text[data-one-line] .mole-words { --wx: 0px; --wy: 0px; padding-left: 0; }
+  .solo .mole-title { font: 500 48px/1.15 var(--sans); letter-spacing: -0.02em; }
+  .solo .mole-heard { height: auto; margin-top: 8px; font: 400 24px/1.4 var(--sans); color: var(--grey); }
+  .slide .mole-bar, .slide .m-num { font-family: var(--sans); }
 
-  /* The cut-paper props: flat at the base, so each one stands on a line or peeks up from an edge of the slide. */
-  .sprite { position: absolute; display: block; height: auto; pointer-events: none; user-select: none; }
-  .ledge { position: absolute; border-top: 2px solid var(--ink); }
+  .s-how { grid-template-rows: auto auto 1fr; }
+  .s-how .title { grid-column: 1 / 10; min-height: 140px; }
+  .s-how .ground { top: 292px; }
+  .trio { margin-top: 48px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 32px; }
+  .slots { margin-top: 32px; display: grid; grid-template-columns: 2fr 1fr; gap: 32px; align-self: stretch; }
+  .slots div { display: grid; place-items: center; border-radius: 16px; background: var(--fill); color: var(--grey); }
 
-  /* -- entrances: each [data-in] rises in turn when its slide comes up ------------------------------------------ */
-  @keyframes rise { from { opacity: 0; transform: translateY(22px); } }
-  .slide.on [data-in] { animation: rise .8s var(--ease) both; animation-delay: calc(var(--d, 0) * 110ms + 60ms); }
-  @media (prefers-reduced-motion: reduce) { .slide.on [data-in] { animation: none; } }
+  .s-comp { grid-template-rows: auto 1fr; }
+  .vs { grid-column: 1 / 10; align-self: end; border-collapse: collapse; font-size: 24px; line-height: 1.4; }
+  .vs th, .vs td { padding: 16px 0; text-align: start; vertical-align: top; border-top: 1px solid var(--line); }
+  .vs th { width: 40%; padding-right: 32px; font-weight: 600; }
+  .vs small { display: block; margin-top: 4px; font: 500 18px/1.3 var(--sans); color: var(--grey); }
+  .vs tr:first-child > * { border-top: 0; }
+  .vs .us th { color: var(--red); }
 
-  /* 01 title */
-  .s-title .d.xxl { font-size: 155px; margin-top: 18px; }
-  .s-title .lead { font: italic 500 42px/1 var(--display); color: var(--ink); margin-top: 40px; letter-spacing: -0.01em; }
-  .meta { position: absolute; left: 84px; bottom: 64px; font: 600 15px/1 var(--text); letter-spacing: .04em; color: var(--ink); }
-  .meta span { color: var(--faint); font-weight: 500; margin-left: 10px; }
+  .s-voices { grid-template-rows: auto auto 1fr; }
+  .s-voices blockquote.title { grid-column: 1 / 11; }
+  .s-voices > .who { margin-top: 32px; }
+  .second { grid-column: 7 / -1; align-self: end; margin-bottom: 40px; }
+  .second .who { margin-top: 20px; }
 
-  /* 02 Nick */
-  .s-nick { display: grid; grid-template-columns: 1fr 380px; grid-template-rows: auto 1fr; column-gap: 64px; }
-  .s-nick .lead { align-self: end; padding-bottom: 16px; font-size: 22px; }
-  .steps { grid-column: 1 / -1; align-self: end; display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 14px; }
-  .step { border-top: 2px solid var(--ink); padding-top: 18px; }
-  .step .k { font: italic 500 20px/1 var(--display); color: var(--faint); }
-  .step p { margin: 16px 0 0; font: 500 38px/1.15 var(--text); letter-spacing: -0.015em; text-wrap: balance; }
-  .step.silence { --ember: #ff4a3d; border: 0; padding: 30px 34px 34px; border-radius: 24px; background: var(--ink); color: var(--paper); }
-  .step.silence .k { color: rgb(255 255 255 / .45); }
-  .timer { display: flex; align-items: flex-end; gap: 26px; margin-top: 14px; }
-  .timer b { font: 650 150px/.78 var(--display); letter-spacing: -0.03em; color: var(--ember); font-variant-numeric: tabular-nums; }
-  .timer i { flex: 1; height: 5px; margin-bottom: 16px; border-radius: 4px; background: rgb(255 255 255 / .16); position: relative; overflow: hidden; }
-  .timer i::after { content: ""; position: absolute; inset: 0; width: var(--p, 0%); background: var(--ember); border-radius: inherit; }
-  .step.silence p { margin-top: 14px; color: rgb(255 255 255 / .85); }
+  .s-b2b .pair { align-self: end; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
 
-  /* 03 numbers: two figures side by side, each with its own picture, and the lab study as a band underneath */
-  .s-num { display: flex; flex-direction: column; }
-  .figs { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; }
-  .fig { display: grid; grid-template-columns: 150px 1fr; grid-template-rows: auto auto; column-gap: 34px; align-items: end; }
-  .fig .glyph { grid-row: 1 / 3; align-self: start; margin-top: 14px; }
-  .fig .d { font-size: 196px; line-height: .84; letter-spacing: -0.05em; white-space: nowrap; }
-  .fig .d small { font-size: .42em; letter-spacing: -0.03em; margin-left: .12em; }
-  .fig .cap { margin: 26px 0 0; font: 500 29px/1.28 var(--text); color: rgb(255 255 255 / .82); max-width: 18ch; }
-  .grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 150px; }
-  .grid4 i { aspect-ratio: 1; border-radius: 16px; border: 2px solid rgb(255 255 255 / .35); box-sizing: border-box; }
-  .grid4 i.hit { border: 0; background: var(--ember); }
-  .dial { width: 150px; height: 155px; }
-  .dial .face { fill: none; stroke: rgb(255 255 255 / .35); stroke-width: 2; }
-  .dial .tick { stroke: rgb(255 255 255 / .5); stroke-width: 2.4; stroke-linecap: round; }
-  .dial .lost { fill: var(--ember); }
-  .dial .hand { stroke: var(--paper); stroke-width: 3; stroke-linecap: round; }
-  .dial .pin { fill: var(--paper); }
-  .dial .crown { fill: rgb(255 255 255 / .35); }
-  .s-num .src { margin-top: 26px; }
-  .study { margin-top: auto; display: grid; grid-template-columns: 200px 1fr; column-gap: 34px; padding-top: 28px; border-top: 1px solid var(--hair); }
-  .study .small { padding-top: 10px; }
-  .study .d.s { font-size: 42px; line-height: 1.12; }
-  .study cite { grid-column: 2; margin-top: 16px; }
+  .s-next .title { grid-column: 1 / 9; }
+  .s-next .head { grid-column: 1 / 8; margin-top: 32px; }
 
-  /* 04 Mathias: the six people as a row, then his words across the slide */
-  .s-mathias { display: flex; flex-direction: column; }
-  .asked { display: flex; align-items: center; gap: 24px; }
-  .people { display: flex; }
-  .people > * { margin-left: -8px; border: 3px solid var(--paper); }
-  .people > :first-child { margin-left: 0; }
-  .people i { width: 44px; height: 44px; border-radius: 50%; background: rgb(17 17 17 / .1); }
-  .asked .lead { font-size: 24px; color: var(--ink); }
-  .s-mathias blockquote { margin: auto 0 0; font-size: 70px; line-height: 1.05; text-indent: -.32em; max-width: 29ch; text-wrap: pretty; }
-  .s-mathias > .who { margin-top: 34px; }
-
-  /* 05 insight */
-  .s-insight { display: flex; flex-direction: column; justify-content: center; }
-  .s-insight .intro { font: 500 22px/1.2 var(--text); color: rgb(255 255 255 / .8); margin: 0 0 30px; }
-  .s-insight .not { font-weight: 500; letter-spacing: -0.02em; color: rgb(255 255 255 / .75); font-size: 45px; line-height: 1; }
-  .s-insight .yes { margin-top: 40px; font-size: 86px; line-height: .96; }
-
-  /* 06 solution */
-  .s-solution { display: grid; grid-template-columns: 1fr 500px; column-gap: 56px; align-items: center; }
-  .s-solution .lead { font: italic 500 27px/1.15 var(--display); color: var(--ink); margin-top: 26px; max-width: 20ch; }
-  .list { list-style: none; margin: 40px 0 0; padding: 0; }
-  .list li { display: grid; grid-template-columns: 44px 1fr; padding: 13px 0; border-top: 1px solid var(--hair); font: 400 21px/1.32 var(--text); }
-  .list li span { font: italic 500 15px/1.1 var(--display); color: var(--ember); }
-  .device { padding: 22px 22px 26px; border-radius: 26px; background: var(--ink); display: grid; justify-items: center; gap: 22px; box-shadow: 0 30px 60px -30px rgb(17 17 17 / .6); }
-  .mini { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; background: #ffffff; outline: 2px solid #2fbf71; outline-offset: 3px; overflow: hidden; color: var(--ink); }
-  .mini > div { position: absolute; inset: 0; padding: 26px 28px; opacity: 0; transition: opacity .4s ease; }
-  .mini[data-on="6"] > [data-n="6"], .mini[data-on="7"] > [data-n="7"] { opacity: 1; }
-  .mini small { font: 600 10px/1 var(--text); letter-spacing: .08em; text-transform: uppercase; color: rgb(17 17 17 / .45); }
-  .mini h4 { font: 650 23px/1 var(--display); letter-spacing: -0.02em; margin: 8px 0 0; }
-  .mini em { position: absolute; right: 16px; bottom: 12px; font: 600 11px/1 var(--text); font-style: normal; color: rgb(17 17 17 / .5); }
-  .mini .bars { position: absolute; left: 28px; bottom: 26px; display: flex; align-items: flex-end; gap: 10px; height: 100px; }
-  .mini .bars i { width: 32px; background: rgb(17 17 17 / .16); border-radius: 2px 2px 0 0; }
-  .mini .bars i:last-child { background: var(--ember); }
-  .mini ol { margin: 16px 0 0; padding: 0; list-style: none; font: 400 14px/1.2 var(--text); display: grid; gap: 7px; }
-  .mini ol b { color: var(--ember); font-size: 11px; margin-right: 8px; }
-  .mini .tag { position: absolute; inset: 0 auto auto 0; padding: 3px 8px; border-bottom-right-radius: 6px; background: #2fbf71; color: #0b2b18; font: 600 10px/1.3 var(--text); opacity: 1; }
-
-  /* 07 live demo */
-  .s-demo .d.xxl { font-size: 134px; margin-top: 10px; }
-  .live { display: inline-block; width: 34px; height: 34px; margin-left: 28px; border-radius: 50%; background: var(--ember); vertical-align: .62em; position: relative; }
-  .live::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--ember); animation: pulse 1.6s ease-out infinite; }
-  @keyframes pulse { to { transform: scale(2.6); opacity: 0; } }
-
-  /* 08 how it works */
-  .s-how { display: flex; flex-direction: column; }
-  .s-how .d.m { max-width: 21ch; font-size: 62px; }
-  .trio { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
-  .trio div { border-top: 2px solid var(--ink); padding-top: 18px; }
-  .trio span { font: italic 500 27px/1 var(--display); color: var(--ember); }
-  .trio p { margin: 14px 0 0; font: 500 22px/1.3 var(--text); letter-spacing: -0.01em; }
-  .slots { margin-top: 32px; height: 150px; display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
-  .slots div { display: grid; place-items: center; border-radius: 18px; border: 2px dashed rgb(17 17 17 / .22); font: italic 500 20px/1 var(--display); color: var(--faint); }
-
-  /* 09 competitors */
-  .s-comp { display: flex; flex-direction: column; }
-  .s-comp .d.l { max-width: 19ch; font-size: 70px; }
-  .cards { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 16px; align-items: stretch; }
-  .cards > div { position: relative; padding: 28px 30px 30px; border-radius: 24px; background: rgb(17 17 17 / .05); min-height: 300px; box-sizing: border-box; display: flex; flex-direction: column; }
-  .cards svg { width: 40px; height: 40px; fill: none; stroke: var(--faint); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-  .cards b { display: block; margin-top: auto; font: 650 25px/1 var(--display); letter-spacing: -0.01em; }
-  .cards p { margin: 12px 0 0; font: 400 20px/1.35 var(--text); color: var(--muted); }
-  .cards .us { background: var(--ember); color: #fff; overflow: hidden; }
-  .cards .us b { font-size: 40px; }
-  .cards .us p { color: #fff; font-weight: 500; max-width: 21ch; }
-  .cards .us .solo { position: absolute; right: 24px; top: 22px; }
-  .s-comp cite { margin-top: 18px; }
-
-  /* 10 voices */
-  .s-voices { display: flex; flex-direction: column; }
-  .s-voices .head { font-size: 70px; line-height: 1; text-indent: -.3em; max-width: 17ch; margin-top: 6px; }
-  .s-voices .who { margin-top: 30px; }
-  .second { margin-top: auto; align-self: flex-end; width: 560px; border-top: 2px solid var(--ink); padding-top: 22px; }
-  .second blockquote { margin: 0; font: italic 500 28px/1.1 var(--display); text-indent: -.3em; text-wrap: balance; }
-  .second .who { margin-top: 18px; font-size: 17px; }
-  .second .badge { width: 38px; height: 38px; font-size: 13px; }
-
-  /* 11 B2B */
-  .s-b2b { display: flex; flex-direction: column; }
-  .s-b2b .d.xxl { margin-top: 10px; }
-  .pair { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-  .pair div { border-top: 2px solid var(--paper); padding-top: 18px; }
-  .pair .no { font: italic 500 27px/1 var(--display); color: var(--ember); }
-  .pair p { margin: 14px 0 0; font: 400 25px/1.35 var(--text); color: var(--paper); text-wrap: pretty; }
-
-  /* 12 next */
-  .s-next .d.l { max-width: 12ch; font-size: 67px; }
-  .s-next .lead { font: italic 500 30px/1.12 var(--display); color: var(--muted); margin-top: 24px; max-width: 20ch; }
-
-  /* -- presenting ---------------------------------------------------------------------------------------------- */
-  .notes-panel { position: fixed; left: 0; right: 0; bottom: 0; max-height: 36vh; overflow: auto; padding: 18px 28px 22px; box-sizing: border-box; background: rgb(20 18 17 / .95); color: #f2ede4; font: 18px/1.5 var(--text); }
-  .notes-panel[hidden] { display: none; }
-  .notes-panel b { display: block; font: 500 13px/1 var(--text); letter-spacing: .02em; color: rgb(255 255 255 / .5); margin-bottom: 10px; }
-  .notes-panel p { margin: 0 0 8px; max-width: 80ch; }
-  .hint { position: fixed; right: 16px; bottom: 14px; font: 500 12px/1 var(--text); color: rgb(255 255 255 / .55); transition: opacity .6s ease; }
+  .hint { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; font: 500 13px/1 var(--sans); color: var(--grey); transition: opacity .4s ease; }
   @media print {
     html, body { overflow: visible; height: auto; background: none; }
     .stage { position: static; translate: none; scale: 1; }
-    .slide, .slide[hidden] { position: relative; display: block; break-after: page; width: 1280px; height: 720px; }
-    .notes-panel, .hint { display: none !important; }
+    .slide, .slide[hidden] { position: relative; display: grid; break-after: page; width: 1280px; height: 720px; }
+    .hint { display: none; }
   }
 </style>
 
 <div class="stage">
 
-  <!-- 01 -->
-  <section class="slide s-title">
-    <div data-in>
-      <h1 class="d xxl"><span class="name">[Name]</span></h1>
-      <p class="lead">Automated co-presenter.</p>
-    </div>
+  <section class="slide s-cover" data-foot="Alt+F4">
+    <p class="label">LauzHack 2026</p>
+    <h1 class="figure red">Molière</h1>
+    <p class="head grey">Automated co-presenter.</p>
     <div class="ground"></div>
-    <img class="sprite" src="sprites/microphone.png" alt="" data-in style="right: 96px; bottom: 119px; width: 440px">
-    <div class="meta">Alt+F4<span>LauzHack 2026</span></div>
+    <img class="sprite flip" src="sprites/microphone.png" alt="" style="right: 80px; width: 300px">
   </section>
 
-  <!-- 02 -->
   <section class="slide s-nick">
-    <h2 class="d xl" data-in>This is Nick.</h2>
-    <p class="lead" data-in>He works at a consulting firm in Geneva. He has 5 meetings per day, each on a different subject and with a different team. He doesn't have time to fully prepare for every meeting.</p>
-    <div class="steps" data-in>
-      <div class="step"><span class="k">a</span><p>He looks for a document.</p></div>
-      <div class="step silence" data-timer><span class="k">b</span><div class="timer"><b>0 s</b><i></i></div><p>of silence. People are waiting.</p></div>
-      <div class="step"><span class="k">c</span><p>He pulls up the wrong slide.</p></div>
-    </div>
-    <aside class="notes"><p>This is Nick, he works at a consulting firm in Geneva. He has 5 meetings per day, each on a different subject and with a different team. He doesn't have time to fully prepare for every meeting. Every time he has to present something, something wrong happens: he looks for a document, there is silence for 30 seconds, then he pulls up the wrong slide.</p></aside>
+    <p class="label">Presenting the problem</p>
+    <h2 class="title">This is Nick.</h2>
+    <p class="body grey">He works at a consulting firm in Geneva. He has 5 meetings per day, each on a different subject and with a different team. He doesn’t have time to fully prepare for every meeting.</p>
+    <ul class="steps lead">
+      <li><span>He looks for a document.</span></li>
+      <li data-timer><b class="display red">30&nbsp;s</b><span>of silence. People are waiting.</span></li>
+      <li><span>He pulls up the wrong slide.</span></li>
+    </ul>
+    <aside class="notes"><p>This is Nick, he works at a consulting firm in Geneva. He has 5 meetings per day, each on a different subject and with a different team. He doesn’t have time to fully prepare for every meeting. Every time he has to present something, something wrong happens: he looks for a document, there is silence for 30 seconds, then he pulls up the wrong slide.</p></aside>
   </section>
 
-  <!-- 03 -->
-  <section class="slide dark s-num">
-    <div class="figs" data-in>
-      <div class="fig">
-        <div class="glyph grid4"><i class="hit"></i><i class="hit"></i><i class="hit"></i><i></i></div>
-        <div class="d"><span class="ember">3</span> in 4</div>
-        <p class="cap">meetings hit at least one tech failure,</p>
-      </div>
-      <div class="fig">
-        <svg class="glyph dial" viewBox="0 0 120 124" aria-hidden="true">
-          <rect class="crown" x="53" y="0" width="14" height="7" rx="2"/>
-          <circle class="face" cx="60" cy="66" r="52"/>
-          <path class="lost" d="M60 66 L60 20 A46 46 0 0 1 102.02 47.29 Z"/>
-          <path class="tick" d="M60 18v6M108 66h-6M60 114v-6M12 66h6"/>
-          <line class="hand" x1="60" y1="66" x2="98.2" y2="49.0"/>
-          <circle class="pin" cx="60" cy="66" r="4"/>
-        </svg>
-        <div class="d">11<small>min</small></div>
-        <p class="cap">costing about 11 minutes each.</p>
-      </div>
+  <section class="slide s-num">
+    <p class="label">Presenting the problem</p>
+    <div class="stat">
+      <h2 class="figure red">3 in 4</h2>
+      <p class="lead">meetings hit at least one tech failure, costing about 11 minutes each.</p>
+      <p class="small grey">Jabra, 2026</p>
     </div>
-    <cite class="src">Jabra, 2026</cite>
-    <div class="study" data-in>
-      <p class="small">In a lab study,</p>
-      <p class="d s it">people who talked while using a computer spoke more slowly and made more mistakes at both.</p>
-      <cite>BYU, 2022</cite>
+    <div class="study">
+      <p class="body"><span class="grey">In a lab study,</span> people who talked while using a computer spoke more slowly and made more mistakes at both.</p>
+      <p class="small grey">BYU, 2022</p>
     </div>
     <aside class="notes"><p>Three in four meetings hit at least one tech failure, costing about 11 minutes each (Jabra, 2026). And in a lab study, people who talked while using a computer spoke more slowly and made more mistakes at both (BYU, 2022).</p></aside>
   </section>
 
-  <!-- 04 -->
-  <section class="slide s-mathias">
-    <div class="asked" data-in>
-      <div class="people" aria-hidden="true"><span class="badge">MS</span><i></i><i></i><i></i><i></i><i></i></div>
-      <p class="lead">We asked 6 people who present to clients every week.</p>
-    </div>
-    <blockquote class="d it" data-in>“Clients always come up with questions I wasn't expecting. So I end up searching for documents or running another simulation while explaining what I'm doing.”</blockquote>
-    <div class="who" data-in><span class="badge">MS</span><span><b>Mathias Sudres</b> · Insurance advisor in Switzerland</span></div>
-    <aside class="notes"><p>We asked 6 people who present to clients every week. Mathias Sudres, an insurance advisor in Switzerland, told us: "Clients always come up with questions I wasn't expecting. So I end up searching for documents or running another simulation while explaining what I'm doing."</p></aside>
+  <section class="slide s-quote">
+    <p class="label">Presenting the problem</p>
+    <p class="lead grey">We asked 6 people who present to clients every week.</p>
+    <blockquote class="head">“Clients always come up with questions I wasn’t expecting. So I end up searching for documents or running another simulation while explaining what I’m doing.”</blockquote>
+    <p class="who"><b>Mathias Sudres</b><span>Insurance advisor in Switzerland</span></p>
+    <aside class="notes"><p>We asked 6 people who present to clients every week. Mathias Sudres, an insurance advisor in Switzerland, told us: “Clients always come up with questions I wasn’t expecting. So I end up searching for documents or running another simulation while explaining what I’m doing.”</p></aside>
   </section>
 
-  <!-- 05 -->
-  <section class="slide hot s-insight">
-    <p class="intro" data-in>By talking to office workers, we realized:</p>
-    <p class="d not" data-in>The issue wasn't the software used for the meeting or actual technical issues.</p>
-    <p class="d yes" data-in>It's error prone manual work under stress.</p>
-    <aside class="notes"><p>By talking to office workers, we realized that the issue wasn't the software used for the meeting or actual technical issues. It's error prone manual work under stress.</p></aside>
+  <section class="slide s-realize">
+    <p class="label">By talking to office workers, we realized:</p>
+    <p class="head grey">The issue wasn’t the software used for the meeting or actual technical issues.</p>
+    <h2 class="display">It’s error-prone manual work under stress.</h2>
+    <aside class="notes"><p>By talking to office workers, we realized that the issue wasn’t the software used for the meeting or actual technical issues. It’s error-prone manual work under stress.</p></aside>
   </section>
 
-  <!-- 06 -->
   <section class="slide s-solution">
-    <div>
-      <h2 class="d l" data-in>Introducing <span class="name">[Name]</span>.</h2>
-      <p class="lead" data-in>We want to make the process of presenting in meetings seamless.</p>
-      <ol class="list" data-in>
-        <li><span>01</span>It sets up the whole environment for you.</li>
-        <li><span>02</span>It knows exactly what you want to show while you speak.</li>
-        <li><span>03</span>It lets you focus entirely on interacting with your colleagues, getting your message across and having a productive meeting.</li>
-      </ol>
+    <p class="label">Our solution</p>
+    <h2 class="title">Introducing <span class="red">Molière</span>.</h2>
+    <div class="pitch body">
+      <p class="grey">We want to make the process of presenting in meetings seamless.</p>
+      <ul class="points">
+        <li>It sets up the whole environment for you.</li>
+        <li>It knows exactly what you want to show while you speak.</li>
+        <li>It lets you focus entirely on interacting with your colleagues, getting your message across and having a productive meeting.</li>
+      </ul>
     </div>
-    <div class="device" data-in>
-      <div class="mini" data-on="6">
-        <div data-n="6"><small>Your home cover</small><h4>What clients ask us</h4><ol><li><b>01</b>Can I lower my premium?</li><li><b>02</b>What if I raise the deductible?</li><li><b>03</b>How does this compare?</li></ol><em>06</em></div>
-        <div data-n="7"><small>The opportunity</small><h4>Market size</h4><div class="bars"><i style="height: 38%"></i><i style="height: 52%"></i><i style="height: 70%"></i><i style="height: 92%"></i></div><em>07</em></div>
+    <figure class="desk">
+      <div class="screen" data-on="6">
+        <div data-n="6"><small>Your home cover</small><h3>What clients ask us</h3><ul><li>01 Can I lower my premium?</li><li>02 What if I raise the deductible?</li><li>03 How does this compare?</li></ul><em>06</em></div>
+        <div data-n="7"><small>The opportunity</small><h3>Market size</h3><div class="bars"><i style="height: 38%"></i><i style="height: 52%"></i><i style="height: 70%"></i><i style="height: 92%"></i></div><em>07</em></div>
         <span class="tag">Shared</span>
       </div>
       <div data-mole="loop-bar"></div>
-    </div>
-    <aside class="notes"><p>We want to make the process of presenting in meetings seamless. This is why we're introducing <span class="name">[Name]</span>. It's an automated co-presenter that sets up the whole environment for you, knows exactly what you want to show while you speak and lets you focus entirely on interacting with your colleagues, getting your message across and having a productive meeting in general.</p></aside>
+    </figure>
+    <aside class="notes"><p>We want to make the process of presenting in meetings seamless. This is why we’re introducing Molière. It’s an automated co-presenter that sets up the whole environment for you, knows exactly what you want to show while you speak and lets you focus entirely on interacting with your colleagues, getting your message across and having a productive meeting in general.</p></aside>
   </section>
 
-  <!-- 07 -->
   <section class="slide s-demo">
-    <h2 class="d xxl" data-in>Live demo<span class="live"></span></h2>
+    <p class="label">Our solution</p>
+    <h2 class="display">Live demo<i class="live"></i></h2>
     <div class="ground"></div>
-    <div class="solo stand" style="--w: 430px; --below: 48px" data-mole="loop"></div>
+    <div class="solo" data-mole="loop"></div>
     <aside class="notes"><p>(Live demo)</p></aside>
   </section>
 
-  <!-- 08 -->
   <section class="slide s-how">
-    <h2 class="d m" data-in>Not just AI agent talk: we have trained actual models.</h2>
-    <img class="sprite" src="sprites/pickaxe.png" alt="" data-in style="right: 104px; top: 34px; width: 250px">
-    <div class="ledge" style="right: 84px; top: 213px; width: 300px"></div>
-    <div class="trio" data-in>
-      <div><span>01</span><p>Our UI is minimal and doesn't disrupt the presenter.</p></div>
-      <div><span>02</span><p>Work is done in the background.</p></div>
-      <div><span>03</span><p>The presenter can cancel whenever he doesn't agree with the assistant.</p></div>
-    </div>
-    <div class="slots" data-in><div>[Architecture]</div><div>[Tech stack]</div></div>
-    <aside class="notes"><p>(Show the architecture, tech stack.) I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn't disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn't agree with the assistant.</p></aside>
+    <p class="label">How does our solution work?</p>
+    <h2 class="title">Not just AI agent talk: we have trained actual models.</h2>
+    <div class="ground"></div>
+    <img class="sprite flip" src="sprites/pickaxe.png" alt="" style="right: 80px; bottom: 428px; width: 200px">
+    <ul class="trio body">
+      <li>Our UI is minimal and doesn’t disrupt the presenter.</li>
+      <li>Work is done in the background.</li>
+      <li>The presenter can cancel whenever he doesn’t agree with the assistant.</li>
+    </ul>
+    <div class="slots body"><div>[Architecture]</div><div>[Tech stack]</div></div>
+    <aside class="notes"><p>(Show the architecture, tech stack.) I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn’t disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn’t agree with the assistant.</p></aside>
   </section>
 
-  <!-- 09 -->
   <section class="slide s-comp">
-    <h2 class="d l" data-in>Our solution works live, in any software.</h2>
-    <div class="cards" data-in>
-      <div><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg><b>Notetakers</b><p>Act after the call.</p></div>
-      <div><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><b>Meeting agents like Teams Facilitator</b><p>Answer in the chat, inside Teams only.</p></div>
-      <div class="us"><img class="sprite" src="sprites/stopwatch.png" alt="" style="right: 16px; bottom: 0; width: 178px"><b><span class="name">[Name]</span></b><p>Works live, runs on your laptop, and hands control back the moment you want it. Works in any software.</p></div>
-    </div>
-    <cite>Source: Microsoft Support (Teams Facilitator)</cite>
+    <p class="label">Who are the competitors?</p>
+    <h2 class="title">Our solution works live, in any software.</h2>
+    <table class="vs">
+      <tr><th>Notetakers</th><td>Act after the call.</td></tr>
+      <tr><th>Meeting agents like Teams Facilitator</th><td>Answer in the chat, inside Teams only.<small>Source: Microsoft Support (Teams Facilitator)</small></td></tr>
+      <tr class="us"><th>Molière</th><td>Works live, runs on your laptop, and hands control back the moment you want it. Works in any software.</td></tr>
+    </table>
+    <div class="ground"></div>
+    <img class="sprite flip" src="sprites/stopwatch.png" alt="" style="right: 80px; width: 220px">
     <aside class="notes"><p>Unlike notetakers that act after the call, our solution works live, runs on your laptop, and hands control back the moment you want it. Meeting agents like Teams Facilitator answer in the chat, inside Teams only. Our solution works in any software.</p></aside>
   </section>
 
-  <!-- 10 -->
   <section class="slide s-voices">
-    <blockquote class="d it head" data-in>“…without jumping between ten different windows.”</blockquote>
-    <div class="who" data-in><span class="badge">MS</span><span><b>Mathias Sudres</b> · Insurance advisor in Switzerland</span></div>
-    <img class="sprite" src="sprites/magnifier.png" alt="" data-in style="left: 84px; bottom: 0; width: 330px">
-    <div class="second" data-in>
-      <blockquote>“If this is something that is feasible, it for sure would help us a lot.”</blockquote>
-      <div class="who"><span class="badge">RH</span><span><b>Rodolphe Henzi</b> · Accenture</span></div>
-    </div>
-    <aside class="notes"><p>Rodolphe Henzi, Accenture: "If this is something that is feasible, it for sure would help us a lot."</p></aside>
-  </section>
-
-  <!-- 11 -->
-  <section class="slide dark s-b2b">
-    <h2 class="d xxl" data-in>We will go <span class="ember">B2B</span>.</h2>
-    <div class="pair" data-in>
-      <div><span class="no">01</span><p>Integrating into the ecosystem of companies which would use <span class="name">[Name]</span> for all their meetings.</p></div>
-      <div><span class="no">02</span><p>Our assistant will adapt to the architectures of these companies, to know exactly how to look for documents.</p></div>
-    </div>
-    <aside class="notes"><p>We will go B2B, integrating into the ecosystem of companies which would use <span class="name">[Name]</span> for all their meetings. Our assistant will adapt to the architectures of these companies, to know exactly how to look for documents [etc.]</p></aside>
-  </section>
-
-  <!-- 12 -->
-  <section class="slide s-next">
-    <h2 class="d l" data-in>Next, we will train <span class="name">[Name]</span> on your workflow.</h2>
-    <p class="lead" data-in>For it to be able to help you to its full potential.</p>
+    <p class="label">Interviews</p>
+    <blockquote class="title">“…without jumping between ten different windows.”</blockquote>
+    <p class="who"><b>Mathias Sudres</b><span>Insurance advisor in Switzerland</span></p>
+    <figure class="second">
+      <blockquote class="lead">“If this is something that is feasible, it for sure would help us a lot.”</blockquote>
+      <p class="who"><b>Rodolphe Henzi</b><span>Accenture</span></p>
+    </figure>
     <div class="ground"></div>
-    <img class="sprite" src="sprites/shovel.png" alt="" data-in style="right: 84px; bottom: 119px; width: 420px">
-    <div class="meta">Alt+F4</div>
-    <aside class="notes"><p>Next, we will train <span class="name">[Name]</span> on your workflow, for it to be able to help you to its full potential.</p></aside>
+    <img class="sprite" src="sprites/magnifier.png" alt="" style="left: 80px; width: 280px">
+    <aside class="notes"><p>Rodolphe Henzi, Accenture: “If this is something that is feasible, it for sure would help us a lot.”</p></aside>
+  </section>
+
+  <section class="slide s-b2b">
+    <p class="label">Business model / go-to-market</p>
+    <h2 class="display">We will go <span class="red">B2B</span>.</h2>
+    <div class="pair lead">
+      <p>Integrating into the ecosystem of companies which would use Molière for all their meetings.</p>
+      <p>Our assistant will adapt to the architectures of these companies, to know exactly how to look for documents.</p>
+    </div>
+    <aside class="notes"><p>We will go B2B, integrating into the ecosystem of companies which would use Molière for all their meetings. Our assistant will adapt to the architectures of these companies, to know exactly how to look for documents [etc.]</p></aside>
+  </section>
+
+  <section class="slide s-next" data-foot="Alt+F4">
+    <p class="label">Roadmap &amp; next steps</p>
+    <h2 class="title">Next, we will train <span class="red">Molière</span> on your workflow.</h2>
+    <p class="head grey">For it to be able to help you to its full potential.</p>
+    <div class="ground"></div>
+    <img class="sprite flip" src="sprites/shovel.png" alt="" style="right: 80px; width: 300px">
+    <aside class="notes"><p>Next, we will train Molière on your workflow, for it to be able to help you to its full potential.</p></aside>
   </section>
 
 </div>
 
-<div class="notes-panel" id="notesPanel" hidden></div>
-<div class="hint" id="hint">← → to move · N notes · F full screen</div>
+<p class="hint" id="hint">Arrow keys or click to move. N for notes. F for full screen.</p>
 
 <script src="mole.js"></script>
 <script>
-  const NAME = "Moliere"; // the product name, everywhere at once
-
-  for (const el of document.querySelectorAll(".name")) {
-    el.textContent = NAME;
-    el.classList.toggle("ph", NAME.startsWith("["));
-  }
-
-  // -- the mole on the slides -------------------------------------------------------------------------------------
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const STEPS = [
-    ["idle", { title: "You're driving.", heard: "" }, 1500],
-    ["heard", { title: "I've got it.", heard: "so let's look at the market size", card: "07" }, 1300],
+    ["idle", { title: "You’re driving.", heard: "" }, 1500],
+    ["heard", { title: "I’ve got it.", heard: "so let’s look at the market size", card: "07" }, 1300],
     ["working", { title: "Finding slide 7…" }, 1900],
     ["retrieving", { title: "I found slide 7." }, 1300],
     ["ready", { title: "Slide 7 is ready." }, 2000],
@@ -411,61 +300,83 @@
       await sleep(ms);
     }
   }
-
   for (const host of document.querySelectorAll("[data-mole]")) {
     const bar = Mole.create(document.createElement("div"));
     host.append(bar.el);
-    const kind = host.dataset.mole, slide = host.closest(".slide");
-    if (kind === "heard") bar.set("heard", { title: "I've got it.", card: "07" });
-    else if (kind === "ready") bar.set("ready", { card: "07" });
-    else if (kind === "loop") loop(bar);
-    else if (kind === "loop-bar") {
-      const mini = slide.querySelector(".mini");
-      loop(bar, state => { if (state === "idle") mini.dataset.on = "6"; if (state === "ready") mini.dataset.on = "7"; });
-    }
+    const screen = host.closest(".slide").querySelector(".screen");
+    loop(bar, screen && (state => { if (state === "idle") screen.dataset.on = "6"; if (state === "ready") screen.dataset.on = "7"; }));
   }
 
-  // -- the silence on slide 2: counts up to 30 s when the slide comes up ------------------------------------------
   let timerRun = 0;
   function silence(step) {
-    const id = ++timerRun, label = step.querySelector(".timer b"), start = performance.now(), length = 3600;
+    const id = ++timerRun, label = step.querySelector("b"), start = performance.now() + 500, length = 3600;
     const tick = now => {
       if (id !== timerRun) return;
-      const p = Math.min(1, (now - start) / length), eased = 1 - (1 - p) ** 2.2, s = Math.round(30 * eased);
-      label.textContent = `${s} s`;
-      step.style.setProperty("--p", `${eased * 100}%`);
+      const p = Math.min(1, Math.max(0, (now - start) / length));
+      label.textContent = `${Math.round(30 * (1 - (1 - p) ** 2.2))} s`;
       if (p < 1) requestAnimationFrame(tick);
     };
-    label.textContent = "0 s";
-    step.style.setProperty("--p", "0%");
-    setTimeout(() => requestAnimationFrame(tick), 700);
+    requestAnimationFrame(tick);
   }
 
-  // -- presenting -------------------------------------------------------------------------------------------------
   const slides = [...document.querySelectorAll(".slide")];
-  for (const s of slides) s.querySelectorAll("[data-in]").forEach((el, k) => el.style.setProperty("--d", k));
+  slides.forEach((s, k) => s.insertAdjacentHTML("beforeend", `<footer class="foot"><span>${s.dataset.foot ?? "Molière"}</span><span>${String(k + 1).padStart(2, "0")}</span></footer>`));
+
+  let notesWin = null, notesStart = 0;
+  function openNotes() {
+    if (notesWin && !notesWin.closed) return notesWin.focus();
+    notesWin = open("", "moliere-notes", "width=820,height=560");
+    if (!notesWin) return;
+    notesStart = Date.now();
+    notesWin.document.write(`<!doctype html><title>Molière notes</title><link rel="stylesheet" href="${new URL("fonts/fonts.css", location)}">
+      <style>
+        body { margin: 0; padding: 36px 44px; font: 400 22px/1.5 "Inter", system-ui, sans-serif; color: oklch(0.205 0 0); background: oklch(1 0 0); -webkit-font-smoothing: antialiased; }
+        header { display: flex; justify-content: space-between; font-size: 16px; font-weight: 500; color: oklch(0.5 0 0); font-variant-numeric: tabular-nums; }
+        h1 { margin: 28px 0 16px; font-size: 16px; font-weight: 500; color: oklch(0.5 0 0); }
+        #notes p { margin: 0 0 12px; max-width: 60ch; text-wrap: pretty; }
+        #next { margin-top: 32px; padding-top: 16px; border-top: 1px solid oklch(0.88 0 0); font-size: 16px; color: oklch(0.5 0 0); }
+      </style>
+      <header><span id="at"></span><span id="clock">00:00</span></header><h1 id="label"></h1><div id="notes"></div><p id="next"></p>`);
+    notesWin.document.close();
+    notesWin.addEventListener("keydown", onKey);
+    const clock = setInterval(() => {
+      if (notesWin.closed) return clearInterval(clock);
+      const s = Math.floor((Date.now() - notesStart) / 1000);
+      notesWin.document.getElementById("clock").textContent = `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+    }, 1000);
+    showNotes();
+  }
+  function showNotes() {
+    if (!notesWin || notesWin.closed) return;
+    const $ = id => notesWin.document.getElementById(id), s = slides[at], next = slides[at + 1];
+    $("at").textContent = `Slide ${at + 1} of ${slides.length}`;
+    $("label").textContent = s.querySelector(".label").textContent;
+    $("notes").innerHTML = s.querySelector(".notes")?.innerHTML ?? "<p>No notes for this slide.</p>";
+    $("next").textContent = next ? `Next: ${next.querySelector("h1, h2, blockquote").textContent}` : "Last slide.";
+  }
 
   let at = Math.min(slides.length - 1, Math.max(0, (parseInt(location.hash.slice(1), 10) || 1) - 1));
   function go(n) {
     at = Math.min(slides.length - 1, Math.max(0, n));
-    slides.forEach((s, k) => { s.hidden = k !== at; s.classList.toggle("on", k === at); });
+    slides.forEach((s, k) => { s.hidden = k !== at; });
     history.replaceState(null, "", `${location.pathname}${location.search}#${at + 1}`);
     const timer = slides[at].querySelector("[data-timer]");
     if (timer) silence(timer); else timerRun++;
-    const notes = slides[at].querySelector(".notes");
-    notesPanel.innerHTML = `<b>Notes · ${at + 1} / ${slides.length}</b>${notes ? notes.innerHTML : "<p>—</p>"}`;
+    showNotes();
+  }
+  function onKey(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); go(at + 1); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); go(at - 1); }
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(slides.length - 1);
+    else if (e.key === "n" || e.key === "N") openNotes();
+    else if (e.key === "f" || e.key === "F") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
   }
   const fit = () => document.documentElement.style.setProperty("--fit", Math.min(innerWidth / 1280, innerHeight / 720));
   addEventListener("resize", fit);
-  addEventListener("keydown", e => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); go(at + 1); }
-    else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); go(at - 1); }
-    else if (e.key === "Home") go(0);
-    else if (e.key === "End") go(slides.length - 1);
-    else if (e.key === "n" || e.key === "N") notesPanel.hidden = !notesPanel.hidden;
-    else if (e.key === "f" || e.key === "F") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
-  });
+  addEventListener("keydown", onKey);
+  addEventListener("click", e => go(at + (e.clientX < innerWidth / 3 ? -1 : 1)));
   setTimeout(() => (hint.style.opacity = 0), 4000);
   fit();
   go(at);
