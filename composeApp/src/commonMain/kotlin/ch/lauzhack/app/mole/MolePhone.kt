@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.MoleState
+import ch.lauzhack.app.ui
 
 /**
  * The phone companion of index.html's .phone: the meeting header with the mic chip, the mole centred with its options
@@ -62,7 +63,7 @@ fun MolePhone(
     SystemBars(c.paper)
     // The app on the phone never hides: when the bar dives away, the phone's mole goes back to listening.
     val shown = when {
-        !connected -> MoleLine(MoleState.Tunneling, "Looking for your laptop…")
+        !connected -> MoleLine(MoleState.Tunneling, ui.lookingForLaptop)
         line.state == MoleState.Hidden -> MoleLine(MoleState.Idle)
         else -> line
     }
@@ -74,7 +75,7 @@ fun MolePhone(
         Row(Modifier.fillMaxWidth().height(52.dp).padding(start = 20.dp, end = 16.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             if (connected) {
                 Column(Modifier.weight(1f)) {
-                    BasicText("Presenting", style = type(15f, 20f, 600, -.135f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                    BasicText(ui.presenting, style = type(15f, 20f, 600, -.135f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
                     BasicText(meeting, style = type(12f, 16f, 400, color = c.muted), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
                 }
                 Mic(phoneLeads)
@@ -89,7 +90,7 @@ fun MolePhone(
                 val second = Modifier.padding(top = 4.dp).height(20.dp)
                 if (connected) Heard(words, type(14f, 20f, 400, -.084f, c.heard), type(14f, 20f, 400, -.084f, c.hint), second, TextAlign.Center)
                 // The laptop serves the phone only during a call, so one asleep and one out of reach look the same from here.
-                else BasicText("Connects while your laptop is in a call.", second.fillMaxWidth(), type(14f, 20f, 400, -.084f, c.hint).copy(textAlign = TextAlign.Center), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                else BasicText(ui.connectsInCall, second.fillMaxWidth(), type(14f, 20f, 400, -.084f, c.hint).copy(textAlign = TextAlign.Center), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
                 Options(words, phone = true, enabled = true, onPick)
             }
             // A thumb's target, low on the screen where the options would open; it floats, so the mole stays put.
@@ -111,9 +112,9 @@ fun MolePhone(
                     thumbnail?.let { Image(it, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop) }
                 }
                 Column(Modifier.weight(1f)) {
-                    BasicText("On screen", style = type(12f, 16f, 400, color = c.muted))
+                    BasicText(ui.onScreen, style = type(12f, 16f, 400, color = c.muted))
                     // The laptop names nothing while its bare desktop is up.
-                    BasicText(onScreenName.ifEmpty { if (thumbnail != null) "The desktop" else "" }, style = type(15f, 20f, 500, -.135f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                    BasicText(onScreenName.ifEmpty { if (thumbnail != null) ui.desktop else "" }, style = type(15f, 20f, 500, -.135f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
                 }
             }
         }
@@ -149,8 +150,8 @@ private fun Mic(phone: Boolean) {
             )
         }
         Box {
-            Source("Laptop", !phone, fg)
-            Source("Phone", phone, fg)
+            Source(ui.laptop, !phone, fg)
+            Source(ui.phone, phone, fg)
         }
     }
 }

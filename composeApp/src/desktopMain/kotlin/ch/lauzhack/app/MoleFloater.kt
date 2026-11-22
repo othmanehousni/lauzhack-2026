@@ -58,7 +58,7 @@ internal fun ApplicationScope.MoleFloater(
     onPick: (Int) -> Unit,
     onQuit: () -> Unit,
     theme: MoleTheme = MoleTheme.System,
-    tray: @Composable MenuScope.() -> Unit = { Item("Quit Molière", onClick = onQuit) },
+    tray: @Composable MenuScope.() -> Unit = { Item(ui.quit, onClick = onQuit) },
 ) {
     val line by lines.collectAsState()
     val hidden = line.state == MoleState.Hidden
@@ -102,8 +102,8 @@ internal fun ApplicationScope.MoleFloater(
             ContextMenuArea(
                 items = {
                     listOf(
-                        ContextMenuItem("Reset floater position", resetPosition),
-                        ContextMenuItem("Quit Molière", onQuit),
+                        ContextMenuItem(ui.resetPosition, resetPosition),
+                        ContextMenuItem(ui.quit, onQuit),
                     )
                 },
             ) {

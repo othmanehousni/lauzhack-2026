@@ -51,10 +51,23 @@ internal val LongLines = linkedMapOf(
  */
 class FloaterTest {
     @Test
-    fun theWindowHoldsTheWholeBar() {
+    fun theWindowHoldsTheWholeBar() = holds(LongLines, Lang.En)
+
+    // Every translation of the announce, and the one whose choice hint and question are longest.
+    @Test
+    fun theWindowHoldsTheLongestTranslation() {
+        val name = "Acme customer pipeline Q4 2026"
+        for (l in Lang.entries.drop(1)) holds(linkedMapOf("announce-${l.name}" to LongLines.getValue("announce").copy(title = l.words.showing(name))), l)
+        val choice = Lang.entries.drop(1).maxBy { with(it.words) { sayOneOf(listOf("one", "two", "three")).length + titles.getValue(MoleState.Choosing).length } }
+        holds(linkedMapOf("choice-three-${choice.name}" to LongLines.getValue("choice-three")), choice)
+    }
+
+    private fun holds(lines: Map<String, MoleLine>, language: Lang) {
+        lang = language
         val out = File("build/bar-shots").apply { mkdirs() }
         val wrong = mutableListOf<String>()
-        for ((name, line) in LongLines) for ((theme, suffix) in listOf(MoleTheme.Light to "", MoleTheme.Dark to "-dark")) {
+        try {
+        for ((name, line) in lines) for ((theme, suffix) in listOf(MoleTheme.Light to "", MoleTheme.Dark to "-dark")) {
             var window by mutableStateOf(IntSize(342, 78))
             var bar = IntSize.Zero
             var natural = IntSize.Zero
@@ -72,6 +85,9 @@ class FloaterTest {
             scene.close()
             File(out, "$name$suffix.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
             if (bar != natural || window != hugged(natural, 2.0)) wrong += "$name$suffix: bar $bar of $natural in window $window"
+        }
+        } finally {
+            lang = Lang.En
         }
         assertEquals(emptyList(), wrong)
     }
