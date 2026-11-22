@@ -30,6 +30,10 @@ private val EARLY = setOf("show", "slide", "next", "previous", "slides", "contro
 /** How long an announce may take to reach the screen; past this it was stopped on the bar, or failed. */
 private val LANDS = ANNOUNCE + 1500.milliseconds
 
+/** How soon after an utterance nothing acted on the next one goes on from it: the presenter paused inside a sentence. */
+private val JOIN = 2.seconds
+private const val JOINED = 2 // utterances one goes on from, at most
+
 /** A pick is sure when it leads every other candidate by [SURE] and scores at least [MATCH], what unrelated items do
  * not reach (rehearsal/sure.py: no wrong pick of the scored runs was both); likely when it is within [CLOSE] of the
  * best and scores at least [LIKELY]; a candidate picked by meaning under [BACKED] is not shown, no wanted one was. */
@@ -39,18 +43,15 @@ private const val CLOSE = 0.03
 private const val LIKELY = 0.72
 private const val BACKED = 0.70
 
-/** How soon after an utterance nothing acted on the next one goes on from it: the presenter paused inside a sentence. */
-private val JOIN = 2.seconds
-private const val JOINED = 2 // utterances one goes on from, at most
-
 /**
  * The agent of tune/CONTRACT.md: [catalog] retrieves the candidates with [embedder], [model] answers one line of the
  * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
  * and the answer becomes a [Move]. An item picked by meaning (`show`, `open`, `search`) is a [Move.Ask] of it, with how
  * long it waits for a "no" that would stop it, or [Move.Unsure] at the end when its score does not back it; until it is
- * on screen, the agent decides on every word and acts on an `undo` that two partial decisions agree on. Otherwise it decides every two words, and at once when the voice stops
- * ([Heard.quiet]) or a sentence ends with more after it ([Heard.more], never decided as done), unless it has decided on
- * those words already: then the answer it gave acts without asking the model again. Calls
+ * on screen, the agent decides on every word and acts on an `undo` that two partial decisions agree on. Otherwise it
+ * decides every two words, and at once when the voice stops ([Heard.quiet]) or a sentence ends with more after it
+ * ([Heard.more], never decided as done), unless it has decided on those words already: then the answer it gave acts
+ * without asking the model again. Calls
  * run one at a time, and words newer than those of a decision in flight drop it.
  */
 class ModelAgent(

@@ -25,6 +25,11 @@ fun decks(library: File, data: File, width: Int = 1920): List<DeckPage> =
     library.listFiles { f -> f.extension.lowercase() == "pdf" }.orEmpty().sortedBy { it.name }
         .flatMap { deck(it, File(data, "decks/${it.nameWithoutExtension}"), width) }
 
+/** The library's other files of a kind the shared screen shows: the meeting's documents, offered beside its decks. */
+fun documents(library: File): List<String> = library.listFiles().orEmpty()
+    .filter { !it.name.startsWith(".") && it.extension.lowercase().let { e -> e != "pdf" && e in Files.EXTENSIONS } }
+    .map { it.absolutePath }.sorted()
+
 private fun deck(pdf: File, out: File, width: Int): List<DeckPage> = Loader.loadPDF(pdf).use { doc ->
     val pages = (1..doc.numberOfPages).map { File(out, "$it.png") }
     if (pages.any { it.lastModified() < pdf.lastModified() }) {
