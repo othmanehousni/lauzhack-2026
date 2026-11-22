@@ -216,3 +216,37 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
     export JAVA_HOME=/Users/admin/Library/Java/JavaVirtualMachines/temurin-21.0.7/Contents/Home ANDROID_HOME=/Users/admin/Library/Android/sdk
     ./gradlew :composeApp:desktopTest :composeApp:desktopJar :androidApp:assembleDebug :composeApp:createDistributable
   Tests tonight: 31 suites, 116 tests, 0 failures.
+
+
+11. MARKET FIGURES AND SHEETS BESIDE THE DECKS
+
+  Six made-up Acme documents sit in library/ next to the decks. Their numbers agree with the decks. Each one
+  opens in front of the deck on the shared screen, like a website, and "Close that." brings the slide back.
+  Put them in place (they are not in git, like the decks; the same command rewrites them identically):
+    python3 -I fixtures/make_documents.py library
+
+    Document                         What is on it
+    -------------------------------  ------------------------------------------------------------------
+    Acme market figures 2026         the market by segment and by region, 2026 to 2030, the total as a chart
+    Acme pricing sheet 2026          price per robot a month by fleet size, the contract terms, a chart
+    Acme customer pipeline Q4 2026   ten open deals: 444 robots, $724,500 a month
+    Acme competitor comparison       Acme against legacy AS/RS, transport-only robots and manual picking
+    Acme profit and loss Q3 2026     Q2 against Q3, cash and runway, revenue by quarter as a chart
+    Acme customer survey 2026        satisfaction, NPS 61, what customers ask for next, a chart
+
+  You do not need to open them before the meeting. Every file in the decks folder that is not a PDF is one
+  of the meeting's documents, offered whenever it fits what you say.
+
+  Say these (each showed its document in the scored run):
+    SAY_LINES
+  Avoid these (measured):
+    AVOID_LINES
+
+  Scored run: SCORE_LINE
+    rehearsal/run.sh rehearsal/docs-1.txt .stage/rehearsal/docs 6
+    python3 rehearsal/check.py .stage/rehearsal/docs
+  Pictures of each document on the shared screen: .stage/design/documents/
+
+  Keep documents as HTML pages. An Excel file in the decks folder cannot be shown (the shared screen has no
+  spreadsheet app). A CSV is downloaded instead of shown. A one-page PDF in the decks folder becomes a
+  one-slide deck and can take over "the company slides".

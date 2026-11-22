@@ -1,0 +1,41 @@
+# chatter that must not act
+@90
+Hi everyone, thanks for joining, can you all hear me okay? || keep
+@6
+# the documents beside the decks
+Okay, let's open up the company slides. || slide Company_Overview 1
+Let me pull up the market figures. || file market figures
+Close that. || slide Company_Overview 1
+Can we look at the pricing sheet? || file pricing sheet
+And now the customer pipeline. || file customer pipeline
+Close that. || slide Company_Overview 1
+Let me show you the competitor comparison. || file competitor comparison
+Close that. || slide Company_Overview 1
+Here are the results of our customer survey. || file customer survey
+Close that. || slide Company_Overview 1
+Can we look at the profit and loss sheet? || file profit and loss
+Close that. || slide Company_Overview 1
+# asked another way
+Can we look at the market figures? || file market figures
+Close that. || slide Company_Overview 1
+Can we look at the competitor comparison? || file competitor comparison
+Close that. || slide Company_Overview 1
+Let me show you the sales pipeline. || file customer pipeline
+Close that. || slide Company_Overview 1
+Can we look at the survey results? || file customer survey
+Close that. || slide Company_Overview 1
+# the same topics in talk, which must change nothing
+The market for warehouse robots keeps growing every year. || keep
+Our pricing has not changed since the spring. || keep
+Our pipeline has never been this strong. || keep
+Most of our customers renew, churn is low. || keep
+We will send the survey again next spring. || keep
+I updated the numbers in our sheets last night. || keep
+# the slides still answer their own topics
+Go to slide 7. || slide Company_Overview 7
+So how big is this market really? || slide Company_Overview 5
+Next slide please. || slide Company_Overview 6
+Can we look at the pricing sheet? || file pricing sheet
+Close that. || slide Company_Overview 6
+Now let's switch to the Q3 financials. || slide Q3_2026_Financials 1
+What about churn? || slide Q3_2026_Financials 6
