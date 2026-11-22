@@ -11,7 +11,9 @@
         </intent>
     </queries>
 
-    <!-- The laptop serves plain ws:// on the local network. Rotating keeps the activity, so the link and the recognizer survive. -->
+    <!-- The laptop serves plain ws:// on the local network. A remote held in one hand stays upright: on its side the
+         choice rows have no room. A resize (a large screen ignores the lock) keeps the activity, so the link and the
+         recognizer survive. singleTop, so a laptop address given to the running app (am start -e laptop) reaches onNewIntent. -->
     <application
         android:label="@string/app_name"
         android:supportsRtl="true"
@@ -20,6 +22,8 @@
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
+            android:screenOrientation="portrait"
+            android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -1,6 +1,7 @@
 package ch.lauzhack.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.WindowManager
@@ -31,6 +32,11 @@ class MainActivity : ComponentActivity() {
         }
         if (!hasMic()) mic.launch(Manifest.permission.RECORD_AUDIO)
         setContent { App(phone.state, phone::onPick) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra("laptop")?.let { setIntent(intent); phone.manual = it } // kept should the activity be recreated
     }
 
     override fun onStart() {

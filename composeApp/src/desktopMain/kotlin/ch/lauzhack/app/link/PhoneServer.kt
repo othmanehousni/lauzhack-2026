@@ -101,8 +101,11 @@ class PhoneServer(
                 if (frame !is Frame.Text) continue
                 when (val message = decode(frame.readText())) {
                     is Link.Words -> _words.emit(message.heard)
-                    // Anything on the Wi-Fi can connect, so a pick counts only for an option on offer now.
-                    is Link.Pick -> if (line.value.state == MoleState.Choosing && message.index in line.value.options.indices) _picks.emit(message.index)
+                    // Anything on the Wi-Fi can connect, so a pick counts only for an option on offer now, and a stop (-1)
+                    // only while a choice or an announce is up.
+                    is Link.Pick -> line.value.let { l ->
+                        if ((l.state == MoleState.Choosing || l.state == MoleState.Retrieving) && message.index in -1 until l.options.size) _picks.emit(message.index)
+                    }
                     is Link.Level -> {
                         if (message.speech) walk.update { it.next(laptopDb.value, message.db) }
                         _levels.emit(message)

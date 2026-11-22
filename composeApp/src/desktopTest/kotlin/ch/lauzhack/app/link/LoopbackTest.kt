@@ -58,6 +58,15 @@ class LoopbackTest {
                 assertEquals(1, pick.await())
                 assertEquals(Heard("the second one", ended = true), words.await())
 
+                // The phone's Stop on an announce reaches the laptop.
+                val choice = line.value
+                line.value = MoleLine(MoleState.Retrieving, "Showing slide 7", options = offers.take(1))
+                phone.state.first { it.line.state == MoleState.Retrieving }
+                val stop = async(start = CoroutineStart.UNDISPATCHED) { laptop.picks.first() }
+                phone.pick(-1)
+                assertEquals(-1, stop.await())
+                line.value = choice
+
                 // Calibrate at the laptop, then sound 20 dB closer on the phone than on the laptop: ten times as far.
                 val calibrated = async(start = CoroutineStart.UNDISPATCHED) { laptop.levels.take(CALIBRATION).count() }
                 repeat(CALIBRATION) { phone.level(-10f, speech = true) }
@@ -67,7 +76,8 @@ class LoopbackTest {
                 phone.state.first { it.phoneLeads && it.metres > 4f }
 
                 laptop.stop()
-                phone.state.first { !it.connected && it.trouble != null }
+                val gone = phone.state.first { !it.connected && it.trouble != null }
+                assertEquals(PhoneState(trouble = gone.trouble), gone) // no line, screen, meeting or lead left over as if live
                 laptop = laptop()
                 assertEquals(MoleState.Choosing, phone.state.first { it.connected && it.line.state == MoleState.Choosing }.line.state)
                 val again = async(start = CoroutineStart.UNDISPATCHED) { laptop.picks.first() }
