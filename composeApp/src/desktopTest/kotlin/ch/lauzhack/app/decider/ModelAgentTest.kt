@@ -104,6 +104,66 @@ class ModelAgentTest {
         assertTrue("\nshown: none\n" in r.prompt, "stopped, it was never shown")
     }
 
+    /** Each piece of one utterance as the ear sends it, with the model's answer for each call that reaches it; the
+     * moves, and those the rule before [Heard.quiet] would have made: the same pieces without the quiet ones. */
+    private fun heard(vararg pieces: Pair<Heard, String?>): Pair<List<Move>, List<Move>> {
+        fun run(ps: List<Pair<Heard, String?>>): List<Move> {
+            val r = Run(slide(1).target)
+            r.answers += ps.mapNotNull { it.second }
+            return ps.map { (h, _) -> runBlocking { r.agent.anythingToDo(h.copy(n = 1), r.desk.onScreen).also(r.desk::apply) } }
+                .also { assertTrue(r.answers.isEmpty(), "unused answers ${r.answers}") }
+        }
+        return run(pieces.toList()) to run(pieces.filter { !it.first.quiet || it.first.ended })
+    }
+
+    private fun live(text: String) = Heard(text)
+    private fun quiet(text: String) = Heard(text, quiet = true)
+    private fun end(text: String) = Heard(text, ended = true)
+
+    @Test
+    fun whenTheVoiceStopsOnWordsDecidedTheirAnswerActsWithoutAskingAgain() {
+        val (now, before) = heard(live("Next slide, please") to "next", quiet("Next slide, please.") to null, end("Next slide, please.") to "next")
+        assertEquals(listOf(Move.Nothing, Move.Show(slide(2).target), Move.Nothing), now, "the end does not repeat it")
+        assertEquals(listOf(Move.Nothing, Move.Show(slide(2).target)), before, "before, it waited for the end")
+    }
+
+    @Test
+    fun whenTheVoiceStopsOnNewWordsTheyAreDecidedAndActAtOnce() {
+        val (now, _) = heard(live("Go to") to "nothing", quiet("Go to slide 3.") to "slide 3", end("Go to slide 3.") to "slide 3")
+        assertEquals(listOf(Move.Nothing, Move.Show(slide(3).target), Move.Nothing), now)
+        val (pick, _) = heard(quiet("So how big is this market really?") to "show 3", end("So how big is this market, really?") to "show 3")
+        assertEquals(listOf(ask(slide(3)), Move.Nothing), pick, "a pick is announced as soon as the voice stops")
+    }
+
+    @Test
+    fun theEndCorrectsAnEarlyAnswer() {
+        val (now, _) = heard(quiet("Next slide") to "next", end("Next slide three") to "slide 3")
+        assertEquals(listOf(Move.Show(slide(2).target), Move.Show(slide(3).target)), now)
+    }
+
+    @Test
+    fun aQuietWaitOrNothingDoesNotAct() {
+        val (now, _) = heard(quiet("Open the") to "wait", quiet("Open the.") to null, end("Open the.") to "wait")
+        assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Wait), now)
+    }
+
+    /** Words that go on after a command-like start, with the answers the model gave them on the lever's audio: the
+     * voice stops only after the rest, so nothing acts before it is heard, as before. */
+    @Test
+    fun wordsThatGoOnAfterACommandLikeStartDoNotActEarly() {
+        val pricing = heard(live("Next slide") to "next", live("Next slide is about") to "nothing", quiet("Next slide is about pricing") to "nothing", end("Next slide is about pricing.") to "nothing")
+        assertEquals(List(4) { Move.Nothing } to List(3) { Move.Nothing }, pricing)
+        val percent = heard(live("Close to") to "close", live("Close to 40% of") to "nothing", quiet("Close to 40% of our customers renew every year") to "nothing",
+            end("Close to 40% of our customers renew every year") to "nothing")
+        assertEquals(List(4) { Move.Nothing } to List(3) { Move.Nothing }, percent)
+        // a second's pause before the number: the voice stops on "Go to slide", whose answer is not one that acts early;
+        // the number comes while it is quiet again, and the analyzer then rewrites it
+        val (now, before) = heard(live("Go to Slide") to "wait", quiet("Go to Slide.") to null, quiet("Go to slide. 3.") to "slide 3",
+            quiet("Go to slide. Three.") to "slide 3", end("Go to slide. Three.") to "slide 3")
+        assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Show(slide(3).target), Move.Nothing, Move.Nothing), now)
+        assertEquals(listOf(Move.Nothing, Move.Show(slide(3).target)), before)
+    }
+
     @Test
     fun partialsDisagreeingOrOfTheWrongKindWaitForTheEnd() {
         val r = Run(slide(1).target)

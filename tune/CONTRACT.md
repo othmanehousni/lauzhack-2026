@@ -63,7 +63,7 @@ Item text: slide `slide {page} of {pages} "{clean(title)}" in {clean(deck)}` the
 | `close` | closes the front item, or the deck if nothing covers it |
 | `undo` | restores the screen from before the last action |
 
-While the utterance is being spoken the app decides every two words. It acts on a partial answer only when it is `show`, `slide`, `next`, `previous`, `slides`, `control` or `close` and the previous partial gave the same answer; every answer acts at `done`, unless that same action was already taken during the utterance. The screen at the start of the utterance is the state's `screen` for all of its decisions. `offered` is cleared by any action and after three finished utterances.
+While the utterance is being spoken the app decides every two words, and once more when the voice goes quiet: half a second without voice, on words that the recognizer has heard to the end of the voice, though it has not yet finished the utterance, which may go on. It acts on a partial answer only when it is `show`, `slide`, `next`, `previous`, `slides`, `control` or `close` (or `undo` while an announce is on its way) and either the previous partial gave the same answer or the voice has gone quiet on its words; when the voice goes quiet on words already decided, that answer acts without a new decision. Every answer acts at `done`, unless that same action was already taken during the utterance: an answer at `done` that differs from an early one corrects it, the same one does not repeat. The screen at the start of the utterance is the state's `screen` for all of its decisions. `offered` is cleared by any action and after three finished utterances.
 
 ## Candidates at real scale
 
