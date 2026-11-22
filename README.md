@@ -161,9 +161,8 @@ Section 8 of `DEMO.txt` lists what the scored rehearsals got wrong. These are me
 - "Can you open example.com for me?" opened google.com. "Open get hub.", a mishearing of GitHub, announced a slide.
 - A slide number beyond the deck is cut short: "Go to slide 99." went to slide 9.
 - Of 12 requests for things that do not exist, 7 did nothing and 5 announced an unrelated slide or app. Say "no", or it is shown when the wait runs out.
-- Things you saw recently are found through Spotlight. Spotlight stopped answering during that run, so none were found.
 
-The scores were 17 of 17 on the demo lines and 33 of 45 on the harder set. The old hand written rules scored 28 of 41 on the lines both can do. The set that nothing was tuned on scored 25 of 45. From the end of your voice, a command reaches the shared screen in 1.5 to 1.8 seconds, and an announce appears after about 2 seconds.
+The scores were 17 of 17 on the demo lines and 37 of 45 on the harder set. The old hand written rules scored 28 of 41 on the lines both can do. The set that nothing was tuned on scored 27 of 45. From the end of your voice, a command reaches the shared screen in 1.5 to 1.8 seconds, and an announce appears after about 2 seconds.
 
 `DEMO.txt` also marks what no person has tried yet: the permission prompts, the menu items and the Stop button on the bar, the meeting starting by itself when a call begins, and a real phone. On a phone, that means hearing through it, finding the laptop over a hotspot and how the buzz feels. The browser on the shared screen has none of your accounts signed in, so a page that needs a login shows a login page.
 

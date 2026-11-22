@@ -57,8 +57,8 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
   A harder set (45 lines: vague asks, mishearings, things that do not exist; about 5 minutes):
     rehearsal/run.sh rehearsal/model-1.txt .stage/rehearsal/hard 6
     python3 rehearsal/check.py .stage/rehearsal/hard
-  Last score tonight: 33 of 45 (the old hand rules: 28 of 41 on the lines both can do).
-  A second set that nothing was tuned on (rehearsal/held-1.txt): 25 of 45.
+  Last score tonight: 37 of 45 (the old hand rules: 28 of 41 on the lines both can do).
+  A second set that nothing was tuned on (rehearsal/held-1.txt): 27 of 45.
   The lines it misses are listed in section 8.
 
 
@@ -121,10 +121,13 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
   Besides the decks folder, the mole can reach files you used lately, slide decks elsewhere on the Mac, and
   pages from your browser history (Chrome, Arc, Chromium; not Safari). Menu bar mole, "Use browser history"
   turns the history part off.
-  Two cautions for a demo:
-    The shared screen's browser has none of your sign-ins. A page that needs one shows a sign-in page.
-    Tonight Spotlight on this Mac stopped answering, so recent files and decks were not found.
-    An agent is making that part independent of Spotlight; see the end of this file for the result.
+  Try it: open any PDF deck that is not in the decks folder, wait a minute, then ask for it by what it is about.
+  Scored tonight with a deck opened a moment ago and a file used this morning (rehearsal/seen-1.txt): 5 of 5.
+  Spotlight on this Mac stopped answering during the night. The app now also looks through Desktop, Documents
+  and Downloads itself, so it finds recent files and decks either way. A file opened during the meeting is
+  known within about a minute.
+  One caution for a demo: the shared screen's browser has none of your sign-ins. A page that needs one shows
+  a sign-in page.
 
 
 6. IF SOMETHING GOES WRONG DURING THE DEMO
@@ -171,7 +174,6 @@ Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
     "Open the quarterly penguin migration report." (does not exist)   announced an unrelated slide; "no" stops it
     12 requests for things that do not exist      7 did nothing, 5 announced an unrelated slide or app.
                                                   Say "no", or it is shown when the wait runs out.
-    Things seen recently                          not found tonight (Spotlight, see section 5)
   Training continues on Modal on exactly these; the model file can be swapped without a rebuild.
 
 
