@@ -252,7 +252,7 @@ private fun waiting(said: String) = VERBS.findAll(said).lastOrNull()?.value?.low
 
 /** A row of the choosing panel: what the target is called, where it is, and its kind. */
 internal fun choice(t: Target): Choice = when (t) {
-    is Target.Slide -> Choice(t.title.ifEmpty { "Slide ${t.page}" }, "${t.deck.replace('_', ' ')} · slide ${t.page}", Choice.Kind.Slides)
+    is Target.Slide -> Choice(t.title.ifEmpty { "Slide ${t.page}" }, "${t.deck.replace('_', ' ')}, slide ${t.page}", Choice.Kind.Slides)
     is Target.File -> Choice(t.path.substringAfterLast('/'), t.path.substringBeforeLast('/', "").substringAfterLast('/'), kind(t.path))
     is Target.Site -> Choice(t.name.ifEmpty { host(t.url) }, host(t.url), Choice.Kind.Site)
     is Target.App -> Choice(t.name, "App", Choice.Kind.Other)

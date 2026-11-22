@@ -30,9 +30,9 @@ data class Said(val heard: Heard, val ago: Duration, val stopped: TimeSource.Mon
 private const val PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>local.copilot.hear</string>
-<key>NSMicrophoneUsageDescription</key><string>The copilot listens to what you say to change the shared screen.</string>
-<key>NSSpeechRecognitionUsageDescription</key><string>The copilot turns what you say into text on this Mac.</string>
+<key>CFBundleIdentifier</key><string>ch.lauzhack.moliere.hear</string>
+<key>NSMicrophoneUsageDescription</key><string>Molière listens to what you say to put the right thing on the shared screen.</string>
+<key>NSSpeechRecognitionUsageDescription</key><string>Molière turns what you say into text, on this Mac.</string>
 </dict></plist>
 """
 
@@ -56,13 +56,14 @@ class Ear(private val data: File = DATA) {
         val source = File(data, "hear.swift")
         val exe = File(data, "hear")
         val swift = Ear::class.java.getResource("/stage/hear.swift")!!.readText()
-        if (source.exists() && source.readText() == swift && exe.lastModified() >= source.lastModified()) return exe
+        val plist = File(data, "hear.plist")
+        if (source.exists() && source.readText() == swift && plist.exists() && plist.readText() == PLIST && exe.lastModified() >= source.lastModified()) return exe
         if (exec(listOf("xcode-select", "-p"), check = false).isBlank()) error("the ear needs Xcode's command line tools: xcode-select --install")
         data.mkdirs()
         source.writeText(swift)
-        File(data, "hear.plist").writeText(PLIST)
+        plist.writeText(PLIST)
         exec(listOf("swiftc", "-O", "-swift-version", "5", "-parse-as-library", source.path, "-o", exe.path,
-            "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", File(data, "hear.plist").path),
+            "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", plist.path),
             what = "building hear.swift")
         return exe
     }
