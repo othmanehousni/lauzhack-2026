@@ -62,3 +62,16 @@ Item text: slide `slide {page} of {pages} "{clean(title)}" in {clean(deck)}` the
 | `undo` | restores the screen from before the last action |
 
 While the utterance is being spoken the app decides every two words. It acts on a partial answer only when it is `show`, `slide`, `next`, `previous`, `slides`, `control` or `close` and the previous partial gave the same answer; every answer acts at `done`, unless that same action was already taken during the utterance. The screen at the start of the utterance is the state's `screen` for all of its decisions. `offered` is cleared by any action and after three finished utterances.
+
+## Candidates at real scale
+
+This section is the app's, measured on a real Mac (rehearsal/rule.py over the candidate pools the app logs for rehearsal/model-1.txt); the sections above stay the training side's. It decides which items reach the candidate places; each item's score is the one the Candidates paragraph above defines.
+
+The catalog: the slides of the meeting's decks (the library), the bookmarks, the apps, and what the presenter saw lately: files used or changed in the last 14 days, browser pages, and slide decks outside the library. Not the Mac's newest files: they reached no wanted item on model-1 and gave the unrelated file chosen for an absent request (cosines up to 0.78). A deck seen lately is one item, its first slide, until it is on screen; then its slides count as the meeting's (its other pages reached 0.79 against requests for something else).
+
+1. The offered items, in their order.
+2. The best 3 slides of the meeting's decks and of the deck on screen, whatever they score. With 3 or 4 places every retrievable request of model-1 is among the candidates (16 of 21; the other 5 are an address, a search and an undo, which need no candidate, and two items seen lately that Spotlight had not indexed); with 0 to 2, files at 0.75 push out slides wanted at 0.67 to 0.69; with 5, "Open get hub" loses GitHub.
+3. Then, by score, the other slides of those decks, the bookmarks, the apps, and what was seen lately, until there are K. When more than 8 items were seen lately, one is offered only when it scores at least 0.08 above the eighth best of them: on model-1 lines that want none of them, the best leads the eighth by at most 0.073, while an item asked for by name leads its own kind by about 0.10.
+4. Everything after the offered items in descending score.
+
+There is no fixed similarity floor: EmbeddingGemma puts unrelated files at 0.70 to 0.78 for any request, as high as many wanted slides. With the next contract (K = 8, documents by name, three queries, the bonus of the deck on screen) the rule stays and takes that contract's scores; its 3 places and its 0.08 are measured again on that model's pools.
