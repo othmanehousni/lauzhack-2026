@@ -12,6 +12,7 @@ import java.net.URLDecoder
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.copyTo
 import kotlin.io.path.createTempDirectory
@@ -80,7 +81,7 @@ class History(
         try {
             for (suffix in listOf("", "-wal", "-journal")) File(db.path + suffix).takeIf(File::isFile)?.toPath()?.copyTo(dir.resolve("History$suffix"))
             val micros = since.epochSecond * 1_000_000 + since.nano / 1000 + WEBKIT_EPOCH
-            val out = exec(listOf("/usr/bin/sqlite3", "-json", dir.resolve("History").toString(), VISITS.format(micros)), what = "reading a browser history")
+            val out = exec(listOf("/usr/bin/sqlite3", "-json", dir.resolve("History").toString(), String.format(Locale.ROOT, VISITS, micros)), what = "reading a browser history")
             if (out.isBlank()) return emptyList()
             return Json.parseToJsonElement(out).jsonArray.map { it.jsonObject }.map { row ->
                 val url = row["url"]!!.jsonPrimitive.content

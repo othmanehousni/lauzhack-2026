@@ -214,7 +214,8 @@ class Vm(val sandbox: String, private val ad: String, private val dry: Boolean =
      * takes a VM restart. */
     internal fun patchVmhosts(providers: File = File(AD, "providers/macos")): Boolean {
         val (width, height, mm) = exec(listOf("osascript", "-l", "JavaScript", "-e", SCREEN_JS)).trim().split(" ")
-        val lines = vmhostLines(width.toInt(), height.toInt(), Math.rint(width.toInt() / (mm.toDouble() / 25.4)).toInt())  // rint: Python's round
+        val ppi = mm.toDouble().takeIf { it > 0 }?.let { Math.rint(width.toInt() / (it / 25.4)).toInt() } ?: 144 // a projector may report 0 mm
+        val lines = vmhostLines(width.toInt(), height.toInt(), ppi)
         val changed = providers.listFiles().orEmpty().map { File(it, "vmhost.swift") }.filter { it.isFile }.filter { source ->
             val old = source.readText()
             val new = patchVmhost(old, lines)
