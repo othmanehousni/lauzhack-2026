@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.DataInputStream
@@ -51,7 +52,7 @@ fun items(decks: List<DeckPage>, apps: List<String>, files: List<String>, sites:
     val pages = slides.groupingBy { it.deck }.eachCount()
     return slides.map {
         Item.Slide(it.deck.replace('_', ' '), it.page, pages.getValue(it.deck), it.title, it.points, Target.Slide(it.deck, it.page, it.title))
-    } + (sites.map(Catalog::site) + recents?.pages.orEmpty().map(::page)).distinctBy { Catalog.site(it.target).url } +
+    } + (sites.map(Catalog::site) + recents?.pages.orEmpty().map(::page)).distinctBy { it.url } + // as the decider reads it: a page without its query
         apps.map { Item.App(it, Target.App(it)) } + (recents?.files.orEmpty().map { it.path } + files).distinct().map(Catalog::file)
 }
 
@@ -113,9 +114,14 @@ class ModelBrain(private val engines: Engines) {
         scope.launch(Dispatchers.Default) {
             var seen = recents
             while (true) {
-                agent.catalog = build(items(desk.decks, desk.apps, desk.documents, recents = seen), meeting, seen, whole = true)
+                try { // a rebuild that fails keeps the catalog it had: it must not end the meeting
+                    agent.catalog = build(items(desk.decks, desk.apps, desk.documents, recents = seen), meeting, seen, whole = true)
+                } catch (e: Exception) {
+                    ensureActive()
+                    log("catalog rebuild failed: $e")
+                }
                 delay(REBUILD)
-                seen = desk.recents()
+                seen = runCatching { desk.recents() }.getOrDefault(seen)
             }
         }
         return agent to (vocabulary(base) + vocabulary(all)).distinct() // the library's before recent decks' hundreds of titles
