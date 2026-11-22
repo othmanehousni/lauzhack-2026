@@ -54,15 +54,21 @@ class FilesTest {
         val talk = file("Q3 talk.pdf", days(1))
         val report = file("report.pdf", min(120))
         val sheet = file("budget.xlsx", days(9))
+        val older = file("older.html", days(3))  // changed, never opened: from the list
+        val stale = file("stale.html", days(20))
+        val list = listOf(spotLine(older, null), spotLine(stale, null), spotLine(sheet, null)).joinToString("\n")
         val recent = listOf(
             spotLine(report, null, "kMDItemNumberOfPages = 8", "kMDItemPageWidth = 595.2760000000001", "kMDItemPageHeight = 841.89"),
             spotLine(talk, min(60), "kMDItemNumberOfPages = 12", "kMDItemPageWidth = 960", "kMDItemPageHeight = 540"),
             spotLine(sheet, null, "kMDItemNumberOfPages = (null)", "kMDItemPageWidth = (null)", "kMDItemPageHeight = (null)"),
         ).joinToString("\n")
-        val files = Files { args -> if ("kMDItemFSContentChangeDate >=" in args.last()) recent else "" }
+        val asked = mutableListOf<String>()
+        val files = Files { args -> if ("kMDItemFSContentChangeDate >=" in args.last()) recent.also { asked += args.last() } else list }
+        files.newest()  // the list is ready
         val spots = files.recent()
-        assertEquals(listOf(talk, report, sheet).map { it.path }, spots.map { it.path })
+        assertEquals(listOf(talk, report, older, sheet).map { it.path }, spots.map { it.path })
+        assertTrue("kMDItemFSContentChangeDate >= \$time.now(-86400)" in asked.single())
         assertEquals(Spot(talk.path, spots[0].used, 12, 960.0, 540.0), spots[0])
-        assertEquals(listOf(12, 8, 0), spots.map { it.pages })
+        assertEquals(listOf(12, 8, 0, 0), spots.map { it.pages })
     }
 }

@@ -18,6 +18,7 @@ import java.util.concurrent.Executors
 val CACHE = File(HOME, "Library/Caches/Moliere")
 
 private const val RECENT_DECKS = 5
+private const val DRAWN_AHEAD = 60  // pages of a recent deck drawn in the background; show() draws a later one when asked
 private const val MOST_FILES = 300
 
 /** What the presenter saw lately, each list most recent first. */
@@ -160,13 +161,13 @@ class AgentDesktop(
         val spots = files.recent()
         val decks = readyDecks(spots)
         val listed = decks.map { it.path }.toSet() + pages.await().map { it.url.substringBefore('#') }
-        val used = spots.filter { it.path !in listed && uri(File(it.path)) !in listed }.take(MOST_FILES)
+        val used = spots.filter { it.path !in listed && uri(File(it.path)) !in listed && files.wanted(it.path) }.take(MOST_FILES)
         Recents(pages.await(), used.map { UsedFile(it.path, Instant.ofEpochMilli(it.seen())) }, decks)
     }
 
     /** The RECENT_DECKS most recent PDFs outside the library that may be decks, by Spotlight's count and size of their
-     * pages, as decks once their text is read. The others are read and drawn in the background, for a later call. Only
-     * these decks' pictures are kept. */
+     * pages, as decks once their text is read. The others are read, and their first DRAWN_AHEAD pages drawn, in the
+     * background, for a later call. Only these decks' pictures are kept. */
     internal fun readyDecks(spots: List<Spot>): List<RecentDeck> {
         val names = library.listFiles { f -> f.extension.lowercase() == "pdf" }.orEmpty().map { it.nameWithoutExtension }.toMutableSet()
         val pdfs = spots.filter { it.path.endsWith(".pdf", ignoreCase = true) && it.pages in 3..MOST_SLIDES && (it.height == 0.0 || it.width / it.height in SCREEN) }
@@ -177,8 +178,8 @@ class AgentDesktop(
             val out = File(data, "decks/.recent/$key")
             val known = File(cache, "decks/$key.json")
             val pages = if (known.isFile) runCatching { recentDeck(pdf, out, known) }.getOrNull() else null
-            if ((!known.isFile || pages.orEmpty().any { !it.png.exists() }) && queued.add(key)) drawer.execute {
-                runCatching { recentDeck(pdf, out, known)?.let { drawMissing(pdf, it) } }
+            if ((!known.isFile || pages.orEmpty().take(DRAWN_AHEAD).any { !it.png.exists() }) && queued.add(key)) drawer.execute {
+                runCatching { recentDeck(pdf, out, known)?.let { drawMissing(pdf, it.take(DRAWN_AHEAD)) } }
                 queued.remove(key)
             }
             pages?.let { RecentDeck(spot.path, Instant.ofEpochMilli(spot.seen()), it) }

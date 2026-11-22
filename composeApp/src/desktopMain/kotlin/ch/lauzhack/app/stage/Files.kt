@@ -27,6 +27,8 @@ private const val USED = "kMDItemLastUsedDate"
 private const val PAGES = "kMDItemNumberOfPages"
 private const val WIDTH = "kMDItemPageWidth"
 private const val HEIGHT = "kMDItemPageHeight"
+private val ATTRS = listOf(USED, PAGES, WIDTH, HEIGHT)
+private const val DAY = 86_400_000L
 private val ATTR = Regex("""(kMDItem\w+) = (.*?)(?=   kMDItem|$)""")
 private val DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z")
 
@@ -38,27 +40,27 @@ internal fun spots(out: String): List<Spot> = out.lines().mapNotNull { line ->
     Spot(line.substring(0, at), used, a[PAGES]?.toIntOrNull() ?: 0, a[WIDTH]?.toDoubleOrNull() ?: 0.0, a[HEIGHT]?.toDoubleOrNull() ?: 0.0)
 }
 
-/** Showable files in the folders the VM mounts, so their paths are the same in the VM. Spotlight lists them once in the
- * background (about 5 s for 160k files); after that a lookup is a scan of names in memory. Until then, and for files
+/** Showable files in the folders the VM mounts, so their paths are the same in the VM. Spotlight lists them in the
+ * background (about 6 s for 180k files); after that a lookup is a scan of names in memory. Until then, and for files
  * newer than the list, Spotlight answers directly in about 0.1 s. `mdfind` runs mdfind with these arguments. */
 class Files(private val mdfind: (List<String>) -> String = { exec(listOf("mdfind") + it, check = false) }) {
     private val places = FOLDERS.flatMap { listOf("-onlyin", File(HOME, it).path) }
     private val repos = ConcurrentHashMap<String, Boolean>()
-    private val all: CompletableFuture<List<Spot>> = CompletableFuture.supplyAsync { spotlight(QUERY) }
+    @Volatile private var all: CompletableFuture<List<Spot>> = CompletableFuture.supplyAsync { spotlight(QUERY) }
+    @Volatile private var listed = System.currentTimeMillis()
 
     private fun inRepository(dir: File?): Boolean =
         dir != null && repos.getOrPut(dir.path) { File(dir, ".git").exists() || inRepository(dir.parentFile) }
 
+    private fun outsideCode(path: String) = path.split('/').dropLast(1)
+        .none { it.startsWith(".") || it in setOf("node_modules", "site-packages", "Library") || it.endsWith(".app") || it.endsWith(".framework") || it.endsWith(".bundle") }
+
     /** Not inside a hidden folder, a package, a library of code or a code repository, where a `.ts` file is TypeScript,
      * not a video. */
-    private fun wanted(path: String): Boolean {
-        val parts = path.split('/').dropLast(1)
-        return parts.none { it.startsWith(".") || it in setOf("node_modules", "site-packages", "Library") || it.endsWith(".app") || it.endsWith(".framework") || it.endsWith(".bundle") } &&
-            !inRepository(File(path).parentFile)
-    }
+    internal fun wanted(path: String): Boolean = outsideCode(path) && !inRepository(File(path).parentFile)
 
-    private fun spotlight(query: String, attrs: List<String> = listOf(USED)) =
-        spots(mdfind(places + attrs.flatMap { listOf("-attr", it) } + query)).filter { wanted(it.path) }
+    private fun spotlight(query: String, keep: (Spot) -> Boolean = { wanted(it.path) }) =
+        spots(mdfind(places + ATTRS.flatMap { listOf("-attr", it) } + query)).filter(keep)
 
     /** The n files the presenter used most recently, for the brain to search by meaning. Waits up to a minute for the list. */
     fun newest(n: Int = 1500): List<String> =
@@ -75,11 +77,22 @@ class Files(private val mdfind: (List<String>) -> String = { exec(listOf("mdfind
         return hits.map { it.path to it.seen() }.filter { it.second > 0 }.maxByOrNull { it.second }?.first
     }
 
-    /** The files used or changed in the last `days`, most recent first, asked of Spotlight afresh. */
+    /** The files used or changed in the last `days`, most recent first. Spotlight is asked afresh for those opened and
+     * those changed in the last day, which are few; the others come from the list, made again in the background once it
+     * is an hour old. Asking Spotlight for 14 days of changes takes seconds on a Mac with code: it returns every file an
+     * install or a build touched, before the folders of code are left out. A PDF of several pages the presenter opened
+     * is theirs even in a code repository, where a developer keeps a deck; it is not wanted() as a file. */
     internal fun recent(days: Int = 14): List<Spot> {
-        val since = "\$time.now(-${days * 86_400})"
-        return spotlight("($QUERY) && ($USED >= $since || kMDItemFSContentChangeDate >= $since)", listOf(USED, PAGES, WIDTH, HEIGHT))
-            .filter { it.seen() > 0 }.sortedByDescending { it.seen() }
+        val now = System.currentTimeMillis()
+        if (all.isDone && now - listed > DAY / 24) {
+            listed = now
+            CompletableFuture.supplyAsync { spotlight(QUERY) }.thenAccept { all = CompletableFuture.completedFuture(it) }
+        }
+        val fresh = spotlight("($QUERY) && ($USED >= \$time.now(-${days * 86_400}) || kMDItemFSContentChangeDate >= \$time.now(-86400))") {
+            wanted(it.path) || it.used > 0 && it.pages >= 3 && outsideCode(it.path)
+        }
+        return (fresh + all.getNow(emptyList())).distinctBy { it.path }.map { it to it.seen() }
+            .filter { it.second >= now - days * DAY }.sortedByDescending { it.second }.map { it.first }
     }
 
     companion object {

@@ -43,6 +43,18 @@ internal fun pdf(file: File, sizes: List<Pair<Float, Float>>, rotation: Int = 0)
 
 internal fun slides(n: Int, w: Float = 960f, h: Float = 540f) = List(n) { w to h }
 
+/** recents() once nothing is left to read or draw in the background. */
+internal suspend fun AgentDesktop.settled(): Recents {
+    val start = TimeSource.Monotonic.markNow()
+    while (true) {
+        val idle = queued.isEmpty()
+        val seen = recents()
+        if (idle && queued.isEmpty()) return seen
+        check(start.elapsedNow().inWholeSeconds < 60) { "the decks were not read in the background" }
+        delay(100)
+    }
+}
+
 class DecksTest {
     init {
         System.setProperty("java.awt.headless", "true")
@@ -120,23 +132,21 @@ class DecksTest {
         val copy = pdf(File(desktop, "intro.pdf"), slides(3)).modified(day)
         val mixed = pdf(File(desktop, "mixed.pdf"), listOf(960f to 540f, 595f to 842f, 960f to 540f)).modified(day)
         val notes = File(desktop, "notes.html").apply { writeText("<title>notes</title>") }.modified(day)
+        val repo = File(desktop, "project").apply { File(this, ".git").mkdirs() }
+        val pitch = pdf(File(repo, "pitch.pdf"), slides(5)).modified(day)
+        val paper = pdf(File(repo, "paper.pdf"), slides(4, 595f, 842f)).modified(day)
         val geometry = arrayOf("kMDItemNumberOfPages = 4", "kMDItemPageWidth = 960", "kMDItemPageHeight = 540")
         val recent = listOf(
             spotLine(notes, Duration.ofMinutes(30)), spotLine(roadmap, Duration.ofMinutes(60), *geometry),
+            spotLine(pitch, Duration.ofMinutes(90), *geometry), spotLine(paper, Duration.ofMinutes(100), "kMDItemNumberOfPages = 4"),
             spotLine(copy, Duration.ofMinutes(120), *geometry), spotLine(mixed, Duration.ofMinutes(180), *geometry),
         ).joinToString("\n")
         val data = File(tmp, "data")
         val stale = File(data, "decks/.recent/0123456789abcdef").apply { mkdirs() }
         val desk = AgentDesktop(library, sandbox = null, data = data, cache = File(tmp, "cache"), history = false,
             files = Files { args -> if ("kMDItemFSContentChangeDate >=" in args.last()) recent else "" })
-        val start = TimeSource.Monotonic.markNow()
-        var seen = desk.recents()
-        while (seen.decks.isEmpty() || desk.queued.isNotEmpty()) {
-            check(start.elapsedNow().inWholeSeconds < 30) { "the decks were not read in the background" }
-            delay(100)
-            seen = desk.recents()
-        }
-        assertEquals(listOf(roadmap.path), seen.decks.map { it.path })
+        val seen = desk.settled()
+        assertEquals(listOf(roadmap.path, pitch.path), seen.decks.map { it.path })
         assertEquals((1..4).map { "roadmap" to it }, seen.decks[0].pages.map { it.deck to it.page })
         assertTrue(seen.decks[0].pages.all { it.png.exists() && it.png.startsWith(File(data, "decks")) })
         assertEquals(listOf(notes, copy, mixed).map { it.path }, seen.files.map { it.path })
