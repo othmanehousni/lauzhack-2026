@@ -83,6 +83,25 @@ The phone shows the same mole and line as the bar, with the same buttons, and bu
 
 Outside a call, Molière does not listen and has no phone link. It wakes when a call app takes the microphone, or when you choose **Start a meeting** from the mole in the menu bar.
 
+## Mime mode
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/mime-dark.png">
+  <img src="mole/sprites/mime.png" width="180" align="right" alt="">
+</picture>
+
+Molière has two modes. Present is the one the rest of this README describes. Mime is for places where you cannot talk: you mouth sentences at the camera, the lip reader in `lipreading/` reads them, and each finished sentence is said aloud in your own cloned voice while the mole, drawn as a mime, shows the words.
+
+The switch inside the app is being wired; today the lip reader runs on its own. Set it up once, then run it:
+
+```sh
+brew install git-lfs && git lfs pull    # the models, 5.4 GB
+lipreading/setup.sh                     # its Python environment
+cd lipreading && .venv/bin/python lipread.py
+```
+
+The models and the lip and voice profile in the repository are fitted to their author; to fit your own, see [lipreading/README.md](lipreading/README.md).
+
 ## How a sentence reaches the screen
 
 <picture>
@@ -101,11 +120,17 @@ Only the models interpret speech: no word list or pattern reads what you say. `t
 
 ## Architecture
 
-<img src="docs/readme/architecture.png" alt="Architecture: Ear (speech to text, on device), then Retrieval (EmbeddingGemma, 8 candidates), then Decider (Gemma 3 270M, fine-tuned by us), then Shared screen (browser in a VM); the bar and the phone announce, stop and undo." width="820">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/architecture-dark.png">
+  <img src="docs/readme/architecture.png" alt="Architecture: Ear (speech to text, on device), then Retrieval (EmbeddingGemma, 8 candidates), then Decider (Gemma 3 270M, fine-tuned by us), then Shared screen (browser in a VM); the bar and the phone announce, stop and undo." width="712">
+</picture>
 
 All of it runs on the laptop, and a request reaches the shared screen 1.5 to 1.8 seconds after you stop speaking. Apple's on-device speech recognizer hears you, EmbeddingGemma finds eight candidates, and our fine-tuned Gemma 3 270M decides what to show on the shared screen, Chrome in a macOS VM. The bar and the phone announce each pick and let you stop it or undo it.
 
-<img src="docs/readme/tech-stack.png" alt="Tech stack: JetBrains (Kotlin Multiplatform, Ktor, Koog, Compose Multiplatform), Models (Gemma 3 270M ours, EmbeddingGemma, LiteRT-LM), Training (Python on Modal), Laptop (speech to text, browser, VM)." width="620">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/tech-stack-dark.png">
+  <img src="docs/readme/tech-stack.png" alt="Tech stack: JetBrains (Kotlin Multiplatform, Ktor, Koog, Compose Multiplatform), Models (Gemma 3 270M ours, EmbeddingGemma, LiteRT-LM), Training (Python on Modal), Laptop (speech to text, browser, VM)." width="762">
+</picture>
 
 Molière is one Kotlin Multiplatform app, with Compose Multiplatform for the bar and the phone, Ktor for the link between them, and Koog with LiteRT-LM for the models. We train the decider in Python on Modal.
 
@@ -166,7 +191,7 @@ With `--typed`, wait for "Hi. I'm listening.", then type a line and press Return
 
 For the phone, run `mise run android` with the phone connected (or `mise run android:emulator:setup` once, then `mise run android:emulator`). Put the phone and the Mac on the same network, ideally the phone's hotspot. The phone finds the laptop once a meeting runs. Allow microphone access and keep the companion open. Both microphones stay listening, so the phone can take over as you walk away. Molière compares signal levels and room noise, learns the microphones' relative gain during a second of speech near the Mac, and checks for a weak Mac signal even before that comparison is ready. It takes three consecutive 100 ms frames to choose the phone and a second of good Mac audio to return. If phone audio stops arriving for 700 ms, the Mac takes over. The phone's mic indicator shows the choice; handoffs do not change the computer floater. During a meeting the phone streams microphone audio to the Mac over the local, unencrypted WebSocket connection, and the Mac transcribes it locally. Leaving the Android app stops the stream.
 
-`DEMO.txt` is the demo runbook: the test lines and what each must do, permissions, the phone, troubleshooting, the measured scores and what Molière still gets wrong.
+`DEMO.txt` is the page the team reads before going on stage: the launch, the pitch script and what each line must show, what to do when something goes wrong, Mime mode and a second scenario.
 
 ## One-time VM setup
 
@@ -208,4 +233,6 @@ Screenshot renders of the bar and the window run with `MOLE_SHOTS=1`; the levers
 - `eval/`: the eval scripts (one line is something said and what the screen should show after it) and the Modal runners.
 - `rehearsal/`: scenarios driven through the packaged app and their scoring; `latency/lever.py` measures voice-to-screen time.
 - `fixtures/`: the sample decks and documents.
-- `mole/`: the web design page the app's look is checked against.
+- `mole/`: the web design page the app's look is checked against, and the mole's sprites.
+- `lipreading/`: Mime mode's lip reader and voice (see its README).
+- `docs/`: the README's figures and their HTML sources.
