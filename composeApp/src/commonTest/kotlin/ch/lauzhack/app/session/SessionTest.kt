@@ -759,6 +759,28 @@ class SessionTest {
     }
 
     @Test
+    fun aSentenceTheRecognizerEndedAndWordsAfterAMoveOnAPauseAreUtterancesOfTheirOwn() = runTest {
+        val rig = Rig(this, slide(1)) { h, _ ->
+            if (h.text.lowercase().trimEnd('.') in setOf("next slide", "previous slide") && (h.ended || h.quiet)) Move.Show(slide(10 + h.n)) else Move.Nothing
+        }
+        rig.start()
+        delay(3.seconds)
+        for (piece in listOf(Heard("Next slide. Next"), Heard("Next slide. Next slide", quiet = true), Heard("Next slide. Next slide.", ended = true))) {
+            rig.laptop.emit(piece)
+            delay(600)
+        }
+        delay(2.seconds)
+        for (piece in listOf(Heard("Previous slide", quiet = true), Heard("Previous slide previous"), Heard("Previous slide previous slide.", ended = true))) {
+            rig.laptop.emit(piece)
+            delay(600)
+        }
+        delay(2.seconds)
+        assertEquals(listOf("Next slide." to true, "Next slide." to false, "Previous slide" to true, "previous slide." to false),
+            rig.asked.filter { it.second.ended }.map { it.second.text to it.second.more })
+        assertEquals(listOf("show slide 11", "show slide 12", "show slide 13", "show slide 14"), rig.screen.calls.map { it.second })
+    }
+
+    @Test
     fun aSlowScreenKeepsThePresenterHeardAndANoOrANewCommandMeanwhileIsNotLost() = runTest {
         val rig = Rig(this, slide(6)) { h, _ ->
             if (!h.ended) return@Rig Move.Nothing

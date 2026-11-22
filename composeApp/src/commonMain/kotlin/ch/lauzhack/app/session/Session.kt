@@ -56,6 +56,7 @@ internal val ANNOUNCE = 2500.milliseconds // how long a guess can be stopped bef
 internal val FLOOR = 1.seconds // the shortest wait: one nobody can stop in time is a delay, not a chance to say no
 internal val STALL = 5.seconds // a screen call that has not answered by then has failed
 private const val EARLIER = 3  // utterances handed to the agent with each one
+private val SPACE = Regex("\\s+")
 
 /**
  * One meeting. Each time the words change it asks [given] whether there is anything to do about what the presenter is
@@ -89,6 +90,7 @@ class Session(
     val onScreen: StateFlow<OnScreen> = _onScreen.asStateFlow()
 
     private val later = ArrayDeque<Heard>()            // utterances begun since, the last one possibly still growing
+    private var skip = 0                               // words of the recognizer's utterance in sentences already ended
     private var asked = Heard()                        // the words the agent was last asked about
     private var actedOn = Heard()                      // the last words a move was carried out for
     private val acted = mutableListOf<Move>()          // the moves carried out for utterance actedOn.n
@@ -148,15 +150,34 @@ class Session(
         Move.Nothing -> Unit
     }
 
+    /** One sentence, one utterance: where the recognizer ended a sentence (".", "?" or "!") and words follow, its
+     * utterance ends, unless a move acted on words past that end; the words after it start the next one. So do the
+     * words after a move acted on what was said before the voice stopped. */
     private fun hear(piece: Heard) {
         if (piece.text.isBlank()) return
         mole.on(Event.Words(piece.text))
+        var words = piece.text.trim().split(SPACE).drop(skip)
+        while (true) {
+            val open = later.lastOrNull() ?: heard.value
+            val acted = if (!open.ended && actedOn.n == open.n) actedOn.text.trim().split(SPACE).size else 0
+            val end = (if (actedOn.quiet && acted in 1 until words.size) acted - 1 else null)
+                ?: (maxOf(acted, 1) - 1 until words.lastIndex).firstOrNull { words[it].last() in ".?!" } ?: break
+            add(Heard(words.take(end + 1).joinToString(" "), ended = true, more = true))
+            skip += end + 1
+            words = words.drop(end + 1)
+        }
+        val open = later.lastOrNull() ?: heard.value
+        if (words.isNotEmpty()) add(piece.copy(text = words.joinToString(" "))) else if (piece.ended && !open.ended) add(open.copy(ended = true, quiet = false, more = false))
+        if (piece.ended) skip = 0
+    }
+
+    private fun add(piece: Heard) {
         val last = later.lastOrNull() ?: heard.value
         if (last.ended) {
-            val next = Heard(piece.text, piece.ended, last.n + 1, (last.earlier + last.text).filter(String::isNotBlank).takeLast(EARLIER), piece.quiet)
+            val next = piece.copy(n = last.n + 1, earlier = (last.earlier + last.text).filter(String::isNotBlank).takeLast(EARLIER))
             if (later.isEmpty() && (asked == heard.value || heard.value.text.isEmpty())) _heard.value = next else later += next
         } else {
-            val grown = last.copy(text = piece.text, ended = piece.ended, quiet = piece.quiet)
+            val grown = last.copy(text = piece.text, ended = piece.ended, quiet = piece.quiet, more = piece.more)
             if (later.isEmpty()) _heard.value = grown else later[later.lastIndex] = grown
         }
     }
