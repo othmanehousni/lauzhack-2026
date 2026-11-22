@@ -68,7 +68,8 @@ class ParityTest {
         val lines = mutableListOf<Line>()
         val mine = mutableListOf<Call>()
         val thoughts = mutableListOf<Thought>()
-        for (script in File(repo, "eval").listFiles { f -> f.name.endsWith(".jsonl") }!!.sortedBy { it.name }) {
+        val dumped = python.getValue("calls").jsonArray.map { it.jsonObject.str("script") }.toSet() // scripts added since the dump have no vectors
+        for (script in File(repo, "eval").listFiles { f -> f.extension == "jsonl" && f.nameWithoutExtension in dumped }!!.sortedBy { it.name }) {
             val agent = MoleAgent(catalog, intents)
             var screen = View()
             script.readLines().filter { it.isNotBlank() }.forEachIndexed { i, json ->
