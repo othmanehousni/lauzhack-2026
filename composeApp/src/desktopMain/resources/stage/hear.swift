@@ -18,7 +18,7 @@
 import AVFoundation
 import Speech
 
-let PAUSE = 1.2  // seconds of quiet that end an utterance; clear requests act on the live words before
+let PAUSE = 1.4  // seconds of quiet that end an utterance: at 1.2 a soft last word was lost; clear requests act on the live words before
 let SETTLED = 0.6  // seconds without new words, so the last ones have arrived
 let QUIET = 0.5  // seconds of quiet after which words that cover the voice are quiet: longer than a breath mid-sentence
 let COVER = 0.1  // seconds of audio past the voice's end that the analyzer's results must reach to hold its last words
