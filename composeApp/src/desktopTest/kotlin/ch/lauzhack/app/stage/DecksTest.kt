@@ -88,7 +88,7 @@ class DecksTest {
         val pages = recentDeck(pdf, out, known)!!
         assertEquals(listOf("Slide 1", "Slide 2", "Slide 3"), pages.map { it.title })
         assertEquals("Slide 2 about pricing", pages[1].text)
-        assertEquals(DeckPage("Q3_roadmap", 3, "Slide 3", "Slide 3 about pricing", File(out, "3.png")), pages[2])
+        assertEquals(DeckPage("Q3_roadmap", 3, "Slide 3", "Slide 3 about pricing", File(out, "3.png"), "about pricing"), pages[2])
         assertTrue(pages.none { it.png.exists() })
 
         drawMissing(pdf, pages)
