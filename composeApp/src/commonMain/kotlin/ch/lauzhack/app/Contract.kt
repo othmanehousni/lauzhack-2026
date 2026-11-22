@@ -13,6 +13,10 @@ import kotlinx.serialization.Serializable
     @Serializable data class App(val name: String) : Target
 }
 
+/** What was asked for is not there: a page past the deck's end, a file nothing on the shared screen opens. The screen
+ * itself is fine, so nothing reconnects, and the presenter reads the message. */
+class NotThere(message: String) : Exception(message)
+
 /** Pictures and videos: a file of these kinds replaces the deck on the stage instead of opening in a tab over it. */
 val ON_STAGE = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "mp4", "mov", "m4v", "webm")
 

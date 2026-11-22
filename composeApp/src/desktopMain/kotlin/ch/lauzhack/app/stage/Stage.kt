@@ -1,5 +1,6 @@
 package ch.lauzhack.app.stage
 
+import ch.lauzhack.app.NotThere
 import ch.lauzhack.app.ON_STAGE
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -225,7 +226,14 @@ class Stage(private val vm: Vm?, data: File, private val port: Int, private val 
         val ext = path?.extension?.lowercase()
         if (path != null && ext in ON_STAGE) return "stage".also { show(path) }
         if (path != null && ext !in IN_A_TAB) {
-            shell(listOf("open", target))
+            // The VM has no Keynote, Numbers or Office: a file nothing opens is not there, not a broken screen. In the VM a
+            // failing ssh still throws, which is one.
+            val opened = when {
+                vm != null -> "NOAPP" !in vm.guest("${quote(listOf("open", target))} >/dev/null 2>&1 || echo NOAPP")
+                dry -> true.also { println("   $ open $target") }
+                else -> runCatching { exec(listOf("open", target)) }.isSuccess
+            }
+            if (!opened) throw NotThere("nothing on the shared screen opens ${path.name}")
             covered = true
             return "app"
         }

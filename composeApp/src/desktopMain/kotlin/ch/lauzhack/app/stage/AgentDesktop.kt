@@ -1,5 +1,6 @@
 package ch.lauzhack.app.stage
 
+import ch.lauzhack.app.NotThere
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import kotlinx.coroutines.CancellationException
@@ -125,7 +126,7 @@ class AgentDesktop(
                 val other = recent.firstOrNull { it.pages[0].deck == target.deck }
                 val pages = decks.filter { it.deck == target.deck }.ifEmpty { other?.pages.orEmpty() }
                 val i = target.page - 1
-                val slide = pages.getOrNull(i) ?: throw IllegalArgumentException("no page ${target.page} in deck ${target.deck}")
+                val slide = pages.getOrNull(i) ?: throw NotThere("no page ${target.page} in deck ${target.deck}")
                 if (other != null) drawMissing(File(other.path), listOf(slide))  // not drawn in the background yet
                 stage.show(slide.png, (pages.subList(maxOf(i - 1, 0), i) + pages.drop(i + 1).take(2)).map { it.png }.filter(File::exists))
                 OnScreen(target.copy(title = slide.title), slide.deck.replace('_', ' ')).also { stageShows = it }

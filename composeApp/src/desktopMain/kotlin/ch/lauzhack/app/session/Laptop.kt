@@ -3,6 +3,7 @@ package ch.lauzhack.app.session
 import ch.lauzhack.app.Agent
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleLine
+import ch.lauzhack.app.NotThere
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.decider.ModelAgent
@@ -279,7 +280,7 @@ private suspend fun <T> AgentDesktop.afresh(what: String, call: suspend () -> T)
     } catch (e: Exception) {
         log("called  ${t.elapsedNow().inWholeMilliseconds} ms  $what  failed: $e")
         currentCoroutineContext().ensureActive()
-        if (e !is IllegalArgumentException) quietly { up() }
+        if (e !is NotThere) quietly { up() }
         throw e
     }
 }

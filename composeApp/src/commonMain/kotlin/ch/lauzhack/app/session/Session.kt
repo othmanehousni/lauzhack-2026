@@ -5,6 +5,7 @@ import ch.lauzhack.app.Choice
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.Move
+import ch.lauzhack.app.NotThere
 import ch.lauzhack.app.ON_STAGE
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
@@ -303,7 +304,7 @@ class Session(
 }
 
 private fun plain(e: Exception): String =
-    (e as? IllegalArgumentException)?.message?.let { it.replaceFirstChar(Char::uppercase) + "." } ?: "The shared screen didn't answer."
+    (e as? NotThere)?.message?.let { it.replaceFirstChar(Char::uppercase) + "." } ?: "The shared screen didn't answer."
 
 private fun same(a: Target?, b: Target?) = if (a is Target.Slide && b is Target.Slide) a.deck == b.deck && a.page == b.page else a == b
 
