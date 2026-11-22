@@ -62,6 +62,8 @@ class CatalogTest {
         val standout = crowd.copyOf().also { it[11] = .9 }
         assertEquals(listOf(files[4], github, talk[1], talk[2], talk[0], talk[3]), pick(standout))
         assertEquals(listOf(old[1], old[0], github, talk[1], talk[2], talk[0]), pick(crowd, open = "Old"), "the deck on screen is the meeting's")
+        val alone = crowd.copyOf().also { for (i in 8..16) it[i] = .74 - (i - 8) * .002; it[7] = .785 }
+        assertEquals(listOf(files[0], github, talk[1], talk[2], talk[0], talk[3]), pick(alone), "the best leads the eighth by 0.057 only, but the second by 0.045")
         assertEquals(listOf(github, files[4], talk[1], talk[2], talk[0], talk[3]), pick(standout, first = listOf(github)), "offered first")
         val few = Catalog(all.take(4) + files.take(2), List(6) { floatArrayOf(1f) }, meeting = setOf("Talk"), recent = files.map { it.target }.toSet())
         assertEquals(listOf(talk[1], talk[2], talk[0], talk[3], files[0], files[1]), few.candidates(doubleArrayOf(.3, .5, .4, .2, .1, .05)),

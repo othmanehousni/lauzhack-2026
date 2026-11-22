@@ -10,6 +10,7 @@ const val K = 8                // candidates
 private const val BONUS = 0.04 // for a slide of the deck on screen (tune/CONTRACT.md, Candidates)
 private const val OWN = 3      // places kept for the meeting's slides (rehearsal/rule.py)
 private const val LEAD = 0.08  // how far something seen lately must lead the eighth best of them (rehearsal/rule.py)
+private const val ALONE = 0.035 // or how far the best of them must lead the second: a request singles one out
 private val ON_STAGE = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "mp4", "mov", "m4v", "webm") // stage.ON_STAGE
 
 /** What the presenter can ask for, each item embedded once by each of its documents (tune/CONTRACT.md, Candidates): the
@@ -50,7 +51,8 @@ class Catalog(
     /**
      * Candidates at real scale (tune/CONTRACT.md): [first]; then the best [OWN] slides of the meeting's decks and of the
      * deck [open] on screen; then by [score] the rest of those slides, the bookmarks and apps, and what was seen lately
-     * (recent files and pages, the first slide of a recent deck) when it leads the eighth best of those by [LEAD], until
+     * (recent files and pages, the first slide of a recent deck) when it leads the eighth best of those by [LEAD] or is
+     * the best of them and leads the second by [ALONE], until
      * there are [k]; all of it after [first] in descending score. Other pages of a recent deck wait until it is open.
      */
     fun candidates(score: DoubleArray, first: List<Item> = emptyList(), open: String? = null, k: Int = K): List<Item> {
@@ -59,7 +61,8 @@ class Catalog(
         val order = items.indices.sortedByDescending { score[it] }
         val seen = order.filter { lately(items[it]) }
         val bar = if (seen.size > 8) score[seen[7]] + LEAD else Double.NEGATIVE_INFINITY // a crowd: only a standout
-        fun offered(i: Int) = items[i].let { own(it) || if (lately(it)) score[i] >= bar else it !is Item.Slide }
+        val alone = seen.takeIf { it.size > 8 && score[it[0]] - score[it[1]] >= ALONE }?.first()
+        fun offered(i: Int) = items[i].let { own(it) || if (lately(it)) score[i] >= bar || i == alone else it !is Item.Slide }
         val out = first.distinct().toMutableList()
         val chosen = order.filter { own(items[it]) && items[it] !in out }.take(OWN).toMutableList()
         for (i in order) {

@@ -8,7 +8,7 @@
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APP=${BUNDLE:-$ROOT/composeApp/build/compose/binaries/main/app}/Moliere.app/Contents/MacOS/Moliere
 LIB=${LIBRARY:-$ROOT/library}  # the three Acme decks of fixtures/make_decks.py
-FIX="$HOME/Documents/Moliere rehearsal fixtures"
+FIX="$HOME/Documents/Moliere rehearsal fixtures $$"  # this run's own: another run's end must not remove them
 SCEN=$1; OUT=$2; GAP=${3:-6}; shift 3 2>/dev/null
 [ -x "$APP" ] && [ -d "$LIB" ] || { echo "no app at $APP or no decks in $LIB"; exit 1; }
 mkdir -p "$OUT"; rm -f "$OUT"/*.png "$OUT/out.txt"
