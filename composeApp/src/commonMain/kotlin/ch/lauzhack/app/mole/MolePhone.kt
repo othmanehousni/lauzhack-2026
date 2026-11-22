@@ -52,17 +52,20 @@ fun MolePhone(
     meeting: String,
     onPick: (Int) -> Unit,
     modifier: Modifier = Modifier,
-) {
+    theme: MoleTheme = MoleTheme.System,
+) = Themed(theme) {
+    val c = LocalMoleColors.current
+    SystemBars(c.paper)
     // The app on the phone never hides: when the bar dives away, the phone's mole goes back to listening.
     val shown = if (line.state == MoleState.Hidden) MoleLine(MoleState.Idle) else line
     val reduce = reduceMotion()
     val words = rememberWords(shown, reduce)
     val bottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
-    Column(modifier.fillMaxSize().background(Paper).safeDrawingPadding()) {
+    Column(modifier.fillMaxSize().background(c.paper).safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 8.dp, bottom = 8.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                BasicText("Presenting", style = type(15f, 20f, 600, -.15f), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
-                BasicText(meeting, style = type(12f, 16f, 400, color = Muted), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                BasicText("Presenting", style = type(15f, 20f, 600, -.15f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                BasicText(meeting, style = type(12f, 16f, 400, color = c.muted), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
             }
             Mic(phoneLeads)
         }
@@ -70,26 +73,26 @@ fun MolePhone(
         Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 4.dp), Arrangement.Center, Alignment.CenterHorizontally) {
             MolePuppet(words.state, shown.timeoutMs, words.front, words.back, Modifier.width(200.dp).aspectRatio(154f / 114.8f))
             Spacer(Modifier.height(12.dp))
-            Title(words, type(22f, 28f, 600, -.44f), TextAlign.Center)
-            Heard(words, type(14f, 20f, tracking = -.15f, color = Ink.copy(alpha = .55f)), Modifier.padding(top = 4.dp).height(20.dp), TextAlign.Center)
+            Title(words, type(22f, 28f, 600, -.44f, c.ink), TextAlign.Center)
+            Heard(words, type(14f, 20f, tracking = -.15f, color = c.heard), Modifier.padding(top = 4.dp).height(20.dp), TextAlign.Center)
             Options(words, phone = true, enabled = true, onPick)
         }
         Row(
             Modifier
                 .padding(start = 12.dp, end = 12.dp, bottom = maxOf(28.dp - bottom, 12.dp))
                 .fillMaxWidth()
-                .background(Fill, RoundedCornerShape(20.dp))
+                .background(c.fill, RoundedCornerShape(20.dp))
                 .padding(8.dp),
             Arrangement.spacedBy(12.dp),
             Alignment.CenterVertically,
         ) {
             val thumb = RoundedCornerShape(12.dp)
-            Box(Modifier.size(88.dp, 49.5.dp).clip(thumb).background(Stage).border(1.dp, Color.Black.copy(alpha = .1f), thumb)) {
+            Box(Modifier.size(88.dp, 49.5.dp).clip(thumb).background(Deck).border(1.dp, c.outline, thumb)) {
                 thumbnail?.let { Image(it, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop) }
             }
             Column(Modifier.weight(1f)) {
-                BasicText("On screen", style = type(12f, 16f, 400, color = Muted))
-                BasicText(onScreenName, style = type(15f, 20f, 500), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                BasicText("On screen", style = type(12f, 16f, 400, color = c.muted))
+                BasicText(onScreenName, style = type(15f, 20f, 500, color = c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
             }
         }
     }
@@ -106,9 +109,10 @@ private fun wave(t: Float): Float {
 
 @Composable
 private fun Mic(phone: Boolean) {
+    val c = LocalMoleColors.current
     val reduce = reduceMotion()
-    val bg = animateColorAsState(if (phone) Ink else Fill, css(200, easing = Ease))
-    val fg = animateColorAsState(if (phone) Paper else Ink, css(200, easing = Ease))
+    val bg = animateColorAsState(if (phone) c.ink else c.fill, css(200, easing = Ease))
+    val fg = animateColorAsState(if (phone) c.paper else c.ink, css(200, easing = Ease))
     val t = clock(!reduce)
     Row(
         Modifier.height(32.dp).drawBehind { drawRoundRect(bg.value, cornerRadius = CornerRadius(16.dp.toPx())) }.padding(start = 11.dp, end = 12.dp),
@@ -142,7 +146,7 @@ private fun Source(text: String, shown: Boolean, color: State<Color>) {
             translationY = dy.value.dp.toPx()
             renderEffect = cssBlur(blur.value.dp.toPx())
         },
-        style = type(13f, 13f, 500),
+        style = type(13f, 13f, 500, color = Color.Unspecified),
         color = { color.value },
     )
 }

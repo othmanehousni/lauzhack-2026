@@ -2,11 +2,15 @@ package ch.lauzhack.app
 
 import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.ContextMenuItem
+import androidx.compose.foundation.DarkDefaultContextMenuRepresentation
+import androidx.compose.foundation.LightDefaultContextMenuRepresentation
+import androidx.compose.foundation.LocalContextMenuRepresentation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,6 +39,9 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.isTraySupported
 import androidx.compose.ui.window.rememberWindowState
 import ch.lauzhack.app.mole.MoleBar
+import ch.lauzhack.app.mole.MoleColors
+import ch.lauzhack.app.mole.MoleTheme
+import ch.lauzhack.app.mole.colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.ceil
@@ -45,7 +52,7 @@ private val Ember = Color(0xFFF2531C)
 private const val RING = 1 // dp of hairline ring around the bar
 
 @Composable
-internal fun ApplicationScope.MoleFloater(lines: StateFlow<MoleLine>, onPick: (Int) -> Unit, onQuit: () -> Unit) {
+internal fun ApplicationScope.MoleFloater(lines: StateFlow<MoleLine>, onPick: (Int) -> Unit, onQuit: () -> Unit, theme: MoleTheme = MoleTheme.System) {
     val line by lines.collectAsState()
     val hidden = line.state == MoleState.Hidden
     // The window goes away once the bar's exit (180 ms wait + 260 ms) is over, so nothing is left to catch clicks.
@@ -87,17 +94,20 @@ internal fun ApplicationScope.MoleFloater(lines: StateFlow<MoleLine>, onPick: (I
     ) {
         // macOS computes a transparent window's shadow once, so it would outline the bar as it was, not as it is.
         LaunchedEffect(window) { window.rootPane.putClientProperty("Window.shadow", false) }
-        ContextMenuArea(
-            items = {
-                listOf(
-                    ContextMenuItem("Reset floater position", resetPosition),
-                    ContextMenuItem("Quit Molière", onQuit),
-                )
-            },
-        ) {
-            Box(Modifier.fillMaxSize().padding(RING.dp), contentAlignment = Alignment.BottomCenter) {
-                WindowDraggableArea {
-                    MoleBar(line, onPick, Modifier.onSizeChanged { window.hug(it) })
+        val menu = if (theme.colors() == MoleColors.Dark) DarkDefaultContextMenuRepresentation else LightDefaultContextMenuRepresentation
+        CompositionLocalProvider(LocalContextMenuRepresentation provides menu) {
+            ContextMenuArea(
+                items = {
+                    listOf(
+                        ContextMenuItem("Reset floater position", resetPosition),
+                        ContextMenuItem("Quit Molière", onQuit),
+                    )
+                },
+            ) {
+                Box(Modifier.fillMaxSize().padding(RING.dp), contentAlignment = Alignment.BottomCenter) {
+                    WindowDraggableArea {
+                        MoleBar(line, onPick, Modifier.onSizeChanged { window.hug(it) }, theme)
+                    }
                 }
             }
         }
