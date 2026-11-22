@@ -149,10 +149,10 @@ class Session(
         mole.on(Event.Words(piece.text))
         val last = later.lastOrNull() ?: heard.value
         if (last.ended) {
-            val next = Heard(piece.text, piece.ended, last.n + 1, (last.earlier + last.text).filter(String::isNotBlank).takeLast(EARLIER))
+            val next = Heard(piece.text, piece.ended, last.n + 1, (last.earlier + last.text).filter(String::isNotBlank).takeLast(EARLIER), piece.quiet)
             if (later.isEmpty() && (asked == heard.value || heard.value.text.isEmpty())) _heard.value = next else later += next
         } else {
-            val grown = last.copy(text = piece.text, ended = piece.ended)
+            val grown = last.copy(text = piece.text, ended = piece.ended, quiet = piece.quiet)
             if (later.isEmpty()) _heard.value = grown else later[later.lastIndex] = grown
         }
     }

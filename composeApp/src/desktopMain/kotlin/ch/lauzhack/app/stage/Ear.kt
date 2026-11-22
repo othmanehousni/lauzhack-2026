@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -94,7 +95,8 @@ class Ear(private val data: File = DATA) {
                 "note" in e -> notesFlow.emit(e["note"]!!.jsonPrimitive.content)
                 else -> {
                     val ago = e["ago"]!!.jsonPrimitive.double.seconds
-                    val heard = Heard(e["text"]!!.jsonPrimitive.content, ended = e["kind"]!!.jsonPrimitive.content == "final")
+                    val heard = Heard(e["text"]!!.jsonPrimitive.content, ended = e["kind"]!!.jsonPrimitive.content == "final",
+                        quiet = e["quiet"]?.jsonPrimitive?.booleanOrNull == true)
                     saidFlow.emit(Said(heard, ago, TimeSource.Monotonic.markNow() - ago))
                 }
             }
@@ -104,9 +106,10 @@ class Ear(private val data: File = DATA) {
 
 internal val WORD = 400.milliseconds  // 150 words a minute
 internal val PAUSE = 700.milliseconds // the silence after which the recognizer finishes an utterance
+internal val QUIET = 500.milliseconds // the silence after which the ear says the voice stopped (hear.swift's QUIET)
 
 /** Typed lines as what the presenter said, each one a whole utterance: for tests and dry runs. [paced], a line comes as
- * speech does: word by word at a speaking rate, then finished after a pause. */
+ * speech does: word by word at a speaking rate, quiet after a moment, then finished after a pause. */
 fun typed(input: InputStream = System.`in`, paced: Boolean = false): Flow<Said> = flow {
     for (line in input.bufferedReader().lineSequence()) {
         if (line.isBlank()) continue
@@ -116,7 +119,9 @@ fun typed(input: InputStream = System.`in`, paced: Boolean = false): Flow<Said> 
                 delay(WORD)
                 emit(Said(Heard(words.take(k).joinToString(" ")), Duration.ZERO, TimeSource.Monotonic.markNow()))
             }
-            delay(PAUSE)
+            delay(QUIET)
+            emit(Said(Heard(words.joinToString(" "), quiet = true), QUIET, TimeSource.Monotonic.markNow() - QUIET))
+            delay(PAUSE - QUIET)
         }
         emit(Said(Heard(words.joinToString(" "), ended = true), Duration.ZERO, TimeSource.Monotonic.markNow()))
     }

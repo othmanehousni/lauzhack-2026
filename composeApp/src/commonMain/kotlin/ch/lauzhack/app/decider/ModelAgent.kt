@@ -1,6 +1,7 @@
 package ch.lauzhack.app.decider
 
 import ai.koog.embeddings.base.Embedder
+import ai.koog.embeddings.base.Vector
 import ch.lauzhack.app.Agent
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.Move
@@ -20,7 +21,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
-/** Answers acted on while the presenter is still speaking, when two partial decisions in a row agree. */
+/** Answers acted on before the utterance has ended: when two partial decisions in a row agree, or once the voice has
+ * stopped on the words decided. */
 private val EARLY = setOf("show", "slide", "next", "previous", "slides", "control", "close")
 
 /** How long an announce may take to reach the screen; past this it was stopped on the bar, or failed. */
@@ -31,12 +33,13 @@ private val LANDS = ANNOUNCE + 1500.milliseconds
  * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
  * and the answer becomes a [Move]. An item picked by meaning (`show`, `open`, `search`) is announced as a [Move.Ask] of
  * it, so that a "no" can stop it; until it is on screen, the agent decides on every word and acts on an `undo` that two
- * partial decisions agree on. Otherwise it decides every two words; calls run one at a time, and words newer than those
- * of a decision in flight drop it.
+ * partial decisions agree on. Otherwise it decides every two words, and at once when the voice stops ([Heard.quiet]),
+ * unless it has decided on those words already: then the answer it gave acts without asking the model again. Calls
+ * run one at a time, and words newer than those of a decision in flight drop it.
  */
 class ModelAgent(
     catalog: Catalog,
-    private val embedder: Embedder,
+    embedder: Embedder,
     private val model: suspend (prompt: String, grammar: String?) -> String,
     private val time: TimeSource = TimeSource.Monotonic,
     private val note: (String) -> Unit = {},
@@ -50,8 +53,16 @@ class ModelAgent(
         var text = ""
         var words = 0
         var over = false
+        var said = "nothing"
         var guess: Move = Move.Nothing
         val taken = mutableListOf<Move>()
+    }
+
+    /** The queries of the last decisions: the end of an utterance often repeats the words of its last partial. */
+    private val queries = object : Embedder by embedder {
+        private val seen = LinkedHashMap<String, Vector>()
+        override suspend fun embed(text: String): Vector =
+            seen.getOrPut(text) { embedder.embed(text) }.also { if (seen.size > 16) seen.remove(seen.keys.first()) }
     }
 
     private var stage: Item? = null   // the slide or picture on the stage, under any tab or app
@@ -102,9 +113,10 @@ class ModelAgent(
         if (u.over) return Move.Nothing
         if (heard.text.isBlank()) return Move.Nothing.also { u.over = heard.ended }
         val words = heard.text.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
-        if (!heard.ended && words < u.words + (if (coming != null) 1 else 2)) return Move.Nothing
+        if (heard.quiet && !heard.ended && spoken(heard.text) == spoken(u.text)) return early(u.said, u.guess, heard.n, cat, agreed = true)
+        if (!heard.ended && !heard.quiet && words < u.words + (if (coming != null) 1 else 2)) return Move.Nothing
         val open = (u.deck ?: u.last)?.target?.deck
-        val score = cat.scores(embedder, heard.text, heard.earlier.lastOrNull(), open)
+        val score = cat.scores(queries, heard.text, heard.earlier.lastOrNull(), open)
         val s = u.start.copy(heard = heard.earlier, now = heard.text, done = heard.ended, candidates = cat.candidates(score, u.offered, open))
         note("candidates  \"${heard.text}\"${if (heard.ended) "" else " (still talking)"}  " +
             s.candidates.mapIndexed { i, c -> "${i + 1} ${cat.label(c, score)}" }.joinToString(" | "))
@@ -115,10 +127,10 @@ class ModelAgent(
         u.words = words
         val move = move(said, s, cat)
         if (!heard.ended) {
-            val early = said.substringBefore(' ') in EARLY || said == "undo" && coming != null
-            val act = move.takeIf { early && it == u.guess && it != Move.Nothing && it !in u.taken }
+            val agreed = heard.quiet || move == u.guess
+            u.said = said
             u.guess = move
-            return act?.also { take(it, heard.n, cat) } ?: Move.Nothing
+            return early(said, move, heard.n, cat, agreed)
         }
         u.over = true
         when {
@@ -131,6 +143,15 @@ class ModelAgent(
             move is Move.Show || move is Move.Ask || move is Move.Control || move == Move.Undo -> take(move, heard.n, cat)
             else -> {}
         }
+        return move
+    }
+
+    /** [move], for answer [said] to words not yet finished, if it may act before the end and is [agreed]: the decision
+     * before gave it too, or the voice has stopped on these words. */
+    private fun early(said: String, move: Move, n: Int, cat: Catalog, agreed: Boolean): Move {
+        val kind = said.substringBefore(' ') in EARLY || said == "undo" && coming != null
+        if (!kind || !agreed || move == Move.Nothing || move in u.taken) return Move.Nothing
+        take(move, n, cat)
         return move
     }
 
@@ -228,6 +249,9 @@ class ModelAgent(
         }
     }
 }
+
+/** The words of [text], without the punctuation and capitals the recognizer refines after they were said. */
+private fun spoken(text: String) = text.lowercase().map { if (it.isLetterOrDigit()) it else ' ' }.joinToString("").split(' ').filter(String::isNotEmpty)
 
 /** A web search for words the grammar spells with letters, digits, spaces and . - ' only. */
 fun search(words: String) = Target.Site("https://www.google.com/search?q=" + words.replace(" ", "+").replace("'", "%27"), words)

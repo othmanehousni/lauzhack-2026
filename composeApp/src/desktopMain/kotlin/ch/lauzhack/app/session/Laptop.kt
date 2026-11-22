@@ -171,7 +171,7 @@ class Laptop(
         val ear = Ear().takeIf { typed == null }
         if (ear != null) {
             launch { ear.notes.collect { log("ear: $it") } }
-            launch { ear.said.collect { log("ear     ${if (it.heard.ended) "final" else "live "}  \"${it.heard.text}\"  unchanged ${it.ago.inWholeMilliseconds} ms") } }
+            launch { ear.said.collect { log("ear     ${if (it.heard.ended) "final" else if (it.heard.quiet) "quiet" else "live "}  \"${it.heard.text}\"  unchanged ${it.ago.inWholeMilliseconds} ms") } }
             launch {
                 try {
                     ear.listen(names.filter { it.split(' ').size <= 4 }.take(NAMES).also { log("ear expects ${it.size} of ${names.size} names") }, audio)

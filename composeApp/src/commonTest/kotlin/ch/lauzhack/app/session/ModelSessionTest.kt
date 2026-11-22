@@ -4,6 +4,7 @@ package ch.lauzhack.app.session
 
 import ai.koog.embeddings.base.Embedder
 import ai.koog.embeddings.base.Vector
+import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.decider.Catalog
@@ -18,6 +19,7 @@ import kotlinx.coroutines.test.testTimeSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -54,7 +56,48 @@ private class Talk(scope: TestScope) {
     fun prompt(said: String) = prompts.last { "): $said" in it }
 }
 
+/** The words one at a time, as the ear sends them; then the same words [quiet] once the voice has stopped for a moment,
+ * and [ended] when the recognizer finishes the utterance, both counted from the last word. */
+private suspend fun Rig.speak(text: String, quiet: Duration = 500.milliseconds, ended: Duration = 1300.milliseconds) {
+    val w = text.split(" ")
+    for (i in 1..w.size) {
+        laptop.emit(Heard(w.take(i).joinToString(" ")))
+        if (i < w.size) delay(PACE)
+    }
+    delay(quiet)
+    laptop.emit(Heard(text, quiet = true))
+    delay(ended - quiet)
+    laptop.emit(Heard(text, ended = true))
+}
+
 class ModelSessionTest {
+    @Test
+    fun aCommandIsShownOnceTheVoiceStopsNotWhenTheRecognizerFinishes() = runTest {
+        val t = Talk(this)
+        t.rig.start()
+        delay(3.seconds)
+        val last = currentTime + 2 * PACE.inWholeMilliseconds
+        t.rig.speak("next slide please")
+        t.rig.until(MoleState.Hidden)
+        assertEquals(listOf(last + 500 + 200 to "show slide 2"), t.rig.screen.calls, "a decision on the last word once the voice stopped, not one at the end")
+    }
+
+    @Test
+    fun aNoInsideTheWindowStopsTheAnnounceOnceTheVoiceStops() = runTest {
+        val t = Talk(this)
+        t.rig.start()
+        delay(3.seconds)
+        t.rig.say("show the roadmap")
+        t.rig.until(MoleState.Retrieving)
+        val announced = t.rig.time(MoleState.Retrieving)
+        delay(1500)
+        t.rig.speak("no") // the recognizer finishes it only after the window
+        assertEquals("Okay, not shown.", t.rig.line(MoleState.Back).title)
+        assertEquals(announced + 2000, t.rig.time(MoleState.Back), "the no as decided while it was said, once the voice stopped")
+        delay(5.seconds)
+        assertEquals(emptyList(), t.rig.screen.calls)
+    }
+
     @Test
     fun aPickIsAnnouncedWhileThePresenterSpeaksAndShownOnceItsWindowEnds() = runTest {
         val t = Talk(this)
