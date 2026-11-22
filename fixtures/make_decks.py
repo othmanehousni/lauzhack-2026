@@ -1,4 +1,5 @@
-"""Generate sample decks for the copilot eval: uv run --no-project --with reportlab python fixtures/make_decks.py OUT_DIR"""
+"""The sample decks: uv run --no-project --with reportlab python fixtures/make_decks.py OUT_DIR [--all]. The three Acme decks
+are the demo's and the rehearsals'; --all adds the other decks the eval scripts in eval/ refer to."""
 import sys
 from pathlib import Path
 
@@ -93,8 +94,11 @@ def render(path: Path, slides: list[tuple[str, list[str]]]) -> None:
 
 
 if __name__ == "__main__":
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else "library")
+    args = [a for a in sys.argv[1:] if a != "--all"]
+    out = Path(args[0] if args else "library")
     out.mkdir(parents=True, exist_ok=True)
     for name, slides in DECKS.items():
+        if "--all" not in sys.argv and not name.startswith("Acme_"):
+            continue
         render(out / f"{name}.pdf", slides)
         print(out / f"{name}.pdf", len(slides), "slides")

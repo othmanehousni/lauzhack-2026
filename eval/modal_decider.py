@@ -71,7 +71,7 @@ def replay(model: str, scripts: str) -> str:
         if f.is_file():
             (models / f.name).symlink_to(f)
     (models / "decider.litertlm").symlink_to(Path("/decider", model))
-    subprocess.run(["python", "/repo/fixtures/make_decks.py", "/tmp/library"], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["python", "/repo/fixtures/make_decks.py", "/tmp/library", "--all"], check=True, stdout=subprocess.DEVNULL)
     cp = ":".join(["/app/lib/*", *sorted(str(d) for d in Path("/app").glob("d*"))])
     env = os.environ | {"MOLE_CHECK": "decider", "MOLE_MODELS": str(models), "MOLE_CACHE": "/tmp/cache", "MOLE_LIBRARY": "/tmp/library",
                         "MOLE_REPO": "/repo"} | ({"MOLE_SCRIPTS": scripts} if scripts else {})
