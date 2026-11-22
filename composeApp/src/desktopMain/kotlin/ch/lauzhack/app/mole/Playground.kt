@@ -44,7 +44,7 @@ internal fun ApplicationScope.Playground(demo: Demo, onClose: () -> Unit) {
     var phoneLeads by remember { mutableStateOf(false) }
     var wall by remember { mutableStateOf(4) }
     val line by demo.lines.collectAsState()
-    Window(onCloseRequest = onClose, title = "The Mole · playground", state = rememberWindowState(size = DpSize(1120.dp, 820.dp))) {
+    Window(onCloseRequest = onClose, title = "Molière · playground", state = rememberWindowState(size = DpSize(1120.dp, 820.dp))) {
         CompositionLocalProvider(LocalReduceMotion provides reduce, LocalSlowMotion provides if (slow) 5f else 1f) {
             Row(Modifier.fillMaxSize().background(Paper).padding(32.dp), Arrangement.spacedBy(40.dp)) {
                 Column(Modifier.weight(1f), Arrangement.spacedBy(12.dp)) {
