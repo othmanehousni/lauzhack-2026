@@ -92,7 +92,6 @@ class Session(
     private var before: Pair<OnScreen, TimeMark>? = null // what the last change replaced, and when
     private var offer = emptyList<Target>()            // a choice, in play while the mole shows it
     private var coming: Coming? = null                 // announced, shown when its window ends
-    private var stopped: Target? = null                // an announce turned down, not announced again until the next change
     private val picks = mutableMapOf<Set<Target>, Target>() // the presenter's answer to each choice offered
     private val taps = Channel<Int>(Channel.UNLIMITED)
     private val turn = Mutex()                         // one move at a time, in order, from the loop, a tap or a window ending
@@ -187,7 +186,7 @@ class Session(
             return mole.on(Event.Offer(options.map(::choice), said))
         }
         val t = options[0]
-        if (same(t, coming?.target) || same(t, onScreen.value.target) || same(t, stopped)) return
+        if (same(t, coming?.target) || same(t, onScreen.value.target)) return
         val w = window.value
         if (w <= Duration.ZERO) return show(t, said)
         val c = Coming(t, said)
@@ -203,7 +202,6 @@ class Session(
     /** Turns down the choice or the announce in play: nothing is shown. */
     private fun stop() {
         if (offered().isEmpty()) return
-        stopped = coming?.target
         coming = null
         offer = emptyList()
         mole.on(Event.Dismiss)
@@ -232,7 +230,6 @@ class Session(
         val was = onScreen.value
         offer = emptyList()
         coming = null
-        stopped = null
         mole.on(Event.Start(c, said))
         repeat(2) { attempt ->
             try {

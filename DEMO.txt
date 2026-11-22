@@ -1,0 +1,177 @@
+MOLIÈRE: DEMO SETUP AND TEST LIST
+Written during the night of 22 November 2026 from commands that were actually run.
+Anything not run by a person is marked NOT VERIFIED BY A PERSON.
+
+Run every command from the repository root: /Users/admin/Desktop/lauzhack-2026
+
+
+0. WHAT IS READY ON THIS MAC RIGHT NOW
+
+  The app bundle is built:
+    composeApp/build/compose/binaries/main/app/Moliere.app
+  Both models are in place:
+    ~/Library/Application Support/Moliere/models/embeddinggemma-2-text-270m.litertlm
+    ~/Library/Application Support/Moliere/models/decider.litertlm   (our fine-tuned Gemma 3 270M)
+  The shared screen (the VM named "base") is up and set up.
+  The Android build exists:
+    androidApp/build/outputs/apk/debug/androidApp-debug.apk
+  Three sample decks are in library/ (company overview, Q3 financials, product roadmap).
+
+
+1. TWO-MINUTE CHECK WITHOUT A MICROPHONE
+
+  This proves the whole chain except the microphone: the model, the bar, the shared screen.
+
+    composeApp/build/compose/binaries/main/app/Moliere.app/Contents/MacOS/Moliere --typed --library "$PWD/library" --no-history
+
+  Wait for the line "Hi. I'm listening." (about 5 seconds). The bar appears at the bottom of your screen.
+  Type each line, press Return, and watch the VM window and the bar.
+
+    You type                                   What must happen
+    -----------------------------------------  ---------------------------------------------------------
+    Hi everyone, can you all hear me okay?     Nothing. The mole stays out of the way.
+    Okay, let's open up the company slides.    Company overview, slide 1, at once.
+    Next slide please.                         Slide 2, at once.
+    Go to slide 7.                             Slide 7 (Traction), at once.
+    So how big is this market really?          Bar: "Showing slide 5", Stop drains 2.5 s, then slide 5.
+    I sent the PDF to Marc this morning.       Nothing (a mention is not a request).
+    Now let's switch to the Q3 financials.     Bar announces, then Q3 deck slide 1.
+    What about churn?                          Bar announces, then slide 6 (Customer churn).
+    Open GitHub.                               Bar announces, then github.com in front of the deck.
+    Scroll down a bit.                         The page scrolls.
+    Close that.                                Back to the Q3 slide.
+    Let's look at the product roadmap.         Bar announces, then roadmap slide 1.
+    Tell me about the cold storage robot.      Bar announces, then roadmap slide 3.
+    Show me the gross margin slide.            Bar announces "Showing slide 3". Type the next line within 2 s:
+    No, not that one.                          Bar: "Okay, not shown." Nothing changes on screen.
+    Show me the gross margin slide.            Announced again. Let it show this time (Q3 slide 3). Then:
+    No, go back.                               The roadmap slide returns.
+
+  Stop with Ctrl-C. What the audience saw after each change is saved as pictures in
+  ~/Library/Logs/Moliere/screens/ and the full log is ~/Library/Logs/Moliere/moliere.log.
+
+  These exact lines, typed for you and scored (about 2 minutes). Last run tonight: 17 of 17.
+    rehearsal/run.sh rehearsal/demo.txt .stage/rehearsal/demo 6
+    python3 rehearsal/check.py .stage/rehearsal/demo
+
+  A harder set (45 lines: vague asks, mishearings, things that do not exist; about 5 minutes):
+    rehearsal/run.sh rehearsal/model-1.txt .stage/rehearsal/hard 6
+    python3 rehearsal/check.py .stage/rehearsal/hard
+  Last score tonight: 33 of 45 (the old hand rules: 28 of 41 on the lines both can do).
+  The lines it misses are listed in section 8.
+
+
+2. THE REAL THING, WITH YOUR VOICE
+
+  a. Open the app:   open composeApp/build/compose/binaries/main/app/Moliere.app
+     There is no Dock icon. Look for the mole in the menu bar.
+  b. Decks: the app reads PDFs from ~/Documents/Moliere. For the demo either copy your decks there,
+     or menu bar mole, "Choose decks folder...", and pick the repo's library folder.
+  c. Menu bar mole, "Start a meeting". The first time, macOS asks for: Microphone, Speech Recognition,
+     Local Network (the link to the VM and the phone), and Calendar on the first real call. Allow each.
+     If you missed one: System Settings, Privacy & Security, enable the app under that heading, then
+     "End the meeting" and "Start a meeting" again.
+     NOT VERIFIED BY A PERSON: nobody was awake to click these prompts. Do this once before the demo,
+     and do it AFTER the last rebuild (a rebuild is a new signature, macOS may ask again).
+  d. In the call (Meet, Zoom, Teams), share the VM window. It is titled "Copilot screen" until the VM is
+     next restarted, then "Molière screen".
+  e. Speak the lines of section 1. With a real call the meeting starts by itself about 5 seconds after the
+     call app takes the microphone (NOT VERIFIED BY A PERSON); "Start a meeting" always works.
+
+  What was verified without a person: the packaged app was fed synthesized speech files through Apple's
+  recognizer (no microphone, no sound) and acted on them correctly. Measured from the end of the voice:
+  a command reaches the shared screen in 1.5 to 1.8 seconds, an announce appears after about 2 seconds.
+  An agent is working on bringing both under about one second; see the end of this file for the result.
+
+
+3. SAY NO OR IT GETS SHOWN
+
+  Anything the mole picks by meaning is announced first: the bar says "Showing ..." with a Stop button
+  that drains for 2.5 seconds. Three ways to stop it:
+    say "no" (or "no, not that one") before the Stop runs out     tested in the real app
+    tap Stop on the phone                                         tested on an emulator against the real app
+    click Stop on the bar                                         tested in code only, nobody clicked it
+  Ask again after a stop and it is announced again.
+  After it is shown, "no, go back" within a few seconds restores the previous screen.
+  Commands on what is already on screen (next, previous, slide 7, scroll, close) act at once.
+  Menu bar mole, "Wait before showing": 2.5 s, 1.5 s, or none. Try all three and keep the one that feels right.
+  NOT VERIFIED BY A PERSON: clicking the tray menu items (they are built and the app runs; nobody clicked).
+
+
+4. THE PHONE
+
+  a. Turn on the phone's hotspot and join the Mac to it.
+  b. Plug the phone in once to install:   adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
+  c. Unplug. Open Molière on the phone, allow the microphone. It says "Looking for your laptop..." until a
+     meeting runs on the Mac, then shows the same mole and the same line as the bar.
+  d. If it never connects:   adb shell am start -n ch.lauzhack.app/.MainActivity -e laptop <the Mac's IP>
+  e. Try: an announce (one light tick, a Stop button), a choice between files (a firm double buzz, tap a row),
+     quit the app on the Mac (the phone says so within about 2 s), start it again (reconnects in about 3 s).
+
+  Verified on an Android emulator with no window: every state in light and dark, taps reaching the laptop,
+  the three buzz patterns, reconnects. Rerun that check any time:   androidApp/check.sh
+  NOT VERIFIED BY A PERSON: a real phone. Hearing through the phone, discovery over the hotspot and how the
+  buzz feels can only be tried on the device.
+
+
+5. THINGS YOU SAW RECENTLY
+
+  Besides the decks folder, the mole can reach files you used lately, slide decks elsewhere on the Mac, and
+  pages from your browser history (Chrome, Arc, Chromium; not Safari). Menu bar mole, "Use browser history"
+  turns the history part off.
+  Two cautions for a demo:
+    The shared screen's browser has none of your sign-ins. A page that needs one shows a sign-in page.
+    Tonight Spotlight on this Mac stopped answering, so recent files and decks were not found.
+    An agent is making that part independent of Spotlight; see the end of this file for the result.
+
+
+6. IF SOMETHING GOES WRONG DURING THE DEMO
+
+  The bar says "Couldn't get the shared screen ready."   The app starts the VM by itself; if that failed:  agent-desktop sandbox start base --window
+  Nothing happens when you speak.                         Menu bar mole, "End the meeting", "Start a meeting". Check the microphone permission.
+  It picks the wrong thing.                               Say "no". That is the feature.
+  You want the old behaviour.                             Start with --rules (the hand-written rules, slower to start, no "no").
+  No VM at all.                                           Start with --host (a Chrome window on this Mac is the shared screen).
+  Look at what it heard and decided.                      ~/Library/Logs/Moliere/moliere.log (every word, decision and screen call, timestamped)
+
+  Other ways to start:
+    --demo         the scripted story on the bar, no models, no VM
+    --playground   every state of the mole one click away, light and dark
+    --paced        with --typed: each line arrives word by word, like speech
+    --audio DIR    hears audio files instead of the microphone
+    --window MS    the wait before showing, for one run
+
+
+7. A THREE-MINUTE RUN FOR THE JURY
+
+  1. Start the call, share the VM window, phone in your hand.
+  2. "Hi everyone, can you all hear me okay?"                  Nothing happens. Point at that.
+  3. "Okay, let's open up the company slides."                 Slide 1.
+  4. "Next slide please."  then  "Go to slide 7."              At once.
+  5. "So how big is this market really?"                       The bar announces slide 5. Let it show.
+  6. "Tell me about the cold storage robot."                   Announces a slide of ANOTHER deck. Let it show.
+  7. "Show me the gross margin slide."  then  "No, not that one."   The announce stops. Nothing was shared.
+  8. "Open GitHub."  "Scroll down a bit."  "Close that."       A site in front of the deck, then back.
+  9. Walk away with the phone: tap Stop on an announce, show the buzz.
+  Rehearse lines 5 to 7 once before: they depend on the model and on your wording.
+
+
+8. WHAT IT STILL GETS WRONG (measured, not guessed)
+
+  From the scored scenario tonight, with the model:
+    "Let me show you who we are up against."      went to the Team slide instead of Competition
+    "And what does it cost?"                      nothing (wanted Business model and pricing)
+    "How much cash do we have left?"              nothing (wanted Cash and runway)
+    "Can you open example.com for me?"            opened google.com
+    "Open get hub." (a mishearing of GitHub)      announced a slide
+    "Go to slide 99."                             went to slide 9
+    "Open the quarterly penguin migration report." (does not exist)   announced an unrelated slide; "no" stops it
+    Things seen recently                          not found tonight (Spotlight, see section 5)
+  Training continues on Modal on exactly these; the model file can be swapped without a rebuild.
+
+
+9. REBUILD FROM SOURCE (only if you change code)
+
+    export JAVA_HOME=/Users/admin/Library/Java/JavaVirtualMachines/temurin-21.0.7/Contents/Home ANDROID_HOME=/Users/admin/Library/Android/sdk
+    ./gradlew :composeApp:desktopTest :composeApp:desktopJar :androidApp:assembleDebug :composeApp:createDistributable
+  Tests tonight: 30 suites, 102 tests, 0 failures.

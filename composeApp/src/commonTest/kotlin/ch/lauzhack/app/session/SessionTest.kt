@@ -655,7 +655,7 @@ class SessionTest {
     }
 
     @Test
-    fun announcesBackToBackAndNoneAgainOnceStopped() = runTest {
+    fun announcesBackToBackAndAgainWhenAskedAfterAStop() = runTest {
         val rig = Rig(this, slide(7)) { h, _ ->
             if (!h.ended) return@Rig Move.Nothing
             when (h.text) {
@@ -681,15 +681,9 @@ class SessionTest {
         rig.until(MoleState.Retrieving)
         rig.say("no")
         rig.until(MoleState.Hidden)
-        val before = rig.lines.size
-        rig.say("the risks again") // turned down: not announced again until the screen changes
-        delay(5.seconds)
-        assertTrue(rig.lines.drop(before).none { it.second.state == MoleState.Retrieving })
-        rig.say("show the roadmap")
+        val risks = rig.announced("the risks again") // turned down, then asked for anew: announced again
         rig.until(MoleState.Hidden)
-        val risks = rig.announced("back to the risks")
-        rig.until(MoleState.Hidden)
-        assertEquals(listOf("show slide 8", "show slide 9", "show slide 11", "show slide 10"), rig.screen.calls.map { it.second })
+        assertEquals(listOf("show slide 8", "show slide 9", "show slide 10"), rig.screen.calls.map { it.second })
         assertEquals(risks + 2500, rig.screen.calls.last().first)
     }
 

@@ -1,0 +1,20 @@
+# the lines of DEMO.txt section 1, in order
+Hi everyone, can you all hear me okay? || keep
+Okay, let's open up the company slides. || slide Company_Overview 1
+Next slide please. || slide Company_Overview 2
+Go to slide 7. || slide Company_Overview 7
+So how big is this market really? || slide Company_Overview 5 announce
+I sent the PDF to Marc this morning. || keep
+Now let's switch to the Q3 financials. || slide Q3_2026_Financials 1
+What about churn? || slide Q3_2026_Financials 6 announce
+Open GitHub. || site github.com
+Scroll down a bit. || site github.com
+Close that. || slide Q3_2026_Financials 6
+Let's look at the product roadmap. || slide Product_Roadmap 1
+Tell me about the cold storage robot. || slide Product_Roadmap 3 announce
+@1.2
+Show me the gross margin slide. || announce
+@6
+No, not that one. || slide Product_Roadmap 3 stopped
+Show me the gross margin slide. || slide Q3_2026_Financials 3 announce
+No, go back. || slide Product_Roadmap 3
