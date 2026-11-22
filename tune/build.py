@@ -261,7 +261,9 @@ OPENER_FORMS = ["{v} {o}", "{v} {o}", "{v} {o}", "{v} {o}", "put {o} on the scre
                 "I want {o} on the screen", "could we get {o} on screen"]
 HEDGES = ["", "", "", "", "okay ", "so ", "alright ", "um ", "and ", "right, ", "now ", "maybe we can ",
           "I think we should ", "if you could ", "let's quickly ", "actually ", "sorry, ", "okay so ", "ah, ", "uh ", "and then ",
-          "so yeah, ", "anyway, ", "okay, so now ", "and now ", "just ", "let's see, ", "hmm, ", "yeah so "]
+          "so yeah, ", "anyway, ", "okay, so now ", "and now ", "just ", "let's see, ", "hmm, ", "yeah so ", "hang on, ", "wait, ", "one sec, "]
+CONTROL_TAILS = ["", "", "", " there", " for a sec", " a bit", ", please", " please", ", it's hard to see", " so everyone can see", ", thanks",
+                 " for a second", " a little", ", I can't read it", " now"]
 TAILS = ["", "", "", "", "", ", please", " please", " for a second", " real quick", " so everyone can see", ", thanks", " now",
          " again", "?", ".", " for a sec", " quickly", " if you can", ", that'd be great", " for everyone",
          ", I want to check something", ", just to be sure", ", someone asked about it", ", so we can compare", " before we move on",
@@ -871,6 +873,8 @@ def can(screen: dict | None, control: str) -> bool:
 def fam_control(rng, s: Session):
     control = pick(rng, CONTROLS)
     text = pick(rng, INTENTS[f"control {control}"])
+    if rng.random() < 0.5:
+        text = pick(rng, HEDGES) + text.rstrip(".!?") + pick(rng, CONTROL_TAILS)
     kind = pick(rng, ["site", "site", "file", "file", "slide", "desktop", "app"])
     screen, behind = s.screen(kind)
     if kind == "site" and control in ("play the video", "pause the video") and rng.random() < 0.7:
@@ -1217,8 +1221,11 @@ def build(seed: int, n: int, split: str) -> list[dict]:
         except (ValueError, IndexError, StopIteration):
             continue
         for e in exs:  # the slide after the one on screen, as the app shows it
-            sc = e["state"]["screen"]
-            e["state"]["next"] = next((x for x in s.slides if sc and sc["kind"] == "slide" and x["deck"] == sc["deck"] and x["page"] == sc["page"] + 1), None)
+            st = e["state"]
+            sc = st["screen"]
+            st["next"] = next((x for x in s.slides if sc and sc["kind"] == "slide" and x["deck"] == sc["deck"] and x["page"] == sc["page"] + 1), None)
+            if sc and not st["shown"] and e["answer"] != "undo" and not e["family"].startswith(("reject", "undo")) and rng.random() < 0.4:
+                st["shown"] = sc  # in the app the screen was usually put there by the last action or the one before
         out += exs
     rng.shuffle(out)
     for e in out[:n]:
