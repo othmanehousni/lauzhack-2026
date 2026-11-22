@@ -24,6 +24,9 @@ import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.meeting.Meeting
+import ch.lauzhack.app.session.Mime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.skia.EncodedImageFormat
 import java.awt.Color
@@ -66,6 +69,10 @@ class HomeShots {
                 val name = "settings-${w}x$h-${theme.name.lowercase()}"
                 sheet += name to save(File(out, "$name.png"), shoot(w, h, theme, meeting = false, long = false, settings = true))
             }
+            for (theme in listOf(MoleTheme.Light, MoleTheme.Dark)) {
+                val name = "mime-${w}x$h-${theme.name.lowercase()}"
+                sheet += name to save(File(out, "$name.png"), shoot(w, h, theme, meeting = false, long = false, mime = true))
+            }
             save(File(out, "asleep-${w}-page.png"), shoot(w, 1700, MoleTheme.Light, meeting = false, long = false))
         }
         ImageIO.write(contact(sheet), "png", File(out, "contact.png"))
@@ -77,11 +84,11 @@ class HomeShots {
     }
 
     @OptIn(ExperimentalComposeUiApi::class)
-    private fun shoot(w: Int, h: Int, theme: MoleTheme, meeting: Boolean, long: Boolean, sample: MoleLine = Announce, language: Lang = Lang.En, settings: Boolean = false): ByteArray {
+    private fun shoot(w: Int, h: Int, theme: MoleTheme, meeting: Boolean, long: Boolean, sample: MoleLine = Announce, language: Lang = Lang.En, settings: Boolean = false, mime: Boolean = false): ByteArray {
         lang = language
         val lib = File(Files.createTempDirectory("home").toFile(), if (long) LONG_FOLDER else "library").apply { mkdirs() }
         for (deck in if (long) (1..12).map { "Deck $it" } else listOf("Company_Overview", "Q3_2026_Financials", "Product_Roadmap")) File(lib, "$deck.pdf").writeText("")
-        val prefs = Settings(MemoryPrefs(), MutableStateFlow(lib), MutableStateFlow(true), MutableStateFlow(2500.milliseconds), WAITS, mutableStateOf(theme))
+        val prefs = Settings(MemoryPrefs(), MutableStateFlow(lib), MutableStateFlow(true), MutableStateFlow(2500.milliseconds), WAITS, mutableStateOf(theme), mode = MutableStateFlow(if (mime) Mode.Mime else Mode.Present))
         val call = MutableStateFlow(if (meeting) Meeting("", "Meeting", false, Clock.System.now()) else null)
         val said = if (long) LONG_HEARD else MARKET
         val line = MutableStateFlow(
@@ -89,10 +96,11 @@ class HomeShots {
             else MoleLine(MoleState.Hidden),
         )
         val screen = MutableStateFlow(if (meeting) OnScreen(Target.Slide("Company_Overview", 7, "Traction"), "Company Overview") else OnScreen())
+        val mime = Mime(CoroutineScope(Dispatchers.Default), null, prefs.mode) // the lip reader not set up
         val scene = ImageComposeScene(w * 2, h * 2, Density(2f)) {
             Column(Modifier.fillMaxSize().background(frameOf(theme.colors()).frame)) {
                 Spacer(Modifier.height(28.dp)) // HomeWindow's clear title bar
-                Home(call, {}, {}, line, {}, MutableStateFlow(sample), {}, screen, MutableStateFlow(meeting), prefs, { null })
+                Home(call, {}, {}, line, {}, MutableStateFlow(sample), {}, screen, MutableStateFlow(meeting), prefs, { null }, mime)
             }
         }
         var image = scene.render(0)

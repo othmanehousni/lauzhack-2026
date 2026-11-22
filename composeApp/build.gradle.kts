@@ -77,11 +77,12 @@ compose.desktop {
             macOS {
                 bundleID = "ch.lauzhack.moliere"
                 entitlementsFile.set(project.file("entitlements.plist"))
-                // The helpers (hear, meet, ssh) are this app's children, so macOS asks on this app's behalf, in these words.
+                // The helpers (hear, meet, ssh, the lip reader) are this app's children, so macOS asks on this app's behalf, in these words.
                 infoPlist {
                     extraKeysRawXml = """
                         <key>CFBundleDisplayName</key><string>Molière</string>
                         <key>NSMicrophoneUsageDescription</key><string>Molière listens to what you say in a call to put the right thing on the shared screen.</string>
+                        <key>NSCameraUsageDescription</key><string>In Mime mode, Molière reads your lips at the camera, on this Mac.</string>
                         <key>NSSpeechRecognitionUsageDescription</key><string>Molière turns what you say into text, on this Mac.</string>
                         <key>NSCalendarsFullAccessUsageDescription</key><string>Molière shows the title of the meeting you are in, from your calendar.</string>
                         <key>NSCalendarsUsageDescription</key><string>Molière shows the title of the meeting you are in, from your calendar.</string>

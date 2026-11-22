@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import ch.lauzhack.app.MoleState.*
+import ch.lauzhack.app.mole.Mode
 import ch.lauzhack.app.mole.MoleTheme
 
 /** The languages a person reads Molière in, each named in itself. What the presenter says stays English: the ear and
@@ -124,8 +125,26 @@ class Wording(
     val live: String,
     val otherFiles: String,
     val spokenEnglish: String,
+    // Mime mode: the window, the tray and the bar
+    val modeLabel: String,
+    val modes: List<String>, // Mode's, in order
+    val mimeTitle: String,
+    val mimeLine: String,
+    val startMiming: String,
+    val stopMiming: String,
+    val lipReading: String,
+    val lipsReady: String,
+    val lipsOn: String,
+    val lipsNotSetUp: String,
+    val runOnce: String,
+    val lipsLoading: String,
+    val mouthWords: String,
+    val readingLips: String,
+    val couldntRead: String,
+    val lipsStopped: String,
 ) {
     fun theme(t: MoleTheme) = themes[t.ordinal]
+    fun mode(m: Mode) = modes[m.ordinal]
 }
 
 private fun seconds(ms: Long, point: Char) = (ms / 1000.0).toString().removeSuffix(".0").replace('.', point)
@@ -225,6 +244,22 @@ private val EN = Wording(
     live = "Live",
     otherFiles = "other files",
     spokenEnglish = "What you say to Molière stays in English.",
+    modeLabel = "Mode",
+    modes = listOf("Present", "Mime"),
+    mimeTitle = "Speak without a sound.",
+    mimeLine = "Mouth your words at the camera. Molière reads your lips and says each sentence aloud, in your voice.",
+    startMiming = "Start miming",
+    stopMiming = "Stop miming",
+    lipReading = "Lip reading",
+    lipsReady = "Ready. A camera window opens. Space pauses, V turns the voice off, Q quits.",
+    lipsOn = "Reading your lips at the camera.",
+    lipsNotSetUp = "Lip reading isn't set up yet.",
+    runOnce = "Run these once in Terminal, in Molière's repository.",
+    lipsLoading = "Loading lip reading…",
+    mouthWords = "Mouth your words.",
+    readingLips = "Reading your lips…",
+    couldntRead = "Couldn't read that.",
+    lipsStopped = "Lip reading stopped.",
 )
 
 // Swiss German: du, ss for ß, «».
@@ -323,6 +358,22 @@ private val DE = Wording(
     live = "Live",
     otherFiles = "weitere Dateien",
     spokenEnglish = "Mit Molière sprichst du weiterhin Englisch.",
+    modeLabel = "Modus",
+    modes = listOf("Präsentieren", "Pantomime"),
+    mimeTitle = "Sprechen ohne Ton.",
+    mimeLine = "Forme die Wörter lautlos vor der Kamera. Molière liest dir von den Lippen ab und spricht jeden Satz laut aus, mit deiner Stimme.",
+    startMiming = "Pantomime starten",
+    stopMiming = "Pantomime beenden",
+    lipReading = "Lippenlesen",
+    lipsReady = "Bereit. Ein Kamerafenster öffnet sich. Leertaste pausiert, V schaltet die Stimme aus, Q beendet.",
+    lipsOn = "Liest dir vor der Kamera von den Lippen ab.",
+    lipsNotSetUp = "Das Lippenlesen ist noch nicht eingerichtet.",
+    runOnce = "Führe diese Befehle einmal im Terminal aus, im Repository von Molière.",
+    lipsLoading = "Das Lippenlesen wird geladen…",
+    mouthWords = "Forme deine Wörter.",
+    readingLips = "Ich lese von deinen Lippen…",
+    couldntRead = "Das konnte ich nicht lesen.",
+    lipsStopped = "Das Lippenlesen hat aufgehört.",
 )
 
 // Swiss French: vous, «» without inner spaces and no space before ? or !, as Swiss print sets them.
@@ -421,6 +472,22 @@ private val FR = Wording(
     live = "En direct",
     otherFiles = "autres fichiers",
     spokenEnglish = "Vous parlez toujours anglais à Molière.",
+    modeLabel = "Mode",
+    modes = listOf("Présenter", "Mime"),
+    mimeTitle = "Parler sans un son.",
+    mimeLine = "Articulez vos mots face à la caméra. Molière lit sur vos lèvres et dit chaque phrase à voix haute, avec votre voix.",
+    startMiming = "Commencer le mime",
+    stopMiming = "Arrêter le mime",
+    lipReading = "Lecture labiale",
+    lipsReady = "Prêt. Une fenêtre de caméra s’ouvre. Espace met en pause, V coupe la voix, Q quitte.",
+    lipsOn = "Lit sur vos lèvres face à la caméra.",
+    lipsNotSetUp = "La lecture labiale n’est pas encore installée.",
+    runOnce = "Lancez ces commandes une fois dans le Terminal, dans le dépôt de Molière.",
+    lipsLoading = "Chargement de la lecture labiale…",
+    mouthWords = "Articulez vos mots.",
+    readingLips = "Je lis sur vos lèvres…",
+    couldntRead = "Je n’ai pas pu lire cela.",
+    lipsStopped = "La lecture labiale s’est arrêtée.",
 )
 
 // Italian as a tool says it: tu, «».
@@ -519,6 +586,22 @@ private val IT = Wording(
     live = "In diretta",
     otherFiles = "altri file",
     spokenEnglish = "A Molière parli sempre in inglese.",
+    modeLabel = "Modalità",
+    modes = listOf("Presentare", "Mimo"),
+    mimeTitle = "Parlare senza suono.",
+    mimeLine = "Articola le parole davanti alla videocamera. Molière legge le tue labbra e dice ogni frase ad alta voce, con la tua voce.",
+    startMiming = "Avvia il mimo",
+    stopMiming = "Ferma il mimo",
+    lipReading = "Lettura labiale",
+    lipsReady = "Pronto. Si apre una finestra della videocamera. Spazio mette in pausa, V spegne la voce, Q esce.",
+    lipsOn = "Legge le tue labbra davanti alla videocamera.",
+    lipsNotSetUp = "La lettura labiale non è ancora installata.",
+    runOnce = "Esegui questi comandi una volta nel Terminale, nel repository di Molière.",
+    lipsLoading = "Carico la lettura labiale…",
+    mouthWords = "Articola le parole.",
+    readingLips = "Leggo le tue labbra…",
+    couldntRead = "Non sono riuscito a leggerlo.",
+    lipsStopped = "La lettura labiale si è fermata.",
 )
 
 // Rumantsch Grischun, ti, «». Written by a non-native: every line wants a native speaker's check.
@@ -617,6 +700,22 @@ private val RM = Wording(
     live = "Live",
     otherFiles = "autras datotecas",
     spokenEnglish = "Cun Molière discurras ti englais.",
+    modeLabel = "Modus",
+    modes = listOf("Preschentar", "Pantomima"),
+    mimeTitle = "Discurrer senza tun.",
+    mimeLine = "Forma ils pleds senza tun davant la camera. Molière legia da tias levzas e di mintga frasa ad auta vusch, cun tia vusch.",
+    startMiming = "Cumenzar la pantomima",
+    stopMiming = "Terminar la pantomima",
+    lipReading = "Lectura da las levzas",
+    lipsReady = "Pront. Ina fanestra da la camera s’avra. Spazi fa pausa, V stizza la vusch, Q terminescha.",
+    lipsOn = "Legia da tias levzas davant la camera.",
+    lipsNotSetUp = "La lectura da las levzas n’è anc betg installada.",
+    runOnce = "Exequescha quests cumonds ina giada en il Terminal, en il repository da Molière.",
+    lipsLoading = "Jau chargiel la lectura da las levzas…",
+    mouthWords = "Forma tes pleds.",
+    readingLips = "Jau legel da tias levzas…",
+    couldntRead = "Quai n’hai jau betg pudì leger.",
+    lipsStopped = "La lectura da las levzas è sa fermada.",
 )
 
 private val WORDING = mapOf(Lang.En to EN, Lang.De to DE, Lang.Fr to FR, Lang.It to IT, Lang.Rm to RM)

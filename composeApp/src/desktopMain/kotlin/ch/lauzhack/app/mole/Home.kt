@@ -35,6 +35,7 @@ import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,6 +79,7 @@ import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.lang
 import ch.lauzhack.app.meeting.Meeting
+import ch.lauzhack.app.session.Mime
 import ch.lauzhack.app.ui
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -102,7 +104,9 @@ internal class Settings(
     val waits: List<Long>,
     val theme: MutableState<MoleTheme>,
     val language: MutableState<Lang?> = mutableStateOf(null), // null follows the system
+    val mode: MutableStateFlow<Mode> = MutableStateFlow(Mode.Present),
 ) {
+    fun mode(m: Mode) = save { mode.value = m; put("mode", m.name) }
     fun decks(dir: File) = save { library.value = dir; put("decks", dir.path) }
     fun history(on: Boolean) = save { history.value = on; putBoolean("history", on) }
     fun window(ms: Long) = save { window.value = ms.milliseconds; putLong("window", ms) }
@@ -156,7 +160,8 @@ internal enum class Page { Home, Say, Settings }
 
 /**
  * What Molière is and what it is doing, what to say to it, and the tray's settings: a rail on the left, a panel with the
- * page. While asleep the bar plays [sample]; in a call, or whenever the bar has something to say, it shows [line].
+ * page. While asleep the bar plays [sample]; in a call, or whenever the bar has something to say, it shows [line]. In
+ * Mime mode the page is [mime]'s instead.
  */
 @Composable
 internal fun Home(
@@ -171,8 +176,12 @@ internal fun Home(
     phone: StateFlow<Boolean>,
     settings: Settings,
     choose: (File) -> File?,
+    mime: Mime,
 ) {
     val theme by settings.theme
+    val mode by settings.mode.collectAsState()
+    val call by meeting.collectAsState()
+    val said = rememberSaid(call, line)
     Themed(theme) {
         val c = LocalMoleColors.current
         val f = frameOf(c)
@@ -180,11 +189,11 @@ internal fun Home(
         val scroll = rememberScrollState()
         Row(Modifier.fillMaxSize().background(f.frame)) {
             Column(Modifier.width(64.dp).fillMaxHeight().padding(top = 4.dp, bottom = 16.dp).selectableGroup(), horizontalAlignment = Alignment.CenterHorizontally) {
-                MolePuppet(MoleState.Idle, null, "", "", Modifier.size(44.dp, 33.dp))
+                if (mode == Mode.Mime) MimeMole(Modifier.size(44.dp, 33.dp)) else MolePuppet(MoleState.Idle, null, "", "", Modifier.size(44.dp, 33.dp))
                 Spacer(Modifier.height(20.dp))
                 RailItem(ui.home, page == Page.Home, Icon.Home) { page = Page.Home }
                 Spacer(Modifier.height(4.dp))
-                RailItem(ui.thingsToSay, page == Page.Say, Icon.Say) { page = Page.Say }
+                if (mode == Mode.Present) RailItem(ui.thingsToSay, page == Page.Say, Icon.Say) { page = Page.Say }
                 Spacer(Modifier.weight(1f))
                 RailItem(ui.settings, page == Page.Settings, Icon.Settings) { page = Page.Settings }
             }
@@ -192,14 +201,17 @@ internal fun Home(
                 Modifier.weight(1f).fillMaxHeight().padding(end = 8.dp, bottom = 8.dp).clip(RoundedCornerShape(16.dp))
                     .background(f.panel).border(1.dp, c.rule, RoundedCornerShape(16.dp)),
             ) {
-                if (page == Page.Settings) SettingsPage(settings, choose)
-                else Overview(meeting, onStart, onEnd, line, onPick, sample, onSample, onScreen, phone, settings, choose, scroll, page == Page.Say) { page = Page.Settings }
+                when (page) {
+                    Page.Settings -> SettingsPage(settings, choose)
+                    Page.Say -> SayPage(said.takeIf { call != null && it.isNotEmpty() })
+                    Page.Home -> Overview(meeting, onStart, onEnd, line, onPick, sample, onSample, onScreen, phone, settings, choose, scroll, mime) { page = Page.Settings }
+                }
             }
         }
     }
 }
 
-internal enum class Icon { Home, Say, Settings, Phone, Screen, Folder }
+internal enum class Icon { Home, Say, Settings, Phone, Screen, Folder, Camera }
 
 internal fun DrawScope.icon(i: Icon, color: Color) {
     val s = size.width / 24f
@@ -216,6 +228,7 @@ internal fun DrawScope.icon(i: Icon, color: Color) {
         Icon.Phone -> { box(7f, 3f, 10f, 18f, 2.5f); seg(11f, 18f, 13f, 18f) }
         Icon.Screen -> { box(3f, 4.5f, 18f, 12f, 2f); seg(12f, 16.5f, 12f, 19.5f); seg(8.5f, 19.5f, 15.5f, 19.5f) }
         Icon.Folder -> scale(s, Offset.Zero) { drawPath(FOLDER, color, style = Stroke(1.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
+        Icon.Camera -> { box(3f, 6f, 13f, 12f, 2.5f); seg(16f, 10.5f, 21f, 7.5f); seg(21f, 7.5f, 21f, 16.5f); seg(21f, 16.5f, 16f, 13.5f) }
     }
 }
 

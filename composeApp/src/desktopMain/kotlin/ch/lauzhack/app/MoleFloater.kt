@@ -39,6 +39,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.isTraySupported
 import androidx.compose.ui.window.rememberWindowState
+import ch.lauzhack.app.mole.Mode
 import ch.lauzhack.app.mole.MoleBar
 import ch.lauzhack.app.mole.MoleColors
 import ch.lauzhack.app.mole.MoleTheme
@@ -58,6 +59,7 @@ internal fun ApplicationScope.MoleFloater(
     onPick: (Int) -> Unit,
     onQuit: () -> Unit,
     theme: MoleTheme = MoleTheme.System,
+    mode: Mode = Mode.Present,
     tray: @Composable MenuScope.() -> Unit = { Item(ui.quit, onClick = onQuit) },
 ) {
     val line by lines.collectAsState()
@@ -108,7 +110,7 @@ internal fun ApplicationScope.MoleFloater(
                 },
             ) {
                 WindowDraggableArea {
-                    FloaterBar(line, onPick, theme) { window.hug(it) }
+                    FloaterBar(line, onPick, theme, mode) { window.hug(it) }
                 }
             }
         }
@@ -117,10 +119,10 @@ internal fun ApplicationScope.MoleFloater(
 
 /** The floater window's content: the bar inside its ring, anchored at the bottom edge; [onBar] gets the bar's size in px. */
 @Composable
-internal fun FloaterBar(line: MoleLine, onPick: (Int) -> Unit, theme: MoleTheme, onBar: (IntSize) -> Unit) {
+internal fun FloaterBar(line: MoleLine, onPick: (Int) -> Unit, theme: MoleTheme, mode: Mode = Mode.Present, onBar: (IntSize) -> Unit) {
     Box(Modifier.fillMaxSize().padding(RING.dp), contentAlignment = Alignment.BottomCenter) {
         // Unbounded: the bar measures as tall as its options, not as the window is, so the window can grow to it.
-        MoleBar(line, onPick, Modifier.wrapContentHeight(Alignment.Bottom, unbounded = true).onSizeChanged(onBar), theme)
+        MoleBar(line, onPick, Modifier.wrapContentHeight(Alignment.Bottom, unbounded = true).onSizeChanged(onBar), theme, mode)
     }
 }
 

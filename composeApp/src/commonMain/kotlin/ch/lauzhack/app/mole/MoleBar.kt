@@ -154,9 +154,10 @@ internal fun rememberWords(line: MoleLine, reduce: Boolean): Words {
     return words
 }
 
-/** The 340 dp overlay bar of mole/mole.css .mole-bar: the mole and its words, and the options panel growing upward above them. */
+/** The 340 dp overlay bar of mole/mole.css .mole-bar: the mole and its words, and the options panel growing upward above
+ * them. In Mime [mode] the mole is the mime. */
 @Composable
-fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier, theme: MoleTheme = MoleTheme.System) = Themed(theme) {
+fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier, theme: MoleTheme = MoleTheme.System, mode: Mode = Mode.Present) = Themed(theme) {
     val c = LocalMoleColors.current
     val reduce = reduceMotion()
     val words = rememberWords(line, reduce)
@@ -182,7 +183,8 @@ fun MoleBar(line: MoleLine, onPick: (Int) -> Unit, modifier: Modifier = Modifier
     ) {
         Options(words, phone = false, enabled = !hidden, onPick)
         Row(Modifier.heightIn(min = 76.dp).padding(start = 10.dp, end = 22.dp), Arrangement.spacedBy(6.dp), Alignment.CenterVertically) {
-            MolePuppet(words.state, line.timeoutMs, words.front, words.back, Modifier.align(Alignment.Bottom).padding(bottom = 9.dp).size(83.dp, 62.dp))
+            val mole = Modifier.align(Alignment.Bottom).padding(bottom = 9.dp).size(83.dp, 62.dp)
+            if (mode == Mode.Mime) MimeMole(mole) else MolePuppet(words.state, line.timeoutMs, words.front, words.back, mole)
             BarWords(words, Modifier.weight(1f).padding(vertical = 10.dp))
             Stop(words, phone = false, enabled = !hidden, onPick, Modifier.padding(start = 8.dp))
         }
