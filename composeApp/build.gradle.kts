@@ -65,5 +65,30 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "ch.lauzhack.app.MainKt"
+        // Menus follow dark mode; no Dock icon, the tray and the floater are the app.
+        jvmArgs("-Dapple.awt.application.appearance=system", "-Dapple.awt.UIElement=true")
+        nativeDistributions {
+            packageName = "Moliere" // codesign fails on the bundle when it is named Molière
+            packageVersion = "1.0.0"
+            modules("java.instrument", "java.management", "java.prefs", "java.sql", "jdk.unsupported") // suggestRuntimeModules
+            macOS {
+                bundleID = "ch.lauzhack.moliere"
+                // The helpers (hear, meet, ssh) are this app's children, so macOS asks on this app's behalf, in these words.
+                infoPlist {
+                    extraKeysRawXml = """
+                        <key>CFBundleDisplayName</key><string>Molière</string>
+                        <key>NSMicrophoneUsageDescription</key><string>Molière listens to what you say in a call to put the right thing on the shared screen.</string>
+                        <key>NSSpeechRecognitionUsageDescription</key><string>Molière turns what you say into text, on this Mac.</string>
+                        <key>NSCalendarsFullAccessUsageDescription</key><string>Molière shows the title of the meeting you are in, from your calendar.</string>
+                        <key>NSCalendarsUsageDescription</key><string>Molière shows the title of the meeting you are in, from your calendar.</string>
+                        <key>NSLocalNetworkUsageDescription</key><string>Molière talks to your phone and to the shared screen on this network.</string>
+                        <key>LSUIElement</key><true/>
+                    """.trimIndent()
+                }
+            }
+        }
     }
 }
+
+// --typed reads lines from the terminal under ./gradlew :composeApp:run too.
+tasks.matching { it.name == "run" }.configureEach { doFirst { (this as JavaExec).standardInput = System.`in` } }
