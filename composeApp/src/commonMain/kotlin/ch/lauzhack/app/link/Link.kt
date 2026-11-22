@@ -27,7 +27,8 @@ sealed interface Link {
     @Serializable @SerialName("meeting") data class Meeting(val title: String) : Link
 
     // Phone to laptop.
-    @Serializable @SerialName("level") data class Level(val db: Float, val speech: Boolean) : Link
+    @Serializable @SerialName("level") data class Level(val db: Float?, val speech: Boolean) : Link
+    @Serializable @SerialName("mic") data class Mic(val ready: Boolean) : Link
     @Serializable @SerialName("words") data class Words(val heard: Heard) : Link
     @Serializable @SerialName("pick") data class Pick(val index: Int) : Link
 }

@@ -33,7 +33,7 @@ class LoopbackTest {
         val line = MutableStateFlow(MoleLine())
         val screen = MutableStateFlow(Link.Screen())
         val meeting = MutableStateFlow("Home insurance review")
-        val laptopDb = MutableStateFlow(-30f)
+        val laptopDb = MutableStateFlow<Float?>(-30f)
         // Loopback only, no beacon: nothing here reaches the network or asks the firewall.
         fun laptop() = PhoneServer(line, screen, meeting, laptopDb, port = port, host = "127.0.0.1", beacon = false).apply { start() }
         var laptop = laptop()
@@ -66,6 +66,15 @@ class LoopbackTest {
                 phone.pick(-1)
                 assertEquals(-1, stop.await())
                 line.value = choice
+
+                // A live connection can outlast either microphone. Keep the controls connected during handoff.
+                laptopDb.value = null
+                phone.mic(true)
+                phone.state.first { it.phoneLeads }
+                phone.mic(false)
+                phone.state.first { it.connected && !it.phoneLeads }
+                laptopDb.value = -30f
+                phone.mic(true)
 
                 // Calibrate at the laptop, then sound 20 dB closer on the phone than on the laptop: ten times as far.
                 val calibrated = async(start = CoroutineStart.UNDISPATCHED) { laptop.levels.take(CALIBRATION).count() }

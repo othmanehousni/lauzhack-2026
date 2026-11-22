@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -183,9 +184,15 @@ class Laptop(
                 }
             }
         }
-        val laptopDb = ear?.level?.map { 20 * log10(maxOf(it, 1e-5f)) }?.stateIn(this, SharingStarted.Eagerly, -100f) ?: MutableStateFlow(-100f)
+        // A missing or stalled helper produces no samples. Real silence still has a measured level.
+        @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+        val laptopDb = ear?.level?.transformLatest<Float, Float?> { rms ->
+            emit(20 * log10(maxOf(rms, 1e-5f)))
+            delay(1500.milliseconds)
+            emit(null)
+        }?.stateIn(this, SharingStarted.Eagerly, null) ?: MutableStateFlow<Float?>(null)
         val screen = MutableStateFlow(Link.Screen())
-        val phones = PhoneServer(mole.line, screen, title, laptopDb)
+        val phones = PhoneServer(mole.line, screen, title, laptopDb, usePhoneMic = typed == null && audio.isEmpty())
         phones.start()
         try {
             val s = Session(logged(agent), desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone }, window = window)

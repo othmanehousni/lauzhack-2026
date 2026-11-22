@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.wifi.WifiManager
 import android.os.CombinedVibration
-import android.os.SystemClock
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.VibratorManager
@@ -22,6 +21,8 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -42,22 +43,27 @@ class Phone(context: Context, scope: CoroutineScope) {
         },
         beacon = { withContext(Dispatchers.IO) { hearBeacon(app) } },
     )
-    private var levelAt = 0L
-    private val ears = Ears(app, client::words) { db, speech ->
-        val now = SystemClock.elapsedRealtime()
-        if (now - levelAt >= 100) { // 10 Hz, the rate the lead policy is tuned for
-            levelAt = now
-            client.level(db, speech)
-        }
-    }
+    private val foregroundMic = MutableStateFlow(false)
+    private val ears = Ears(app, client::words, client::level, client::mic)
 
     val state: StateFlow<PhoneState> = client.state
     var manual: String? by client::manual // "host" or "host:port", tried when nothing else answers
 
     fun onPick(index: Int) = client.pick(index)
-    fun listen(on: Boolean) = if (on) ears.start() else ears.stop()
+    fun listen(on: Boolean) {
+        foregroundMic.value = on
+        if (!on) ears.stop()
+    }
 
     init {
+        scope.launch(Dispatchers.Main.immediate) {
+            try {
+                combine(foregroundMic, state) { allowed, phone -> allowed && phone.connected }
+                    .distinctUntilChanged().collect { if (it) ears.start() else ears.stop() }
+            } finally {
+                ears.stop()
+            }
+        }
         val vibrator = app.getSystemService(VibratorManager::class.java)
         // Asked for like a call: these short effects would count as touch feedback, which Android drops while the app is
         // in the background or the phone locked, in battery saver, and with touch feedback turned off.

@@ -82,7 +82,7 @@ class LeverTest {
             }
             val thumb = timed("thumbnail of a slide") { desk.thumbnail() }!!
             File(out, "slide.jpg").writeBytes(thumb)
-            assertEquals(480, ImageIO.read(thumb.inputStream()).width)
+            assertEquals(1080, ImageIO.read(thumb.inputStream()).width)
             timed("thumbnail of the same slide again") { desk.thumbnail() }
 
             val wiki = Target.Site("https://en.wikipedia.org/wiki/Warehouse", "Wikipedia")

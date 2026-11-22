@@ -8,23 +8,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
@@ -68,9 +68,7 @@ fun MolePhone(
     }
     val reduce = reduceMotion()
     val words = rememberWords(shown, reduce)
-    val bottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
     Column(modifier.fillMaxSize().background(c.paper).safeDrawingPadding()) {
-        // Fixed heights, so the mole stays put as the header and the screen row come and go with the laptop.
         Row(Modifier.fillMaxWidth().height(52.dp).padding(start = 20.dp, end = 16.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             if (connected) {
                 Column(Modifier.weight(1f)) {
@@ -80,40 +78,38 @@ fun MolePhone(
                 Mic(phoneLeads)
             }
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            // As the options open the centred column grows, so the mole glides up to make room.
-            Column(Modifier.fillMaxSize().padding(horizontal = 4.dp), Arrangement.Center, Alignment.CenterHorizontally) {
-                MolePuppet(words.state, shown.timeoutMs, words.front, words.back, Modifier.width(200.dp).aspectRatio(154f / 114.8f))
-                Spacer(Modifier.height(12.dp))
-                Title(words, type(22f, 28f, 600, -.396f, c.ink), TextAlign.Center)
-                val second = Modifier.padding(top = 4.dp).height(20.dp)
-                if (connected) Heard(words, type(14f, 20f, 400, -.084f, c.heard), type(14f, 20f, 400, -.084f, c.hint), second, TextAlign.Center)
-                // The laptop serves the phone only during a call, so one asleep and one out of reach look the same from here.
-                else BasicText("Connects while your laptop is in a call.", second.fillMaxWidth(), type(14f, 20f, 400, -.084f, c.hint).copy(textAlign = TextAlign.Center), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
-                Options(words, phone = true, enabled = true, onPick)
-            }
-            // A thumb's target, low on the screen where the options would open; it floats, so the mole stays put.
-            Stop(words, phone = true, enabled = true, onPick, Modifier.align(Alignment.BottomCenter).padding(start = 14.dp, end = 14.dp, bottom = 16.dp).fillMaxWidth())
-        }
-        Row(
-            Modifier
-                .padding(start = 12.dp, end = 12.dp, bottom = maxOf(28.dp - bottom, 12.dp))
-                .fillMaxWidth()
-                .padding(8.dp)
-                .height(49.5.dp),
-            Arrangement.spacedBy(12.dp),
-            Alignment.CenterVertically,
+        val preview = thumbnail.takeIf { connected }
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 4.dp),
+            Arrangement.Center,
+            Alignment.CenterHorizontally,
         ) {
-            if (connected && (thumbnail != null || onScreenName.isNotEmpty())) {
-                val thumb = RoundedCornerShape(12.dp)
-                // The border draws over the slide, as the web's inset ring does.
-                Box(Modifier.size(88.dp, 49.5.dp).clip(thumb).background(Deck).border(1.dp, c.outline, thumb)) {
-                    thumbnail?.let { Image(it, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop) }
-                }
-                Column(Modifier.weight(1f)) {
+            MolePuppet(words.state, shown.timeoutMs, words.front, words.back, Modifier.width(if (preview == null) 200.dp else 128.dp).aspectRatio(154f / 114.8f))
+            Spacer(Modifier.height(12.dp))
+            Title(words, type(22f, 28f, 600, -.396f, c.ink), TextAlign.Center)
+            val second = Modifier.padding(top = 4.dp).height(20.dp)
+            if (connected) Heard(words, type(14f, 20f, 400, -.084f, c.heard), type(14f, 20f, 400, -.084f, c.hint), second, TextAlign.Center)
+            // The laptop serves the phone only during a call, so one asleep and one out of reach look the same from here.
+            else BasicText("Connects while your laptop is in a call.", second.fillMaxWidth(), type(14f, 20f, 400, -.084f, c.hint).copy(textAlign = TextAlign.Center), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+            Options(words, phone = true, enabled = true, onPick)
+        }
+        Stop(words, phone = true, enabled = true, onPick, Modifier.padding(horizontal = 14.dp, vertical = 8.dp).fillMaxWidth())
+        if (connected && (preview != null || onScreenName.isNotEmpty())) {
+            Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp), Arrangement.spacedBy(4.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     BasicText("On screen", style = type(12f, 16f, 400, color = c.muted))
-                    // The laptop names nothing while its bare desktop is up.
-                    BasicText(onScreenName.ifEmpty { if (thumbnail != null) "The desktop" else "" }, style = type(15f, 20f, 500, -.135f, c.ink), overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1)
+                    BasicText(onScreenName.ifEmpty { "The desktop" }, style = type(15f, 20f, 500, -.135f, c.ink), overflow = TextOverflow.Ellipsis, maxLines = 1)
+                }
+                if (preview != null) {
+                    val shape = RoundedCornerShape(12.dp)
+                    BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
+                        Image(
+                            preview, "Shared screen",
+                            Modifier.fillMaxWidth().height(minOf(maxWidth * (9f / 16f), maxHeight))
+                                .clip(shape).background(Deck).border(1.dp, c.outline, shape),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
                 }
             }
         }

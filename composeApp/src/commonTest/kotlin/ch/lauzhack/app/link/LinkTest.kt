@@ -19,6 +19,8 @@ class LinkTest {
             Link.Meeting("Home insurance review"),
             Link.Level(db = 6.5f, speech = true),
             Link.Words(Heard("the second one", ended = true)),
+            Link.Mic(false),
+            Link.Level(db = null, speech = true),
             Link.Pick(1),
         )
         for (message in messages) assertEquals(message, decode(message.encode()))

@@ -49,14 +49,16 @@ class PhoneServer(
     private val line: StateFlow<MoleLine>,
     screen: StateFlow<Link.Screen>,
     meeting: StateFlow<String>,
-    private val laptopDb: StateFlow<Float>,
+    private val laptopDb: StateFlow<Float?>,
     private val port: Int = PORT,
     private val host: String = "0.0.0.0",
     private val beacon: Boolean = true,
+    private val usePhoneMic: Boolean = true,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val phones = MutableStateFlow(0)
-    private val walk = MutableStateFlow(Walk()) // kept across reconnects: the gains do not change
+    private data class Input(val socket: DefaultWebSocketServerSession, val walk: Walk)
+    private val input = MutableStateFlow<Input?>(null)
     private val _words = MutableSharedFlow<Heard>(extraBufferCapacity = 64)
     private val _levels = MutableSharedFlow<Link.Level>(extraBufferCapacity = 64)
     private val _picks = MutableSharedFlow<Int>(extraBufferCapacity = 8)
@@ -65,7 +67,13 @@ class PhoneServer(
     val levels: SharedFlow<Link.Level> = _levels
     val picks: SharedFlow<Int> = _picks
     val connected: StateFlow<Boolean> = phones.map { it > 0 }.stateIn(scope, SharingStarted.Eagerly, false)
-    val lead: StateFlow<Link.Lead> = combine(walk, phones) { w, n -> if (n > 0) w.lead else Link.Lead() }.stateIn(scope, SharingStarted.Eagerly, Link.Lead())
+    val lead: StateFlow<Link.Lead> = combine(input, laptopDb) { active, db ->
+        when {
+            active == null || !usePhoneMic -> Link.Lead()
+            db == null -> active.walk.lead.copy(phone = true)
+            else -> active.walk.lead
+        }
+    }.stateIn(scope, SharingStarted.Eagerly, Link.Lead())
 
     private val pushes = merge(line.map { Link.Line(it) }, screen, lead, meeting.map { Link.Meeting(it) })
 
@@ -95,25 +103,42 @@ class PhoneServer(
 
     private suspend fun DefaultWebSocketServerSession.serve() {
         phones.update { it + 1 }
+        var walk = Walk()
+        fun report(ready: Boolean) {
+            input.update { active ->
+                when {
+                    active != null && active.socket !== this -> active
+                    ready -> Input(this, walk)
+                    else -> null
+                }
+            }
+        }
         val push = launch { pushes.collect { send(Frame.Text(it.encode())) } }
         try {
             for (frame in incoming) {
                 if (frame !is Frame.Text) continue
                 when (val message = decode(frame.readText())) {
-                    is Link.Words -> _words.emit(message.heard)
+                    is Link.Mic -> report(message.ready)
+                    is Link.Words -> {
+                        report(true)
+                        if (input.value?.socket === this) _words.emit(message.heard)
+                    }
                     // Anything on the Wi-Fi can connect, so a pick counts only for an option on offer now, and a stop (-1)
                     // only while a choice or an announce is up.
                     is Link.Pick -> line.value.let { l ->
                         if ((l.state == MoleState.Choosing || l.state == MoleState.Retrieving) && message.index in -1 until l.options.size) _picks.emit(message.index)
                     }
                     is Link.Level -> {
-                        if (message.speech) walk.update { it.next(laptopDb.value, message.db) }
+                        val db = laptopDb.value
+                        if (message.speech && db != null) walk = walk.next(db, message.db)
+                        report(true)
                         _levels.emit(message)
                     }
                     else -> Unit
                 }
             }
         } finally {
+            report(false)
             push.cancel()
             phones.update { it - 1 }
         }

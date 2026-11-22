@@ -68,7 +68,8 @@ class LaptopClient(
 
     fun pick(index: Int) = send(Link.Pick(index))
     fun words(heard: Heard) = send(Link.Words(heard))
-    fun level(db: Float, speech: Boolean) = send(Link.Level(db, speech))
+    fun mic(ready: Boolean) = send(Link.Mic(ready))
+    fun level(db: Float?, speech: Boolean) = send(Link.Level(db, speech))
 
     private fun send(message: Link) {
         session?.outgoing?.trySend(Frame.Text(message.encode()))
@@ -106,7 +107,7 @@ class LaptopClient(
                 is Link.Screen -> it.copy(onScreenName = message.name, thumbnail = thumbnail)
                 is Link.Lead -> it.copy(phoneLeads = message.phone, metres = message.metres)
                 is Link.Meeting -> it.copy(meeting = message.title)
-                is Link.Level, is Link.Words, is Link.Pick -> it
+                is Link.Level, is Link.Mic, is Link.Words, is Link.Pick -> it
             }
         }
     }
