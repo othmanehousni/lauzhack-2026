@@ -34,12 +34,17 @@ private val LANDS = ANNOUNCE + 1500.milliseconds
 private val JOIN = 2.seconds
 private const val JOINED = 2 // utterances one goes on from, at most
 
+/** A pick is sure when it leads every other candidate by [SURE] and scores at least [MATCH], what unrelated items do
+ * not reach (rehearsal/sure.py: no wrong pick of the scored runs was both). */
+private const val SURE = 0.04
+private const val MATCH = 0.75
+
 /**
  * The agent of tune/CONTRACT.md: [catalog] retrieves the candidates with [embedder], [model] answers one line of the
  * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
- * and the answer becomes a [Move]. An item picked by meaning (`show`, `open`, `search`) is announced as a [Move.Ask] of
- * it, so that a "no" can stop it; until it is on screen, the agent decides on every word and acts on an `undo` that two
- * partial decisions agree on. Otherwise it decides every two words, and at once when the voice stops ([Heard.quiet])
+ * and the answer becomes a [Move]. An item picked by meaning (`show`, `open`, `search`) is a [Move.Ask] of it, with how
+ * long it waits for a "no" that would stop it; until it is on screen, the agent decides on every word and acts on an
+ * `undo` that two partial decisions agree on. Otherwise it decides every two words, and at once when the voice stops ([Heard.quiet])
  * or a sentence ends with more after it ([Heard.more], never decided as done), unless it has decided on those words
  * already: then the answer it gave acts without asking the model again. Calls
  * run one at a time, and words newer than those of a decision in flight drop it.
@@ -142,7 +147,7 @@ class ModelAgent(
         val said = model(prompt(s), if (done) g else null).trim().also { answer = it }.takeIf { Regex(g).matches(it) } ?: "nothing"
         u.text = heard.text
         u.words = words
-        val move = move(said, s, cat)
+        val move = move(said, s, cat, score)
         if (!done) {
             val agreed = heard.quiet || move == u.guess // the model reads "next" into "Sorry, sorry." even as words go on
             u.said = said
@@ -252,12 +257,13 @@ class ModelAgent(
         }
     }
 
-    /** What an answer of the grammar does, per the contract's table and Contract.kt's moves. */
-    private fun move(said: String, s: State, cat: Catalog): Move {
+    /** What an answer of the grammar does, per the contract's table and Contract.kt's moves, with [score] for each
+     * catalog item. */
+    private fun move(said: String, s: State, cat: Catalog, score: DoubleArray): Move {
         val arg = said.substringAfter(' ', "")
         val now = front ?: stage
         fun show(c: Item?) = if (c == null || same(c.target, now?.target)) Move.Nothing else Move.Show(c.target)
-        fun pick(c: Item?) = show(c).let { if (it is Move.Show) Move.Ask(listOf(it.target)) else it }
+        fun pick(c: Item?) = show(c).let { if (it is Move.Show) Move.Ask(listOf(it.target), doubt(c!!, s.candidates, cat, score)) else it }
         val deck = u.deck ?: u.last ?: cat.firstSlide
         fun page(p: Int) = deck?.let { cat.slide(it.target.deck, p) }
         return when (said.substringBefore(' ')) {
@@ -277,6 +283,19 @@ class ModelAgent(
             "close" -> Move.Control("close")
             "undo" -> Move.Undo
             else -> Move.Nothing
+        }
+    }
+
+    /** How much of the presenter's window a pick of [c] waits: none when it is sure, half when it is the best of the
+     * [candidates] and scores as a match does, all of it for a guess, and for an address or a search, which no score
+     * backs. */
+    private fun doubt(c: Item, candidates: List<Item>, cat: Catalog, score: DoubleArray): Double {
+        val s = cat.score(c, score) ?: return 1.0
+        val lead = s - (candidates.filter { it != c }.mapNotNull { cat.score(it, score) }.maxOrNull() ?: return 1.0)
+        return when {
+            s < MATCH || lead <= 0 -> 1.0
+            lead >= SURE -> 0.0
+            else -> 0.5
         }
     }
 }

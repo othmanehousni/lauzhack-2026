@@ -1,6 +1,7 @@
 package ch.lauzhack.app.stage
 
 import ch.lauzhack.app.Heard
+import ch.lauzhack.app.LOGS
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
@@ -21,6 +22,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStream
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -75,13 +78,16 @@ class Ear(private val data: File = DATA) {
      * cancelled. With `files`, it hears those instead of the microphone, at the pace they would be spoken. */
     suspend fun listen(names: List<String>, files: List<File> = emptyList()) = withContext(Dispatchers.IO) {
         val log = File(data, "hear.log")
-        val p = ProcessBuilder(listOf(built().path) + files.map { it.path }).redirectError(log).start()
+        val keep = System.getenv("HEAR_KEEP")?.let(::File) ?: if (files.isEmpty()) recording() else null
+        val p = ProcessBuilder(listOf(built().path) + files.map { it.path }).redirectError(log)
+            .apply { if (keep != null) environment()["HEAR_KEEP"] = keep.path }.start()
         p.outputStream.bufferedWriter().use { w -> names.map(String::trim).filter(String::isNotEmpty).forEach { w.write(it + "\n") }; w.write("\n") }
         val code = try {
             read(p.inputStream.bufferedReader())
             p.waitFor()
         } finally {
             p.destroy()
+            if (keep?.isFile == true) ch.lauzhack.app.log("ear: recorded ${keep.name}, ${exec(listOf("afinfo", keep.path), check = false).substringAfter("estimated duration: ").substringBefore(" ")} s")
         }
         if (code != 0) error("hear.swift stopped with code $code: ${log.readText().trim()}")
     }
@@ -102,6 +108,14 @@ class Ear(private val data: File = DATA) {
             }
         }
     }
+}
+
+/** A new file in [dir] for what the microphone hears, named by the time, once the oldest beyond [budget] bytes are deleted. */
+internal fun recording(dir: File = File(LOGS, "audio"), budget: Long = 500_000_000): File {
+    dir.mkdirs()
+    var total = 0L
+    for (f in dir.listFiles().orEmpty().sortedByDescending { it.name }) { total += f.length(); if (total > budget) f.delete() }
+    return File(dir, LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")) + ".caf")
 }
 
 internal val WORD = 400.milliseconds  // 150 words a minute

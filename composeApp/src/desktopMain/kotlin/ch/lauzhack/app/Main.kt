@@ -3,6 +3,7 @@ package ch.lauzhack.app
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -14,17 +15,22 @@ import ch.lauzhack.app.decider.ModelBrain
 import ch.lauzhack.app.engine.desktopEngines
 import ch.lauzhack.app.meeting.MeetingDetector
 import ch.lauzhack.app.mole.Demo
+import ch.lauzhack.app.mole.Home
+import ch.lauzhack.app.mole.HomeWindow
 import ch.lauzhack.app.mole.MoleTheme
 import ch.lauzhack.app.mole.Playground
+import ch.lauzhack.app.mole.Settings
 import ch.lauzhack.app.session.Laptop
 import ch.lauzhack.app.session.ANNOUNCE
 import ch.lauzhack.app.session.RulesBrain
 import ch.lauzhack.app.session.hasDecks
+import ch.lauzhack.app.session.replayed
 import ch.lauzhack.app.stage.HOME
 import ch.lauzhack.app.stage.typed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -55,12 +61,15 @@ import kotlin.time.Duration.Companion.seconds
  *   --paced       with --typed, each line comes as speech does: word by word at 150 words a minute, then finished
  *   --audio FILE… the ear hears these audio files (or every one in a folder), in order, instead of the microphone;
  *                 starts a meeting, and keeps the screens as --typed does
- *   --window MS   how long an announce waits before it is shown, for this run (the tray's Wait before showing)
+ *   --window MS   the longest a pick waits before it is shown, for a guess; a sure one is shown at once, for this
+ *                 run (the tray's Wait before showing)
  *   --library DIR the decks for this run instead of the chosen folder
  *   --host        a Chrome window on this Mac as the shared screen instead of the VM
  *   --rules       the rules decide even when decider.litertlm is in the models folder
  *   --no-history  no browser history for this run, whatever the tray says
  *   --models DIR  another folder of models for this run (to compare a decider without replacing the installed one)
+ *   --replay      what an ear heard, as hear.swift's lines on standard input, decided as in a call on a screen that only
+ *                 follows the moves: no VM, Chrome, phone, window, log file, nor this Mac's files and pages (rehearsal/replay.py)
  */
 fun main(args: Array<String>) {
     if ("--playground" in args || "--demo" in args) return application {
@@ -71,7 +80,8 @@ fun main(args: Array<String>) {
         else MoleFloater(demo.lines, demo::pick, onQuit = ::exitApplication)
     }
 
-    teeToLog()
+    val replay = "--replay" in args
+    if (!replay) teeToLog() // another app may be running and writing it
     val prefs = Preferences.userRoot().node("ch/lauzhack/moliere")
     val library = MutableStateFlow(File(args.after("--library") ?: prefs.get("decks", File(HOME, "Documents/Moliere").path)).absoluteFile)
     library.value.mkdirs()
@@ -91,7 +101,7 @@ fun main(args: Array<String>) {
             }
         }
         lines.receiveAsFlow()
-    } else null
+    } else if (replay) replayed(System.`in`) else null
     when {
         typed != null -> detector.start("Typed lines")
         audio.isNotEmpty() -> detector.start("Audio files")
@@ -111,21 +121,31 @@ fun main(args: Array<String>) {
         typed = typed,
         audio = audio,
         window = window,
-        shots = if (typed != null || audio.isNotEmpty()) File(LOGS, "screens").also { it.deleteRecursively() } else null,
+        shots = if (!replay && (typed != null || audio.isNotEmpty())) File(LOGS, "screens").also { it.deleteRecursively() } else null,
+        dry = replay,
     )
-    log("Molière: decks in ${library.value}, ${if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, " +
-        "${if (typed != null) "typed lines" else if (audio.isNotEmpty()) "${audio.size} audio files" else "the microphone"}, " +
+    log("Molière: decks in ${library.value}, ${if (replay) "nothing" else if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, " +
+        "${if (replay) "what an ear heard" else if (typed != null) "typed lines" else if (audio.isNotEmpty()) "${audio.size} audio files" else "the microphone"}, " +
         "${if (model) "the model decides" else "the rules decide"}, browser history ${if (history.value) "on" else "off"}, " +
-        "announces wait ${window.value.inWholeMilliseconds} ms")
+        "picks wait up to ${window.value.inWholeMilliseconds} ms")
+    if (replay) runBlocking { awaitCancellation() }
 
     application {
-        var theme by remember { mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System)) }
+        val settings = remember { Settings(prefs, library, history, window, WAITS, mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System))) }
+        var theme by settings.theme
+        // Opens with the app but not for a scripted run, which may run while someone works on this Mac.
+        var home by remember { mutableIntStateOf(if (typed == null && audio.isEmpty()) 1 else 0) }
+        if (home > 0) HomeWindow(home, { home = 0 }, theme) { demo ->
+            Home(detector.meeting, { detector.start("Meeting") }, detector::stop, laptop.line, laptop::onPick, demo.lines, demo::pick,
+                laptop.onScreen, laptop.phone, if (model) 2 else 1, settings, ::chooseFolder)
+        }
         val meeting by detector.meeting.collectAsState()
         val lib by library.collectAsState()
         val browsing by history.collectAsState()
         val wait by window.collectAsState()
         val empty by produceState(false, lib) { while (true) { value = !hasDecks(lib); delay(3.seconds) } }
         MoleFloater(laptop.line, laptop::onPick, ::exitApplication, theme) {
+            Item("Open Molière", onClick = { home++ })
             if (meeting == null) Item("Start a meeting", onClick = { detector.start("Meeting") })
             else Item("End the meeting", onClick = detector::stop)
             Separator()
@@ -166,7 +186,7 @@ fun main(args: Array<String>) {
 
 private fun Array<String>.after(flag: String) = getOrNull(indexOf(flag).takeIf { it >= 0 }?.plus(1) ?: -1)
 
-private val WAITS = listOf("2.5 seconds" to 2500L, "1.5 seconds" to 1500L, "None" to 0L)
+private val WAITS = listOf("Up to 2.5 seconds" to 2500L, "Up to 1.5 seconds" to 1500L, "None" to 0L) // a sure pick is shown at once
 
 /** The files after --audio, up to the next flag; a folder is every audio file in it, by name. */
 private fun audio(args: Array<String>): List<File> =

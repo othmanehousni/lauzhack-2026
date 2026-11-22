@@ -1,0 +1,35 @@
+# a deck, then its ends by name
+Okay, can we start with the company slides? || slide Company_Overview 1
+Jump to the final slide. || slide Company_Overview 10
+Take us to the very first slide. || slide Company_Overview 1
+And now the last slide, please. || slide Company_Overview 10
+# talk that sounds like a command
+I keep putting that off. || keep
+We pushed the launch off to the spring. || keep
+Next time I'll bring the numbers. || keep
+# one word after a filler
+Go to slide ten. || slide Company_Overview 10
+Right. Back. || slide Company_Overview 9
+Hmm. Back. || slide Company_Overview 8
+Okay. Next. || slide Company_Overview 9
+# a few words the recognizer garbled
+Uh tissue. || keep
+Ya so. || keep
+# a weak match by meaning
+So many colors. || keep
+Lots of pictures today. || keep
+# a no as the recognizer writes it, while the bar announces
+Go to slide nine. || slide Company_Overview 9
+@0.5
+Let me show you the market size. || announce
+@6
+Oh, know, know. || slide Company_Overview 9 stopped
+@0.5
+Here is how we stack up against the competition. || announce
+@6
+Now, now, not that. || slide Company_Overview 9 stopped
+# a request after filler, a query with no verb, a stutter
+Pull up Google, please. || site google.com
+Uh-huh. Right, so the... Search dog pictures on Google Images. || site dog
+Puppy photos on Google Images. || site puppy
+Search, search for red pandas. || site red+pandas

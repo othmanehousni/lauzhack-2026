@@ -4,6 +4,7 @@ import ai.koog.embeddings.base.Embedder
 import ch.lauzhack.app.Agent
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleLine
+import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.agent.Catalog
 import ch.lauzhack.app.agent.Embeddings
@@ -12,6 +13,7 @@ import ch.lauzhack.app.agent.MoleAgent
 import ch.lauzhack.app.agent.SlideText
 import ch.lauzhack.app.decider.ModelAgent
 import ch.lauzhack.app.link.Link
+import ch.lauzhack.app.link.PORT
 import ch.lauzhack.app.link.PhoneServer
 import ch.lauzhack.app.log
 import ch.lauzhack.app.stage.AgentDesktop
@@ -82,14 +84,24 @@ class Laptop(
     private val audio: List<File> = emptyList(),
     private val window: StateFlow<Duration> = MutableStateFlow(ANNOUNCE),
     private val shots: File? = null, // where a checked run keeps what the audience saw after each change, as PNGs
+    private val dry: Boolean = false, // a replay: no VM, Chrome or phone, a screen that only follows the moves (Dry.kt)
 ) {
     private val work = CoroutineScope(scope.coroutineContext + Dispatchers.Default.limitedParallelism(1)) // the session's state is one thread's
     private val mole = Mole(work)
-    private var desk = AgentDesktop(library.value, sandbox, history = history.value)
+    private var desk = newDesk(library.value, history.value)
     private var deskFor = library.value to history.value
     private val session = MutableStateFlow<Session?>(null)
 
     val line: StateFlow<MoleLine> = mole.line
+
+    private val seen = MutableStateFlow(OnScreen())
+    private val phoned = MutableStateFlow(false)
+
+    /** What the audience sees; the bare desktop outside a call. */
+    val onScreen: StateFlow<OnScreen> = seen
+
+    /** Whether a phone is connected; never outside a call. */
+    val phone: StateFlow<Boolean> = phoned
 
     fun onPick(index: Int) {
         session.value?.pick(index)
@@ -146,7 +158,7 @@ class Laptop(
             while (!hasDecks(lib)) delay(2.seconds)
         }
         if (wants != deskFor) {
-            desk = AgentDesktop(lib, sandbox, history = h)
+            desk = newDesk(lib, h)
             deskFor = wants
         }
         val desk = desk
@@ -185,16 +197,17 @@ class Laptop(
         }
         val laptopDb = ear?.level?.map { 20 * log10(maxOf(it, 1e-5f)) }?.stateIn(this, SharingStarted.Eagerly, -100f) ?: MutableStateFlow(-100f)
         val screen = MutableStateFlow(Link.Screen())
-        val phones = PhoneServer(mole.line, screen, title, laptopDb)
+        val phones = PhoneServer(mole.line, screen, title, laptopDb, port = if (dry) 0 else PORT, host = if (dry) "127.0.0.1" else "0.0.0.0", beacon = !dry)
         phones.start()
         try {
-            val s = Session(logged(agent), desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone }, window = window)
+            val s = Session(logged(agent), if (dry) DryScreen() else desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone }, window = window)
             session.value = s
             launch { phones.picks.collect(s::pick) }
-            launch { phones.connected.collect { log(if (it) "phone connected" else "no phone") } }
+            launch { phones.connected.collect { phoned.value = it; log(if (it) "phone connected" else "no phone") } }
             launch {
                 s.onScreen.collectLatest { shown -> // again once a tab that just opened has drawn
                     log("screen  ${shown.target ?: "the desktop"}  ${shown.name}")
+                    seen.value = shown
                     repeat(2) {
                         val thumb = quietly { desk.thumbnail() }
                         screen.value = Link.Screen(shown.name, thumb)
@@ -206,10 +219,14 @@ class Laptop(
             s.run()
         } finally {
             session.value = null
+            seen.value = OnScreen()
+            phoned.value = false
             phones.stop()
             log("meeting over")
         }
     }
+
+    private fun newDesk(lib: File, h: Boolean) = if (dry) dryDesk(lib) else AgentDesktop(lib, sandbox, history = h)
 
     private var shotCount = 0
 

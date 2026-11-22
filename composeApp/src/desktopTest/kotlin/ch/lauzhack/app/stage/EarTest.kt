@@ -6,6 +6,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -45,5 +46,14 @@ class EarTest {
         assertEquals("''", quote(""))
         assertEquals("'it'\"'\"'s'", quote("it's"))
         assertEquals("open -a 'Google Chrome' '\$HOME'", quote(listOf("open", "-a", "Google Chrome", "\$HOME")))
+    }
+
+    @Test
+    fun keepsTheNewestRecordingsUpToTheBudget() {
+        val dir = Files.createTempDirectory("audio").toFile()
+        listOf("2026-11-20_10-00-00", "2026-11-21_10-00-00", "2026-11-22_10-00-00").forEach { File(dir, "$it.caf").writeBytes(ByteArray(40)) }
+        val next = recording(dir, budget = 100)
+        assertEquals(listOf("2026-11-21_10-00-00.caf", "2026-11-22_10-00-00.caf"), dir.list()!!.sorted())
+        assertEquals(dir, next.parentFile)
     }
 }

@@ -52,7 +52,8 @@ interface SharedScreen {
 
 internal val THINK = 1.seconds // an agent slower than this over new words shows the mole thinking
 internal val UNDO = 20.seconds // how long "no, not that" takes back what just went up: room to notice, say so and be heard
-internal val ANNOUNCE = 2500.milliseconds // how long an announce can be stopped before it is shown, unless the presenter chose otherwise
+internal val ANNOUNCE = 2500.milliseconds // how long a guess can be stopped before it is shown, unless the presenter chose otherwise
+internal val FLOOR = 1.seconds // the shortest wait: one nobody can stop in time is a delay, not a chance to say no
 internal val STALL = 5.seconds // a screen call that has not answered by then has failed
 private const val EARLIER = 3  // utterances handed to the agent with each one
 private val SPACE = Regex("\\s+")
@@ -62,9 +63,11 @@ private val SPACE = Regex("\\s+")
  * saying and what the audience sees, and carries the move out on [agentDesktop] at once, telling [mole] what really
  * happens. Words come from [laptop], or from [phone] while [phoneLeads]. Moves reach the screen one at a time, in the
  * order they were decided, each call failing after [STALL]; the agent keeps deciding meanwhile. An [Move.Ask] of one
- * target is announced and shown once [window] has run, unless the presenter stops it ([Move.Undo], or [pick] of a
- * negative index), or at once with no window; several are a choice. It keeps what is on screen and what was there
- * before, the offer in play, the presenter's picks, and the last few utterances. Run it on one thread: its state
+ * target is shown at once when the agent is sure, else announced and shown once its doubt of [window] has run (at
+ * least [FLOOR]), unless the presenter stops it ([Move.Undo], or [pick] of a negative index); with no window, at once.
+ * A target stopped or taken back is given the whole window when it is asked for again within [UNDO]. Several are a
+ * choice. It keeps what is on screen and what was there before, the offer in play, the presenter's picks, and the last
+ * few utterances. Run it on one thread: its state
  * changes between suspensions.
  */
 class Session(
@@ -94,6 +97,7 @@ class Session(
     private var before: Pair<OnScreen, TimeMark>? = null // what the last change replaced, and when
     private var offer = emptyList<Target>()            // a choice, in play while the mole shows it
     private var coming: Coming? = null                 // announced, shown when its window ends
+    private var refused: Pair<Target, TimeMark>? = null // the last target stopped or taken back, and when
     private val picks = mutableMapOf<Set<Target>, Target>() // the presenter's answer to each choice offered
     private val taps = Channel<Int>(Channel.UNLIMITED)
     private val turn = Mutex()                         // one move at a time, in order, from the loop, a tap or a window ending
@@ -138,7 +142,7 @@ class Session(
 
     private suspend fun CoroutineScope.act(move: Move, said: String) = when (move) {
         is Move.Show -> show(move.target, said)
-        is Move.Ask -> ask(move.options, said)
+        is Move.Ask -> ask(move.options, said, move.doubt)
         is Move.Control -> control(move.name, said)
         Move.Wait -> mole.on(Event.Wait(waiting(said), said))
         Move.Unsure -> mole.on(Event.Unsure(said))
@@ -198,7 +202,7 @@ class Session(
         change(showing(target, i, options.size, first), said, undoable = true) { agentDesktop.show(target) }
     }
 
-    private suspend fun CoroutineScope.ask(options: List<Target>, said: String) {
+    private suspend fun CoroutineScope.ask(options: List<Target>, said: String, doubt: Double) {
         picks[options.toSet()]?.let { return show(it, said, first = "Same as before: ${name(it)}.") }
         if (options.size > 1) {
             if (offered() == options) return
@@ -208,8 +212,10 @@ class Session(
         }
         val t = options[0]
         if (same(t, coming?.target) || same(t, onScreen.value.target)) return
-        val w = window.value
-        if (w <= Duration.ZERO) return show(t, said)
+        val turnedDown = refused?.let { (r, at) -> same(r, t) && at.elapsedNow() <= UNDO } == true
+        val most = window.value
+        if (most <= Duration.ZERO || doubt <= 0 && !turnedDown) return show(t, said, first = "Showing ${name(t)}")
+        val w = (most * if (turnedDown) 1.0 else doubt).coerceIn(minOf(FLOOR, most), most)
         val c = Coming(t, said)
         coming = c
         offer = emptyList()
@@ -223,6 +229,7 @@ class Session(
     /** Turns down the choice or the announce in play: nothing is shown. */
     private fun stop() {
         if (offered().isEmpty()) return
+        coming?.let { refused = it.target to time.markNow() }
         coming = null
         offer = emptyList()
         mole.on(Event.Dismiss)
@@ -238,6 +245,7 @@ class Session(
         if (at.elapsedNow() > UNDO) return
         before = null
         val now = onScreen.value.target
+        refused = now?.let { it to time.markNow() }
         change(undoing(was.target), said, undoable = false) {
             // a tab or app comes off to bare what is under it; what is on the stage itself is replaced
             val under = if (was.target == null || inFront(now)) agentDesktop.close() else null
@@ -308,7 +316,7 @@ private val ORDINALS = listOf("first", "second", "third", "fourth", "fifth")
 private fun showing(t: Target, pick: Int?, of: Int, first: String?) = Change(
     working = if (t is Target.Slide) "Finding slide ${t.page}…" else "Opening ${name(t)}…",
     retrying = "Trying ${name(t)} again…",
-    ready = if (t is Target.Slide) "Slide ${t.page} is ready." else "It's on screen.",
+    ready = if (t is Target.Slide) "Slide ${t.page} is ready." else "${name(t).cap()} is on screen.",
     failed = "Couldn't show ${name(t)}.",
     first = first ?: pick?.let { if (of > 1 && it < ORDINALS.size) "Opening the ${ORDINALS[it]} one…" else "Opening ${name(t)}…" },
     card = card(t),

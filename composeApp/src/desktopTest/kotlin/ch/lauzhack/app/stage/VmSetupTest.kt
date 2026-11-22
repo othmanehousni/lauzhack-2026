@@ -43,7 +43,7 @@ class VmSetupTest {
             assertEquals(unpatched.lines().size, patched.lines().size)
             assertTrue(lines.values.all { it in patched } && stock.values.first() !in patched)
             assertEquals(patched, patchVmhost(patched, lines))
-            if (patchedBefore) assertEquals(text, patched)  // what vm.py wrote on this Mac, from the same screen
+            if (patchedBefore) assertEquals(text, patched)  // what an earlier setup wrote on this Mac, from the same screen
         }
     }
 

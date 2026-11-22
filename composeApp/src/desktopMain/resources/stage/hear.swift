@@ -74,6 +74,7 @@ final class Feed: @unchecked Sendable {
     }
 
     func push(_ buffer: AVAudioPCMBuffer) {
+        kept?.write(buffer)
         let n = Int(buffer.frameLength)
         var sum: Float = 0
         if let samples = buffer.floatChannelData?[0] { for i in 0..<n { sum += samples[i] * samples[i] } }
@@ -224,3 +225,31 @@ struct Hear {
         }
     }
 }
+
+/// The audio heard, as it came, kept in the file HEAR_KEEP names: 16-bit PCM at its own rate and channels, in CAF,
+/// which reads whole up to its last write even if the program is killed.
+final class Keep {
+    let url: URL
+    var file: AVAudioFile?, failed = false
+
+    init(_ path: String) { url = URL(fileURLWithPath: path) }
+
+    func write(_ buffer: AVAudioPCMBuffer) {
+        if file == nil && !failed {
+            let f = buffer.format, clock = DateFormatter()
+            clock.dateFormat = "HH:mm:ss.SSS"
+            do {
+                file = try AVAudioFile(forWriting: url, settings: [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: f.sampleRate,
+                    AVNumberOfChannelsKey: f.channelCount, AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false],
+                    commonFormat: f.commonFormat, interleaved: f.isInterleaved)
+                emit(["note": "recording \(url.lastPathComponent), its first sample at \(clock.string(from: Date() - Double(buffer.frameLength) / f.sampleRate))"])
+            } catch {
+                failed = true
+                emit(["note": "cannot record \(url.path): \(error.localizedDescription)"])
+            }
+        }
+        try? file?.write(from: buffer)
+    }
+}
+
+let kept = ProcessInfo.processInfo.environment["HEAR_KEEP"].map(Keep.init)

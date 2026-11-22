@@ -1,4 +1,4 @@
-"""Generate sample decks for the copilot eval: uv run --group dev fixtures/make_decks.py OUT_DIR"""
+"""Generate sample decks for the copilot eval: uv run --no-project --with reportlab python fixtures/make_decks.py OUT_DIR"""
 import sys
 from pathlib import Path
 

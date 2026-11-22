@@ -19,9 +19,9 @@ import kotlin.test.assertTrue
 import kotlin.time.TimeSource
 
 /**
- * Replays the eval scripts through [ModelAgent] as ParityTest replays them through MoleAgent: two words at a time, each
- * move applied to a [FakeDesk], each line scored as brain.evaluate scores it on what the screen shows after it, over the
- * same fixtures (the decks of fixtures/make_decks.py, fixtures/files.txt, brain.APPS, brain's websites). It loads the
+ * Replays the eval scripts through [ModelAgent]: two words at a time, each move applied to a [FakeDesk], each line
+ * scored on what the screen shows after it, over the eval fixtures (the decks of fixtures/make_decks.py,
+ * fixtures/files.txt, [apps] and the [BOOKMARKS]). It loads the
  * models, so it runs on Modal only (eval/modal_decider.py): MOLE_CHECK=decider, MOLE_MODELS holding decider.litertlm
  * and the embedder, MOLE_CACHE, MOLE_LIBRARY holding the decks as PDFs, and MOLE_SCRIPTS naming scripts to replay.
  */
@@ -126,7 +126,7 @@ class Replay {
         is Target.File -> "file ${t.path}"
     }
 
-    /** A move as brain.py prints its action; what the vision model did then (search, click, unsure) is an `ask`. An
+    /** A move as the verdict reads it, its kind and target; a search, a click or unsure is an `ask`. An
      * announce is shown unless the presenter stops it. */
     private fun act(m: Move): String? = when (m) {
         is Move.Show -> shown(m.target)
@@ -141,7 +141,7 @@ class Replay {
 
     private fun offer(m: Move.Ask) = m.options.map { id(it)!! }
 
-    /** brain.evaluate's verdict for a line, on what the screen showed before and after it and what was done or offered. */
+    /** The verdict for a line, on what the screen showed before and after it and what was done or offered. */
     private fun verdict(line: Line, ids: Set<String>): String {
         fun shows(onair: String?) = line.want.any { w -> if (w == null) onair == null else w in ids && onair == "slide $w" }
         val taken = line.calls.mapNotNull { act(it.move) }

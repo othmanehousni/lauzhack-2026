@@ -109,7 +109,7 @@ class AgentDesktop(
         stage.show(stage.wallpaper)  // nothing shared yet: the desktop
         stageShows = OnScreen()
         onScreen = stageShows
-        val folders = "/Applications /System/Applications /System/Applications/Utilities"
+        val folders = (if (dry) "" else "/Applications ") + "/System/Applications /System/Applications/Utilities" // dry: a fresh Mac's, not this one's
         val listing = if (vm != null && !dry) vm.guest("ls $folders", check = false) else exec(listOf("/bin/sh", "-c", "ls $folders"), check = false)
         apps = listing.lines().filter { it.endsWith(".app") }.map { it.removeSuffix(".app") }.distinct().sorted()
         notes
