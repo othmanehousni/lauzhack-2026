@@ -143,6 +143,32 @@ class SessionTest {
     /** index.html's story, beat by beat, with the wiring's setup step first, until every one of the 15 states has come
      * from something that really happened. */
     @Test
+    fun aChangeOfLeadEndsWhatTheOtherMicrophoneLeftOpen() = runTest {
+        val rig = Rig(this) { _, _ -> Move.Nothing }
+        rig.start()
+        delay(1.seconds) // the session listens
+        rig.laptop.emit(Heard("Next slide. And then")) // one sentence ended, the next still open
+        delay(500.milliseconds)
+        rig.phoneLeads.value = true
+        delay(500.milliseconds)
+        rig.say("show the roadmap", to = rig.phone)
+        delay(500.milliseconds)
+        assertEquals(listOf("Next slide.", "And then", "show the roadmap"), rig.asked.filter { it.second.ended }.map { it.second.text }.distinct())
+    }
+
+    @Test
+    fun pickingWhatIsAlreadyUpEndsTheChoice() = runTest {
+        val rig = Rig(this, march) { h, _ -> if (h.ended && h.text == "pull up the offer") Move.Ask(listOf(march, revised)) else Move.Nothing }
+        rig.start()
+        rig.say("pull up the offer")
+        rig.until(MoleState.Choosing)
+        rig.session.pick(0) // the March offer, on screen already
+        rig.until(MoleState.Ready)
+        assertTrue(rig.screen.calls.isEmpty(), "nothing to show: it is up")
+        rig.until(MoleState.Hidden)
+    }
+
+    @Test
     fun theStory() = runTest {
         val rig = Rig(this, slide(6)) { h, s ->
             if (!h.ended) return@Rig Move.Nothing
@@ -218,7 +244,7 @@ class SessionTest {
         // a request cut off before its object, then a screen that fails it twice: one retry, then failed
         rig.say("open up, um")
         val waiting = rig.until(MoleState.Waiting)
-        assertEquals("Open… what?" to 8000L, waiting.title to waiting.timeoutMs)
+        assertEquals(null to 8000L, waiting.title to waiting.timeoutMs) // the state's own title: no word list reads the request
         rig.screen.latency = 1.seconds
         rig.screen.fails = 2
         val calls = rig.screen.calls.size

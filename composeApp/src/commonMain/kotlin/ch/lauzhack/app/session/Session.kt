@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -112,7 +113,7 @@ class Session(
         mole.on(Event.Hello("Hi. I'm listening."))
         val leads = phoneLeads.distinctUntilChanged()
         launch { leads.drop(1).collect { mole.on(Event.Hello(if (it) "On your phone now." else "Back on the laptop.")) } }
-        launch { leads.flatMapLatest { if (it) phone else laptop }.collect(::hear) }
+        launch { leads.flatMapLatest { (if (it) phone else laptop).onStart { switched() } }.collect(::hear) }
         launch { for (i in taps) turn.withLock { if (i < 0) stop() else offered().getOrNull(i)?.let { show(it, said = "", pick = i) } } }
         launch {
             while (true) {
@@ -144,7 +145,7 @@ class Session(
         is Move.Show -> show(move.target, said)
         is Move.Ask -> ask(move.options, said, move.doubt)
         is Move.Control -> control(move.name, said)
-        Move.Wait -> mole.on(Event.Wait(waiting(said), said))
+        Move.Wait -> mole.on(Event.Wait(null, said))
         Move.Unsure -> mole.on(Event.Unsure(said))
         Move.Undo -> undo(said)
         Move.Nothing -> Unit
@@ -171,6 +172,14 @@ class Session(
         if (piece.ended) skip = 0
     }
 
+    /** The other microphone leads: what the last one left open ends here, and its count of words in ended sentences
+     * with it, so the new one's first words are not taken for the old one's. */
+    private fun switched() {
+        skip = 0
+        val open = later.lastOrNull() ?: heard.value
+        if (!open.ended && open.text.isNotBlank()) add(open.copy(ended = true, quiet = false, more = false))
+    }
+
     private fun add(piece: Heard) {
         val last = later.lastOrNull() ?: heard.value
         if (last.ended) {
@@ -195,11 +204,12 @@ class Session(
         coming?.let { listOf(it.target) } ?: if (mole.line.value.state == MoleState.Choosing) offer else emptyList()
 
     private suspend fun CoroutineScope.show(target: Target, said: String, pick: Int? = null, first: String? = null) {
-        if (same(target, onScreen.value.target)) return
         val options = offered()
+        val up = same(target, onScreen.value.target) // already there: an offer or announce of it still ends, as done
+        if (up && options.isEmpty()) return
         val i = pick ?: options.indexOfFirst { same(it, target) }.takeIf { it >= 0 } // by tap, by voice, or by staying on it
         if (i != null && options.size > 1) picks[options.toSet()] = options[i]
-        change(showing(target, i, options.size, first), said, undoable = true) { agentDesktop.show(target) }
+        change(showing(target, i, options.size, first), said, undoable = !up) { if (up) null else agentDesktop.show(target) }
     }
 
     private suspend fun CoroutineScope.ask(options: List<Target>, said: String, doubt: Double) {
@@ -334,11 +344,6 @@ private fun undoing(back: Target?) = Change(
 )
 
 private fun controlling(name: String) = Change("On it…", "Trying again…", ready = null, failed = "Couldn't ${name.replace(':', ' ')}.")
-
-private val VERBS = Regex("\\b(open|show|pull up|bring up|put up|play|find|search for|go to)\\b", RegexOption.IGNORE_CASE)
-
-/** "Open… what?" for "open up, um". */
-private fun waiting(said: String) = VERBS.findAll(said).lastOrNull()?.value?.lowercase()?.cap()?.let { "$it… what?" }
 
 /** A row of the choosing panel: what the target is called, where it is, and its kind. */
 internal fun choice(t: Target): Choice = when (t) {
