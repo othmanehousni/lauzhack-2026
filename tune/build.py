@@ -251,6 +251,8 @@ OPENERS = ["can you pull up", "could you pull up", "pull up", "let's pull up", "
            "put up", "let's get", "can you get", "can we get", "I'd like to show you", "I want to show you", "now let's see",
            "can you take us to", "take us to", "go to", "let's go to", "can you go to", "jump to", "let's jump to", "can you jump to",
            "can you open", "open", "let me open", "let's open", "could you open", "would you mind opening", "can you throw up",
+           "let's switch to", "switch to", "let's move on to", "move on to", "let's start with", "let's begin with", "let's turn to",
+           "over to", "on to", "let's go over", "let me walk you through", "let's do", "can I get", "back to", "let's go back to",
            "can you pop up", "I'll pull up", "I'm going to pull up", "let me just pull up", "can you quickly pull up", "could you put up",
            "let's switch to", "switch to", "can you switch to", "flip to", "can you flip to", "let me grab", "can you grab",
            "can you get me", "let me get", "we need", "I need", "give me", "pull", "can you find", "find me", "load"]
@@ -261,10 +263,40 @@ HEDGES = ["", "", "", "", "okay ", "so ", "alright ", "um ", "and ", "right, ", 
           "I think we should ", "if you could ", "let's quickly ", "actually ", "sorry, ", "okay so ", "ah, ", "uh ", "and then ",
           "so yeah, ", "anyway, ", "okay, so now ", "and now ", "just ", "let's see, ", "hmm, ", "yeah so "]
 TAILS = ["", "", "", "", "", ", please", " please", " for a second", " real quick", " so everyone can see", ", thanks", " now",
-         " again", "?", ".", " for a sec", " quickly", " if you can", ", that'd be great", " for everyone"]
+         " again", "?", ".", " for a sec", " quickly", " if you can", ", that'd be great", " for everyone",
+         ", I want to check something", ", just to be sure", ", someone asked about it", ", so we can compare", " before we move on",
+         ", I want to point something out", " for the people who joined late", ", there was a question about it", ", one more time"]
 CANCELS = [", hmm, on second thought, not now", ". no wait, forget it", ", but let's do that at the end", "... actually no, later", ", or no, let's skip it", ". nah, forget it",
            ", actually let's not", ", well, maybe after the break", ", no, scratch that", " — never mind, it's not important",
            ", but I'll do it after the call", ", but there's no time today", ". actually, no, we'll come back to it"]
+def tail(rng) -> str:
+    return f", {pick(rng, PEOPLE)} {pick(rng, ['wants to see', 'asked about', 'missed'])} {pick(rng, ['it', 'that', 'that part'])}" if rng.random() < 0.1 else pick(rng, TAILS)
+
+
+TALK_FORMS = ["so, {b}", "as you can see, {b}", "{b}, which is the key point here", "and {b}", "um, {b}, and that matters", "{b}",
+              "the main thing here is {b}", "so basically {b}", "{b}, and {b2}", "if you look at this, {b}", "what this shows is {b}",
+              "{b}, uh, {b2}", "right, so {b}"]
+TOPIC_FORMS = ["now, {t}", "so, {t}", "next up, {t}", "let's talk about {t}", "moving on to {t}", "okay, {t}", "and now {t}",
+               "let's get into {t}", "so what about {t}?", "a word on {t}", "this brings us to {t}", "time for {t}", "so, um, {t}"]
+
+
+def said(rng, text: str) -> str:
+    """A bullet as a presenter says it: lowercase, percent spelled, small numbers often in words."""
+    text = re.sub(r"(\d)%", r"\1 percent", text[0].lower() + text[1:])
+    return re.sub(r"\b\d{1,2}\b", lambda m: words(int(m.group())) if rng.random() < 0.6 else m.group(), text)
+
+
+def talk_line(rng, d: dict, j: int) -> str:
+    """What a presenter says over slide j: a written line, its bullets in a frame, or its title announced."""
+    sl, r = d["slides"][j], rng.random()
+    if r < 0.5 or not sl["bullets"]:
+        return pick(rng, sl["talk"])
+    if r < 0.8:
+        b = rng.sample(sl["bullets"], min(2, len(sl["bullets"])))
+        return pick(rng, TALK_FORMS).format(b=said(rng, b[0]), b2=said(rng, b[-1]))
+    return pick(rng, TOPIC_FORMS).format(t=sl["title"].lower())
+
+
 def cancel(rng) -> str:
     """A request taken back at its end, composed: ", hmm, no, skip it"."""
     while True:
@@ -435,7 +467,7 @@ def request(rng, s: Session, family: str, obj: str, answer: str, target: dict | 
     if noisy:
         pre, hedge, verb, obj = noise(rng, pre), noise(rng, hedge), noise(rng, verb), noise(rng, obj, 0.5)
     segs = [(pre, "nothing"), (hedge, "nothing"), (verb, "wait" if verb.strip() else "nothing"), (obj, answer),
-            (after.format(v=v) + pick(rng, TAILS), answer)]
+            (after.format(v=v) + tail(rng), answer)]
     c = cands if cands is not None else candidates(rng, s, [target] if target else [], near)
     if target and cands is None and key(target) not in {key(x) for x in c}:
         raise ValueError("target lost")
@@ -552,12 +584,13 @@ def fam_slide_number(rng, s: Session):
         phrase = pick(rng, ["the first slide", "back to the first slide", "go to the title slide", "first slide please"])
     else:
         phrase = form.format(n=spoken_number(rng, k), o=ORDS[k - 1])
+    phrase += tail(rng)
     if behind is None and k == cur + 1:
         answer = "nothing"
     else:
         answer = f"slide {k}"
     c = candidates(rng, s, [], [x for x in s.slides if x["deck"] == screen.get("deck")][:3])
-    return utter(rng, "slide number", [(noise(rng, pick(rng, HEDGES)), "nothing"), (noise(rng, phrase) + pick(rng, TAILS), answer)],
+    return utter(rng, "slide number", [(noise(rng, pick(rng, HEDGES)), "nothing"), (noise(rng, phrase), answer)],
                  context(rng, s), c, screen=screen, behind=behind)
 
 
@@ -579,7 +612,11 @@ def fam_deck(rng, s: Session):
                                                                         "I'll put up", "let's get", "let me share"])), "wait"),
                 (noise(rng, obj + tail), f"show {index(c, cover)}")]
         return utter(rng, "deck in preamble", segs, context(rng, s, 0), c, screen=screen, behind=behind)
-    obj = pick(rng, DECK_OBJ).format(d=deck_spoken(rng, d))
+    name = deck_spoken(rng, d)
+    own = [x for x in re.sub(r"[_\-]+", " ", d["name"]).split() if len(x) > 3 and not x.isdigit() and sum(x.lower() in o["name"].lower() for o in s.decks) == 1]
+    if own and rng.random() < 0.25:  # one word of the name that no other deck has
+        name = pick(rng, own).lower()
+    obj = pick(rng, DECK_OBJ).format(d=name)
     return request(rng, s, "deck", obj, "show {n}", cover, near, screen, behind)
 
 
@@ -617,6 +654,8 @@ def fam_next_prev(rng, s: Session):
                                          "keep going", "next slide please", "can we go to the next one"] if label == "next" else
                                         ["the one before", "previous one", "back a slide",
                                          "can you go back one slide", "the slide before", "one back", "go back a slide please"]))
+    if rng.random() < 0.3:
+        text = text.rstrip(".!?") + tail(rng)
     kind = pick(rng, ["slide"] * 6 + ["desktop", "front"])
     screen, behind = s.screen(kind)
     if kind == "slide":
@@ -1113,7 +1152,7 @@ def fam_talk_follow(rng, s: Session):
     else:
         j = rng.randrange(0, cur + 1) if cur else cur
     screen, target = slide(d, cur), slide(d, j)
-    line = pick(rng, d["slides"][j]["talk"])
+    line = talk_line(rng, d, j)
     c = candidates(rng, s, [target] + ([screen] if j != cur else []), near_slides(s, target))
     answer = "next" if j == cur + 1 else f"show {index(c, target)}" if j > cur else "nothing"
     family = "talk follows" if j > cur else "talk stays"
@@ -1124,7 +1163,7 @@ def fam_talk_elsewhere(rng, s: Session):
     """Talk about a slide while no slide is on air, or about another deck: nothing."""
     sl = pick(rng, s.slides)
     d = next(x for x in s.decks if deck_name(x) == sl["deck"])
-    line = pick(rng, d["slides"][sl["page"] - 1]["talk"])
+    line = talk_line(rng, d, sl["page"] - 1)
     screen, behind = s.screen(pick(rng, ["desktop", "front"]))
     c = candidates(rng, s, [sl], near_slides(s, sl))
     return utter(rng, "talk stays", [(noise(rng, line), "nothing")], context(rng, s), c, screen=screen, behind=behind)

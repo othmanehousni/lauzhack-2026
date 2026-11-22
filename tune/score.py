@@ -210,7 +210,7 @@ class Replay:
     def line(self, said: str, want: list) -> dict:
         start, words = self.view, said.split()
         taken, trace, prev, asked, final = [], [], None, [], None
-        stats = {"partial_s": [], "create_s": [], "send_s": [], "tokens": []}
+        stats = {"partial_s": [], "create_s": [], "send_s": [], "tokens": [], "prompt": ""}
         for n in [*range(2, len(words), 2), len(words)]:
             done = n == len(words)
             st, cands = self.state(start, " ".join(words[:n]), done)
@@ -221,6 +221,7 @@ class Replay:
                 stats["create_s"].append(c)
                 stats["send_s"].append(s)
                 stats["tokens"].append(self.decider.tokens(p))
+                stats["prompt"] = p
                 final = (answer, cands)
             else:
                 answer, c, s = self.decider(p)
