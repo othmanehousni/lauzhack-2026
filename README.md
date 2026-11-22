@@ -110,13 +110,16 @@ The main window shows whether Molière is asleep or in a meeting, with the butto
 
 Molière has two modes. Present is the one the rest of this README describes. Mime is for places where you cannot talk: you mouth sentences at the camera, the lip reader in `lipreading/` reads them, and each finished sentence is said aloud in your own cloned voice while the mole, drawn as a mime, shows the words.
 
-The switch inside the app is being wired; today the lip reader runs on its own. Set it up once, then run it:
+Set it up once:
 
 ```sh
 brew install git-lfs && git lfs pull    # the models, 5.4 GB
 lipreading/setup.sh                     # its Python environment
-cd lipreading && .venv/bin/python lipread.py
 ```
+
+In Molière, open Settings, set Mode to Mime, then press Start miming. In Mime mode nothing listens and the shared screen is left alone. The lip reader opens its own camera window; while that window is in front, Space pauses, V turns the voice off and Q quits. Stopping the mode or quitting Molière ends the lip reader and frees the camera.
+
+The lip reader also runs on its own: `cd lipreading && .venv/bin/python lipread.py`.
 
 The models and the lip and voice profile in the repository are fitted to their author; to fit your own, see [lipreading/README.md](lipreading/README.md).
 

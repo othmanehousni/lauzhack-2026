@@ -54,12 +54,16 @@ MOLIÈRE: READ THIS BEFORE GOING ON STAGE
   "Show me the slide on tech failures" picked slide 1.
 
 
-5. MIME MODE (the lip reader runs on its own today)
+5. MIME MODE
 
   Once:    brew install git-lfs && git lfs pull
            lipreading/setup.sh
-  Run:     cd lipreading && .venv/bin/python lipread.py
-  Keys:    SPACE pauses and resumes, V turns the voice off, Q quits.
+  In the app: end the meeting, open Settings, set Mode to Mime, press Start miming.
+           The bar shows the mime mole and the words as they are read.
+  Alone:   cd lipreading && .venv/bin/python lipread.py
+  Keys:    in the lip reader's camera window: SPACE pauses and resumes,
+           V turns the voice off, Q quits.
+  Memory:  the lip reader loads about 6 GB. End the meeting before starting it.
 
 
 6. SECOND SCENARIO: THE ACME DECKS (scenario: rehearsal/demo.txt)
