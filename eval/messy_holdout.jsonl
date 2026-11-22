@@ -1,0 +1,50 @@
+{"say": "Can everyone hear me? I think the, uh, the mic was muted before.", "want": [null]}
+{"say": "okay good morning everyone today we'll be going through the q3 numbers for the board and the goal is to cover everything finance did since july and so I'll pull up the slice right now", "want": ["Acme_Q3_2026_Financials p1"]}
+{"say": "so revenue came in at fourteen point two million this quarter", "want": ["Acme_Q3_2026_Financials p2"]}
+{"say": "faster on the gpu. pullull up the margin slide", "want": ["Acme_Q3_2026_Financials p3"]}
+{"say": "and that's mostly the cheaper hardware honestly", "want": ["Acme_Q3_2026_Financials p3"]}
+{"say": "And then don't you... send the cash report to the whole team on slack.", "want": ["keep"]}
+{"say": "I need a cappucc", "want": ["keep"]}
+{"say": "I need a cappucc cheese", "want": ["keep"]}
+{"say": "e up", "want": ["keep"]}
+{"say": "Then you wear", "want": ["keep"]}
+{"say": "Then you wear on the chess tournam", "want": ["keep"]}
+{"say": "wear one, the chest, tournament, enjoy this book.", "want": ["keep"]}
+{"say": "the algorithm", "want": ["keep"]}
+{"say": "Sorry, where were we. The runway.", "want": ["Acme_Q3_2026_Financials p5"]}
+{"say": "so twenty two months at the current burn which is fine", "want": ["Acme_Q3_2026_Financials p5"]}
+{"say": "Ah, so it's too complex. Can you pull up the hiring slide?", "want": ["Acme_Q3_2026_Financials p7"]}
+{"say": "we found most of those people on linkedin by the way", "want": ["keep"]}
+{"say": "Can you go to slide four", "want": ["Acme_Q3_2026_Financials p4"]}
+{"say": "back one", "want": ["Acme_Q3_2026_Financials p3"]}
+{"say": "Okay so now ideally we can pull up the roadmap", "want": ["Acme_Product_Roadmap p1", "Acme_Company_Overview_2026 p10"]}
+{"say": "Can you pull up the slice for the scheduler?", "want": ["Acme_Product_Roadmap p4"]}
+{"say": "it plans picks for two hundred robots at once", "want": ["Acme_Product_Roadmap p4"]}
+{"say": "Next one.", "want": ["Acme_Product_Roadmap p5"]}
+{"say": "I'll show you the timeline at the very end.", "want": ["keep"]}
+{"say": "I want I want again so let's pull up git hub", "want": ["url https://github.com"]}
+{"say": "scroll down a bit", "want": ["control scroll down"]}
+{"say": "Make it bigger, the people at the back can't read it.", "want": ["control zoom in"]}
+{"say": "Okay close that and go back to the slides.", "want": ["Acme_Product_Roadmap p5"]}
+{"say": "Let me open, um,", "want": ["keep"]}
+{"say": "Chrome.", "want": ["app Google Chrome"]}
+{"say": "Close it.", "want": ["close"]}
+{"say": "So let's look at the company overview now, the market slide", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "Can you put the market size slide up?", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "ok now can you open the q3 stuff", "want": ["choose"]}
+{"say": "the spreadsheet", "want": ["file /Users/hamid/Documents/Finance/Q3 2026/Q3 numbers.xlsx"]}
+{"say": "Hmm, no no no, take that down.", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "We revised the offer for the Dubois family in April, the premium went down a lot.", "want": ["keep"]}
+{"say": "let me show you", "want": ["file /Users/hamid/Documents/Clients/Dubois/Home offer — revised.pdf"]}
+{"say": "Can you zoom in on the deductible?", "want": ["control zoom in"]}
+{"say": "Okay, back to the deck.", "want": ["Acme_Company_Overview_2026 p5"]}
+{"say": "Could you pull up, uh,", "want": ["keep"]}
+{"say": "the loss ratios from the pricing workshop", "want": ["Pricing_Workshop p4"]}
+{"say": "Pardon, je reviens tout de suite, quelqu'un frappe à la porte.", "want": ["keep"]}
+{"say": "can you go to laws hack dot com", "want": ["url https://lauzhack.com"]}
+{"say": "search for swiss warehouse automation statistics", "want": ["ask"]}
+{"say": "close the tab", "want": ["close"]}
+{"say": "go to the team slide", "want": ["Acme_Company_Overview_2026 p9"]}
+{"say": "Previous slide.", "want": ["Acme_Company_Overview_2026 p8"]}
+{"say": "Can you show us the video of the robot demo from the trade fair?", "want": ["ask"]}
+{"say": "Doesn't matter, it's not important. Thanks everyone, that's all from me.", "want": ["keep"]}
