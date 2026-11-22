@@ -1,0 +1,192 @@
+package ch.lauzhack.app.decider
+
+import ai.koog.embeddings.base.Embedder
+import ch.lauzhack.app.Agent
+import ch.lauzhack.app.Heard
+import ch.lauzhack.app.Move
+import ch.lauzhack.app.OnScreen
+import ch.lauzhack.app.Target
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.Volatile
+
+/** Answers acted on while the presenter is still speaking, when two partial decisions in a row agree. */
+private val EARLY = setOf("show", "slide", "next", "previous", "slides", "control", "close")
+
+/**
+ * The agent of tune/CONTRACT.md: [catalog] retrieves the candidates with [embedder], [model] answers one line of the
+ * contract's grammar for the prompt (constrained to the grammar when it is given, which is at the end of an utterance),
+ * and the answer becomes a [Move]. It decides every two words; calls run one at a time, and words newer than those of a
+ * decision in flight drop it.
+ */
+class ModelAgent(
+    catalog: Catalog,
+    private val embedder: Embedder,
+    private val model: suspend (prompt: String, grammar: String?) -> String,
+) : Agent {
+    @Volatile var catalog: Catalog = catalog
+
+    private class Utterance(val n: Int, val start: State, val offered: List<Item>, val last: Item.Slide?) {
+        var text = ""
+        var words = 0
+        var over = false
+        var guess: Move = Move.Nothing
+        val taken = mutableListOf<Move>()
+    }
+
+    private var stage: Item? = null   // the slide or picture on the stage, under any tab or app
+    private var front: Item? = null
+    private var last: Item.Slide? = null
+    private var seen: Target? = null
+    private var looked = false
+    private var expect: Target? = null  // what the last move puts on screen; any other change came from elsewhere
+    private var quiet = false           // the last move takes something off the screen
+    private var shown: Item? = null
+    private var shownAt = 0
+    private var offer = emptyList<Item>()
+    private var offerAt = 0
+    private var u = Utterance(Int.MIN_VALUE, State(), emptyList(), null)
+
+    private val turn = Mutex()
+    private val gate = Mutex()
+    private var newest = Heard(n = Int.MIN_VALUE)
+    private var running: Job? = null
+
+    override suspend fun anythingToDo(heard: Heard, onScreen: OnScreen): Move {
+        gate.withLock {
+            if (heard.n >= newest.n && heard != newest) {
+                newest = heard
+                running?.cancel()
+            }
+        }
+        return turn.withLock {
+            coroutineScope {
+                val job = gate.withLock { if (heard == newest) async { step(heard, onScreen) }.also { running = it } else null }
+                    ?: return@coroutineScope Move.Nothing
+                try {
+                    job.await()
+                } catch (e: CancellationException) {
+                    currentCoroutineContext().ensureActive()
+                    Move.Nothing
+                }
+            }
+        }
+    }
+
+    private suspend fun step(heard: Heard, onScreen: OnScreen): Move {
+        val cat = catalog
+        observe(onScreen.target, cat, heard)
+        if (heard.n != u.n || u.over && heard.text != u.text) begin(heard.n)
+        if (u.over) return Move.Nothing
+        if (heard.text.isBlank()) return Move.Nothing.also { u.over = heard.ended }
+        val words = heard.text.split(' ', '\t', '\r', '\n').count { it.isNotEmpty() }
+        if (!heard.ended && words < u.words + 2) return Move.Nothing
+        val s = u.start.copy(
+            heard = heard.earlier, now = heard.text, done = heard.ended,
+            candidates = cat.candidates(embedder, heard.text, heard.earlier.lastOrNull(), u.offered),
+        )
+        val g = grammar(s)
+        val said = model(prompt(s), if (heard.ended) g else null).trim().takeIf { Regex(g).matches(it) } ?: "nothing"
+        u.text = heard.text
+        u.words = words
+        val move = move(said, s, cat)
+        if (!heard.ended) {
+            val act = move.takeIf { said.substringBefore(' ') in EARLY && it == u.guess && it != Move.Nothing && it !in u.taken }
+            u.guess = move
+            return act?.also { take(it, heard.n, cat) } ?: Move.Nothing
+        }
+        u.over = true
+        when {
+            move in u.taken -> return Move.Nothing
+            move is Move.Ask -> {
+                offer = move.options.map(cat::itemOf)
+                offerAt = heard.n
+            }
+            move is Move.Show || move is Move.Control || move == Move.Undo -> take(move, heard.n, cat)
+            else -> {}
+        }
+        return move
+    }
+
+    /** What the audience sees now: a slide or picture on the stage, or a tab, file or app in front of it. */
+    private fun observe(t: Target?, cat: Catalog, heard: Heard) {
+        if (looked && same(t, seen)) return
+        seen = t
+        val item = t?.let(cat::itemOf)
+        when {
+            item == null -> { stage = null; front = null }
+            item is Item.Slide -> { stage = item; front = null; last = item }
+            onStage(item) -> { stage = item; front = null }
+            else -> front = item
+        }
+        offer = emptyList()
+        if (looked && item != null && !quiet && !same(t, expect)) { // a pick tapped on the bar or the phone
+            shown = item
+            shownAt = if (heard.n == u.n) heard.n else heard.n - 1
+        }
+        looked = true
+        expect = null
+        quiet = false
+    }
+
+    /** An utterance starts from the screen as it is now, with what was offered and shown before it. */
+    private fun begin(n: Int) {
+        val offered = if (n - offerAt in 1..3) offer else emptyList()
+        val start = State(
+            screen = front ?: stage,
+            behind = if (front != null) stage as? Item.Slide else null,
+            offered = List(offered.size) { it + 1 },
+            shown = shown?.takeIf { n - shownAt in 1..2 },
+        )
+        u = Utterance(n, start, offered, last)
+    }
+
+    private fun take(m: Move, n: Int, cat: Catalog) {
+        u.taken += m
+        offer = emptyList()
+        if (m is Move.Show) {
+            shown = cat.itemOf(m.target)
+            shownAt = n
+            expect = m.target
+        } else if (m == Move.Undo || m == Move.Control("close")) {
+            shown = null
+            quiet = true
+        }
+    }
+
+    /** What an answer of the grammar does, per the contract's table and Contract.kt's moves. */
+    private fun move(said: String, s: State, cat: Catalog): Move {
+        val arg = said.substringAfter(' ', "")
+        val now = front ?: stage
+        fun show(c: Item?) = if (c == null || same(c.target, now?.target)) Move.Nothing else Move.Show(c.target)
+        val deck = s.screen as? Item.Slide ?: s.behind ?: u.last ?: cat.firstSlide
+        fun page(p: Int) = deck?.let { cat.slide(it.target.deck, p) }
+        return when (said.substringBefore(' ')) {
+            "wait" -> Move.Wait
+            "unsure" -> Move.Unsure
+            "show" -> show(s.candidates[arg.toInt() - 1])
+            "ask" -> Move.Ask(arg.split(' ').map { s.candidates[it.toInt() - 1].target }.distinct())
+            "slide" -> show(page(arg.toInt()))
+            "next" -> show(deck?.let { page(it.page + 1) })
+            "previous" -> show(deck?.let { page(it.page - 1) })
+            "slides" -> show(s.behind ?: u.last ?: cat.firstSlide)
+            "open" -> cat.named(arg)?.let(::show)
+                ?: if ('.' in arg) show(Catalog.site(Target.Site("https://" + arg.replace(" ", ""), arg))) else Move.Unsure
+            "search" -> Move.Show(search(arg))
+            "click" -> Move.Control("click:$arg")
+            "control" -> Move.Control(arg)
+            "close" -> Move.Control("close")
+            "undo" -> Move.Undo
+            else -> Move.Nothing
+        }
+    }
+}
+
+/** A web search for words the grammar spells with letters, digits, spaces and . - ' only. */
+fun search(words: String) = Target.Site("https://www.google.com/search?q=" + words.replace(" ", "+").replace("'", "%27"), words)

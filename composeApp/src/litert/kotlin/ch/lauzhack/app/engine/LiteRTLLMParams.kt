@@ -1,7 +1,7 @@
 // Copyright 2000-2026 JetBrains s.r.o. and contributors. Licensed under the Apache License, Version 2.0
 // (https://www.apache.org/licenses/LICENSE-2.0). Adapted from JetBrains Koog at commit 921f7c1,
 // prompt/prompt-executor/prompt-executor-clients/prompt-executor-litert-client/src/androidMain/kotlin/ai/koog/prompt/executor/clients/litert/LiteRTLLMParams.kt
-// Changes: package only.
+// Changes: package; REGEX.
 package ch.lauzhack.app.engine
 
 import ai.koog.prompt.params.LLMParams
@@ -63,6 +63,13 @@ public class AndroidLocalLLMParams private constructor(
         private const val DEFAULT_TOP_P: Double = 0.95
     }
 }
+
+/**
+ * Key of [LLMParams.additionalProperties] for a regular expression the answer must match (LiteRT's LLGuidance regex
+ * constraint, spaces written as plain spaces). Such a prompt is a single user message, answered in a fresh conversation
+ * that the client created ahead of time.
+ */
+public const val REGEX: String = "regex"
 
 /**
  * Converts a generic [LLMParams] to [AndroidLocalLLMParams].

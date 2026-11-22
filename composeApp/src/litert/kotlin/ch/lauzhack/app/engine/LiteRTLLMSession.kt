@@ -2,7 +2,9 @@
 // (https://www.apache.org/licenses/LICENSE-2.0). Adapted from JetBrains Koog at commit 921f7c1,
 // prompt/prompt-executor/prompt-executor-clients/prompt-executor-litert-client/src/androidMain/kotlin/ai/koog/prompt/executor/clients/litert/LiteRTLLMSession.kt
 // Changes: package; the engine starts on the first of config.backends that initializes, with config.maxNumTokens;
-// a JSON schema in prompt.params becomes LiteRT's ResponseFormat (constrained decoding).
+// a JSON schema in prompt.params becomes LiteRT's ResponseFormat (constrained decoding), and so does a REGEX, with
+// LLGuidance; a prompt of one message without tools is answered in a one-off conversation, the next one created ahead;
+// prompt.params.maxTokens caps the answer.
 package ch.lauzhack.app.engine
 
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -15,13 +17,20 @@ import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.ExperimentalApi
+import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.ResponseFormat
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.tool
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Manages a LiteRT inference session for a single [LiteRTLLMClient].
@@ -58,6 +67,10 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
     // instruction excluded — it lives in ConversationConfig). Used to detect
     // history divergence and to compute the incremental delta to send.
     private var sentMessages: List<Message> = emptyList()
+
+    // The next one-off conversation for each key, created while nothing runs.
+    private val spares = HashMap<ConversationKey, Conversation>()
+    private val ahead = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Returns the current [Engine] if it already targets [model], otherwise builds and
@@ -124,7 +137,10 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
                     temperature = params.exactTemperature,
                     seed = params.seed ?: 0,
                 )
-                val responseFormat = (prompt.params.schema as? LLMParams.Schema.JSON)?.let { ResponseFormat.json(it.schema.toString()) }
+                // LLGuidance matches SentencePiece's space mark: a literal space in the regex fails to parse.
+                val regex = prompt.params.additionalProperties?.get(REGEX)?.jsonPrimitive?.content?.replace(' ', '▁')
+                val responseFormat = regex?.let { ResponseFormat.regex(it) }
+                    ?: (prompt.params.schema as? LLMParams.Schema.JSON)?.let { ResponseFormat.json(it.schema.toString()) }
 
                 // System instruction is part of the ConversationConfig in LiteRT and
                 // cannot change without recreating the conversation. We extract the
@@ -161,6 +177,15 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
                 // inference. We never replay prior messages through `sendMessage()`,
                 // because each `sendMessage()` triggers a native generation.
                 val priorHistory = nonSystemMessages.dropLast(1)
+                require(regex == null || priorHistory.isEmpty() && androidTools.isEmpty()) { "A regex prompt is one message, without tools" }
+                if (priorHistory.isEmpty() && androidTools.isEmpty()) {
+                    val oneOff = ConversationConfig(
+                        samplerConfig = samplerConfig,
+                        systemInstruction = systemInstruction?.let { Contents.of(it) },
+                        enableResponseFormat = responseFormat != null,
+                    )
+                    return@withContext once(currentEngine, key, oneOff, regex != null, nonSystemMessages.last(), responseFormat, prompt.params.maxTokens)
+                }
                 val canReuse = conversation != null &&
                     conversationKey == key &&
                     sentMessages == priorHistory
@@ -177,7 +202,7 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
                         initialMessages = priorHistory.map { it.toLitertMessage() },
                         enableResponseFormat = responseFormat != null,
                     )
-                    val created = currentEngine.createConversation(newConfig)
+                    val created = create(currentEngine, newConfig, llGuidance = false)
                     conversation = created
                     conversationKey = key
                     sentMessages = priorHistory
@@ -186,7 +211,9 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
 
                 val lastMessage = nonSystemMessages.last()
                 try {
-                    val response = activeConversation.sendMessage(lastMessage.toLitertMessage(), responseFormat = responseFormat)
+                    val response = activeConversation.sendMessage(
+                        lastMessage.toLitertMessage(), maxOutputToken = prompt.params.maxTokens, responseFormat = responseFormat,
+                    )
                     // Commit on success: the native conversation has now consumed
                     // the last user/tool message AND produced the response, both of
                     // which it keeps in its internal history. Mirror that in
@@ -205,6 +232,28 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
         }
     }
 
+    /** Answers [message] in the spare conversation for [key], or a new one, then prepares the next spare for [key]. */
+    private fun once(
+        engine: Engine, key: ConversationKey, conversationConfig: ConversationConfig, llGuidance: Boolean, message: Message, format: ResponseFormat?, maxTokens: Int?,
+    ): Message.Assistant {
+        val conversation = spares.remove(key) ?: create(engine, conversationConfig, llGuidance)
+        try {
+            return conversation.sendMessage(message.toLitertMessage(), maxOutputToken = maxTokens, responseFormat = format).toKoogMessage(config.clock)
+        } finally {
+            runCatching { conversation.close() }
+            ahead.launch {
+                mutex.withLock { if (key !in spares && this@LiteRTLLMSession.engine === engine) spares[key] = create(engine, conversationConfig, llGuidance) }
+            }
+        }
+    }
+
+    /** With [llGuidance], LLGuidance is the conversation's constraint provider, which regex decoding needs. */
+    @OptIn(ExperimentalApi::class)
+    private fun create(engine: Engine, conversationConfig: ConversationConfig, llGuidance: Boolean): Conversation {
+        ExperimentalFlags.enableConversationConstrainedDecoding = llGuidance
+        return engine.createConversation(conversationConfig)
+    }
+
     /**
      * Closes and releases all LiteRT resources held by this session.
      *
@@ -218,11 +267,14 @@ internal class LiteRTLLMSession(private val config: LiteRTClientConfig) {
                 closeQuietly()
             }
         }
+        ahead.cancel()
     }
 
     /** Best-effort tear-down of all cached LiteRT objects. Resets all session state. */
     private fun closeQuietly() {
         closeConversationQuietly()
+        spares.values.forEach { runCatching { it.close() } }
+        spares.clear()
         runCatching { engine?.close() }
         engine = null
         engineConfig = null
