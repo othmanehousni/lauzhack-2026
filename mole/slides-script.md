@@ -4,36 +4,37 @@ Edit anything below. "Notes" is what you say; everything else appears on the sli
 The product name is Molière everywhere.
 
 Product name: Molière
-Footer on every slide, as two separate elements: the product name on the left, the slide number on the right. On slides 1 and 12 the team name, Alt+F4, takes the product name's place.
-While presenting, press N to open the notes in their own window.
+No footer and no label on the slides: each slide shows only its own content. The section and the slide number appear only in the notes window.
+No transitions or animation between slides, nor between the two small slides on slide 6: a cut. Only the mole on slides 6 and 7 moves.
+While presenting, press N to open the notes in their own window and F for full screen.
 
 
 ## 1. Title
-- Label: LauzHack 2026
+- Section (notes window only): LauzHack 2026
 - Title: Molière
 - Subtitle: Automated co-presenter.
-- Bottom: Alt+F4
+- Team, under the subtitle: Alt+F4
 - Visual: the mole with the microphone, on the ground line, facing the title
 
 
 ## 2. Nick
-- Label: Presenting the problem
+- Section (notes window only): Presenting the problem
 - Title: This is Nick.
 - Text: He works at a consulting firm in Geneva. He has 5 meetings per day, each on a different subject and with a different team. He doesn't have time to fully prepare for every meeting.
 - Three steps, left to right:
   - He looks for a document.
-  - 30 s of silence. People are waiting. (the 30 s counts up when the slide comes up)
+  - 30 s of silence. People are waiting.
   - He pulls up the wrong slide.
 - Notes: This is Nick, he works at a consulting firm in Geneva. He has 5 meetings per day, each on a different subject and with a different team. He doesn't have time to fully prepare for every meeting. Every time he has to present something, something wrong happens: he looks for a document, there is silence for 30 seconds, then he pulls up the wrong slide.
 
 
 ## 3. Numbers
-- Label: Presenting the problem
-- Card 1:
+- Section (notes window only): Presenting the problem
+- First claim, the point, top left:
   - Big number: 3 in 4
   - Text: meetings hit at least one tech failure, costing about 11 minutes each.
   - Source: Jabra, 2026
-- Card 2:
+- Second claim, bottom right:
   - Lead-in, in grey: In a lab study,
   - Text: people who talked while using a computer spoke more slowly and made more mistakes at both.
   - Source: BYU, 2022
@@ -41,7 +42,7 @@ While presenting, press N to open the notes in their own window.
 
 
 ## 4. Interviews (problem)
-- Label: Presenting the problem
+- Section (notes window only): Presenting the problem
 - Line: We asked 6 people who present to clients every week.
 - Quote: Clients always come up with questions I wasn't expecting. So I end up searching for documents or running another simulation while explaining what I'm doing.
 - Name: Mathias Sudres
@@ -50,14 +51,14 @@ While presenting, press N to open the notes in their own window.
 
 
 ## 5. What we realized
-- Label: By talking to office workers, we realized:
+- Section (notes window only): By talking to office workers, we realized:
 - Line (greyed): The issue wasn't the software used for the meeting or actual technical issues.
 - Line (black): It's error-prone manual work under stress.
 - Notes: By talking to office workers, we realized that the issue wasn't the software used for the meeting or actual technical issues. It's error-prone manual work under stress.
 
 
 ## 6. Our solution
-- Label: Our solution
+- Section (notes window only): Our solution
 - Title: Introducing Molière.
 - Text: We want to make the process of presenting in meetings seamless.
 - Points:
@@ -81,14 +82,14 @@ While presenting, press N to open the notes in their own window.
 
 
 ## 7. Live demo
-- Label: Our solution
+- Section (notes window only): Our solution
 - Title: Live demo
 - Visual: the mole, large, on the ground line, looping through the same lines as slide 6
 - Notes: (Live demo)
 
 
 ## 8. How it works
-- Label: How does our solution work?
+- Section (notes window only): How does our solution work?
 - Title: Not just AI agent talk: we have trained actual models.
 - Three points:
   - Our UI is minimal and doesn't disrupt the presenter.
@@ -102,7 +103,7 @@ While presenting, press N to open the notes in their own window.
 
 
 ## 9. Competitors
-- Label: Who are the competitors?
+- Section (notes window only): Who are the competitors?
 - Title: Our solution works live, in any software.
 - Table:
   - Notetakers | Act after the call.
@@ -114,7 +115,7 @@ While presenting, press N to open the notes in their own window.
 
 
 ## 10. Interviews (evidence)
-- Label: Interviews
+- Section (notes window only): Interviews
 - Headline quote: "…without jumping between ten different windows."
 - Headline name: Mathias Sudres
 - Headline role: Insurance advisor in Switzerland
@@ -126,7 +127,7 @@ While presenting, press N to open the notes in their own window.
 
 
 ## 11. Business model
-- Label: Business model / go-to-market
+- Section (notes window only): Business model / go-to-market
 - Title: We will go B2B.
 - Point 1: Integrating into the ecosystem of companies which would use Molière for all their meetings.
 - Point 2: Our assistant will adapt to the architectures of these companies, to know exactly how to look for documents.
@@ -134,9 +135,9 @@ While presenting, press N to open the notes in their own window.
 
 
 ## 12. Roadmap
-- Label: Roadmap & next steps
+- Section (notes window only): Roadmap & next steps
 - Title: Next, we will train Molière on your workflow.
 - Text: For it to be able to help you to its full potential.
-- Bottom: Alt+F4
+- Team, under the text: Alt+F4
 - Visual: the mole with the shovel, on the ground line, facing the title
 - Notes: Next, we will train Molière on your workflow, for it to be able to help you to its full potential.

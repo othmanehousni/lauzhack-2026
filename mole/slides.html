@@ -3,7 +3,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width">
 <title>Molière</title>
-<link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="mole.css">
 <style>
   :root {
@@ -12,22 +11,23 @@
     --grey: oklch(0.5 0 0);
     --line: oklch(0.88 0 0);
     --fill: oklch(0.965 0 0);
-    --red: oklch(0.59 0.24 28.5);
+    --red: var(--ember);
     --sans: "Inter", system-ui, sans-serif;
   }
   html, body { height: 100%; margin: 0; overflow: hidden; background: var(--fg); }
   body { font: 400 24px/1.4 var(--sans); color: var(--fg); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
   h1, h2, p, ul, figure, blockquote { margin: 0; padding: 0; }
   ul { list-style: none; }
+  i, em { font-style: normal; }
 
   .stage { position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; translate: -50% -50%; scale: var(--fit, 1); }
-  .slide { position: absolute; inset: 0; box-sizing: border-box; padding: 120px 80px 112px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto 1fr; column-gap: 32px; background: var(--bg); overflow: hidden; }
+  .slide { position: absolute; inset: 0; box-sizing: border-box; padding: 80px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto 1fr; column-gap: 32px; background: var(--bg); overflow: hidden; }
   .slide[hidden] { display: none; }
   .slide > * { grid-column: 1 / -1; }
+  .slide > :is(.ground, .sprite, .solo) { grid-column: auto; }
   .notes { display: none; }
-  .slide > :is(.label, .foot, .ground, .sprite, .solo) { grid-column: auto; }
 
-  .figure { font-size: 240px; line-height: .9; font-weight: 700; letter-spacing: -0.045em; margin-inline-start: -0.05em; }
+  .figure { font-size: 288px; line-height: .9; font-weight: 700; letter-spacing: -0.045em; margin-inline-start: -0.05em; }
   .display { font-size: 96px; line-height: 1; font-weight: 700; letter-spacing: -0.035em; text-wrap: balance; }
   .title { font-size: 64px; line-height: 1.08; font-weight: 650; letter-spacing: -0.028em; text-wrap: balance; }
   .head { font-size: 48px; line-height: 1.15; font-weight: 500; letter-spacing: -0.02em; text-wrap: pretty; }
@@ -36,64 +36,62 @@
   .small { font-size: 18px; line-height: 1.3; font-weight: 500; }
   .grey { color: var(--grey); }
   .red { color: var(--red); }
+  .team { font-weight: 600; }
   blockquote { text-indent: -0.4em; }
   .who { display: grid; align-self: start; font-size: 24px; line-height: 1.4; }
   .who b { font-weight: 600; }
   .who span { color: var(--grey); }
 
-  .label { position: absolute; left: 80px; top: 48px; font: 500 18px/24px var(--sans); color: var(--grey); }
-  .foot { position: absolute; left: 80px; right: 80px; bottom: 48px; display: flex; justify-content: space-between; font: 600 18px/24px var(--sans); }
-  .foot span + span { font-weight: 500; color: var(--grey); font-variant-numeric: tabular-nums; }
-  .ground { position: absolute; left: 80px; right: 80px; top: 608px; border-top: 2px solid var(--fg); }
-  .sprite { position: absolute; bottom: 112px; height: auto; pointer-events: none; user-select: none; }
+  .ground { position: absolute; left: 80px; right: 80px; top: 640px; border-top: 2px solid var(--fg); }
+  .sprite { position: absolute; bottom: 80px; height: auto; pointer-events: none; user-select: none; }
   .flip { scale: -1 1; }
 
+  .s-cover, .s-next { grid-template-rows: none; align-content: start; }
   .s-cover .head { margin-top: 24px; }
+  .s-cover .team, .s-next .team { margin-top: 48px; }
 
   .s-nick .title { grid-column: 1 / 7; }
   .s-nick > .body { grid-column: 7 / -1; padding-top: 8px; }
   .steps { align-self: end; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; column-gap: 32px; }
   .steps li { display: grid; grid-row: span 2; grid-template-rows: subgrid; }
   .steps span { grid-row: 2; }
-  .steps b { margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  .steps b { margin-bottom: 8px; }
 
   .s-num { grid-template-rows: 1fr; }
-  .stat, .study { display: flex; flex-direction: column; }
   .stat { grid-column: 1 / 9; }
   .stat .lead { margin-top: 24px; max-width: 20em; }
-  .study { grid-column: 9 / -1; justify-content: flex-end; }
-  .stat .small, .study .small { margin-top: auto; padding-top: 16px; }
-  .study .small { margin-top: 16px; }
+  .study { grid-column: 9 / -1; align-self: end; }
+  .s-num .small { margin-top: 12px; }
 
-  .s-quote { grid-template-rows: auto auto 1fr; }
-  .s-quote blockquote { grid-column: 1 / 12; margin-top: 48px; }
+  .s-quote { grid-template-rows: none; align-content: start; }
+  .s-quote blockquote { grid-column: 1 / 12; margin-top: 40px; }
   .s-quote .who { margin-top: 40px; }
 
-  .s-realize { align-content: start; }
+  .s-realize { grid-template-rows: auto 1fr; }
   .s-realize .head { grid-column: 1 / 11; }
-  .s-realize .display { margin-top: 56px; }
+  .s-realize .display { align-self: end; }
 
   .s-solution { grid-template-rows: auto auto 1fr; }
   .s-solution .title, .pitch { grid-column: 1 / 8; }
   .pitch { margin-top: 32px; }
   .points { margin-top: 32px; display: grid; gap: 16px; }
-  .desk { grid-column: 8 / -1; grid-row: 1 / -1; align-self: center; display: grid; justify-items: center; gap: 24px; padding: 24px; border-radius: 24px; background: var(--fill); }
-  .desk .mole-bar { zoom: 1.18; }
+  .desk { grid-column: 8 / -1; grid-row: 2 / -1; align-self: start; margin-top: 32px; display: grid; justify-items: center; gap: 32px; }
+  .slide .mole-bar { box-shadow: none; }
+  .desk .mole-bar { zoom: 1.18; outline: 1px solid var(--hairline); }
   .screen { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; background: var(--bg); outline: 2px solid var(--fg); overflow: hidden; }
-  .screen > div { position: absolute; inset: 0; padding: 22px 24px; opacity: 0; transition: opacity .3s ease; }
-  .screen[data-on="6"] > [data-n="6"], .screen[data-on="7"] > [data-n="7"] { opacity: 1; }
+  .screen > div { position: absolute; inset: 0; padding: 22px 24px; visibility: hidden; }
+  .screen[data-on="6"] > [data-n="6"], .screen[data-on="7"] > [data-n="7"] { visibility: visible; }
   .screen small { display: block; margin-top: 18px; font: 500 14px/1 var(--sans); color: var(--grey); }
   .screen h3 { margin: 8px 0 0; font: 650 24px/1.1 var(--sans); letter-spacing: -0.02em; }
   .screen ul { margin-top: 12px; display: grid; gap: 4px; font: 400 16px/1.25 var(--sans); }
-  .screen em { position: absolute; right: 14px; bottom: 12px; font: 500 14px/1 var(--sans); font-style: normal; color: var(--grey); font-variant-numeric: tabular-nums; }
+  .screen em { position: absolute; right: 14px; bottom: 12px; font: 500 14px/1 var(--sans); color: var(--grey); font-variant-numeric: tabular-nums; }
   .screen .bars { position: absolute; left: 24px; bottom: 22px; display: flex; align-items: flex-end; gap: 10px; height: 96px; }
   .screen .bars i { width: 30px; border-radius: 2px 2px 0 0; background: var(--line); }
   .screen .bars i:last-child { background: var(--red); }
   .tag { position: absolute; left: 0; top: 0; padding: 4px 9px 5px 8px; border-bottom-right-radius: 6px; background: var(--fg); color: var(--bg); font: 600 14px/1 var(--sans); }
 
-  .live { display: inline-block; width: .24em; height: .24em; margin-left: .22em; border-radius: 50%; background: var(--red); vertical-align: .24em; }
-  .solo { position: absolute; left: 80px; bottom: calc(112px - var(--w) * 0.8 / 154); --w: 400px; }
-  .solo .mole-bar { width: auto; background: none; box-shadow: none; border-radius: 0; }
+  .solo { position: absolute; left: 80px; bottom: calc(80px - var(--w) * 0.8 / 154); --w: 400px; }
+  .solo .mole-bar { width: auto; background: none; }
   .solo .mole-row { height: auto; padding: 0; gap: 56px; align-items: flex-end; }
   .solo .mole-text { padding-bottom: 48px; }
   .solo .mole-fig { width: var(--w); height: auto; aspect-ratio: 154 / 114.8; margin: 0; }
@@ -101,16 +99,14 @@
   .solo .mole-words, .solo .mole-text[data-one-line] .mole-words { --wx: 0px; --wy: 0px; padding-left: 0; }
   .solo .mole-title { font: 500 48px/1.15 var(--sans); letter-spacing: -0.02em; }
   .solo .mole-heard { height: auto; margin-top: 8px; font: 400 24px/1.4 var(--sans); color: var(--grey); }
-  .slide .mole-bar, .slide .m-num { font-family: var(--sans); }
 
   .s-how { grid-template-rows: auto auto 1fr; }
-  .s-how .title { grid-column: 1 / 10; min-height: 140px; }
-  .s-how .ground { top: 292px; }
-  .trio { margin-top: 48px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 32px; }
-  .slots { margin-top: 32px; display: grid; grid-template-columns: 2fr 1fr; gap: 32px; align-self: stretch; }
+  .ledge { position: relative; padding: 0 232px 24px 0; border-bottom: 2px solid var(--fg); }
+  .ledge .sprite { right: 0; bottom: 0; width: 200px; }
+  .trio { margin-top: 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 32px; }
+  .slots { margin-top: 40px; display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
   .slots div { display: grid; place-items: center; border-radius: 16px; background: var(--fill); color: var(--grey); }
 
-  .s-comp { grid-template-rows: auto 1fr; }
   .vs { grid-column: 1 / 10; align-self: end; border-collapse: collapse; font-size: 24px; line-height: 1.4; }
   .vs th, .vs td { padding: 16px 0; text-align: start; vertical-align: top; border-top: 1px solid var(--line); }
   .vs th { width: 40%; padding-right: 32px; font-weight: 600; }
@@ -129,39 +125,35 @@
   .s-next .title { grid-column: 1 / 9; }
   .s-next .head { grid-column: 1 / 8; margin-top: 32px; }
 
-  .hint { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; font: 500 13px/1 var(--sans); color: var(--grey); transition: opacity .4s ease; }
   @media print {
     html, body { overflow: visible; height: auto; background: none; }
     .stage { position: static; translate: none; scale: 1; }
     .slide, .slide[hidden] { position: relative; display: grid; break-after: page; width: 1280px; height: 720px; }
-    .hint { display: none; }
   }
 </style>
 
 <div class="stage">
 
-  <section class="slide s-cover" data-foot="Alt+F4">
-    <p class="label">LauzHack 2026</p>
+  <section class="slide s-cover" data-section="LauzHack 2026">
     <h1 class="figure red">Molière</h1>
     <p class="head grey">Automated co-presenter.</p>
+    <p class="team">Alt+F4</p>
     <div class="ground"></div>
     <img class="sprite flip" src="sprites/microphone.png" alt="" style="right: 80px; width: 300px">
   </section>
 
-  <section class="slide s-nick">
-    <p class="label">Presenting the problem</p>
+  <section class="slide s-nick" data-section="Presenting the problem">
     <h2 class="title">This is Nick.</h2>
     <p class="body grey">He works at a consulting firm in Geneva. He has 5 meetings per day, each on a different subject and with a different team. He doesn’t have time to fully prepare for every meeting.</p>
     <ul class="steps lead">
       <li><span>He looks for a document.</span></li>
-      <li data-timer><b class="display red">30&nbsp;s</b><span>of silence. People are waiting.</span></li>
+      <li><b class="display red">30&nbsp;s</b><span>of silence. People are waiting.</span></li>
       <li><span>He pulls up the wrong slide.</span></li>
     </ul>
     <aside class="notes"><p>This is Nick, he works at a consulting firm in Geneva. He has 5 meetings per day, each on a different subject and with a different team. He doesn’t have time to fully prepare for every meeting. Every time he has to present something, something wrong happens: he looks for a document, there is silence for 30 seconds, then he pulls up the wrong slide.</p></aside>
   </section>
 
-  <section class="slide s-num">
-    <p class="label">Presenting the problem</p>
+  <section class="slide s-num" data-section="Presenting the problem">
     <div class="stat">
       <h2 class="figure red">3 in 4</h2>
       <p class="lead">meetings hit at least one tech failure, costing about 11 minutes each.</p>
@@ -174,23 +166,20 @@
     <aside class="notes"><p>Three in four meetings hit at least one tech failure, costing about 11 minutes each (Jabra, 2026). And in a lab study, people who talked while using a computer spoke more slowly and made more mistakes at both (BYU, 2022).</p></aside>
   </section>
 
-  <section class="slide s-quote">
-    <p class="label">Presenting the problem</p>
+  <section class="slide s-quote" data-section="Presenting the problem">
     <p class="lead grey">We asked 6 people who present to clients every week.</p>
     <blockquote class="head">“Clients always come up with questions I wasn’t expecting. So I end up searching for documents or running another simulation while explaining what I’m doing.”</blockquote>
     <p class="who"><b>Mathias Sudres</b><span>Insurance advisor in Switzerland</span></p>
     <aside class="notes"><p>We asked 6 people who present to clients every week. Mathias Sudres, an insurance advisor in Switzerland, told us: “Clients always come up with questions I wasn’t expecting. So I end up searching for documents or running another simulation while explaining what I’m doing.”</p></aside>
   </section>
 
-  <section class="slide s-realize">
-    <p class="label">By talking to office workers, we realized:</p>
+  <section class="slide s-realize" data-section="By talking to office workers, we realized:">
     <p class="head grey">The issue wasn’t the software used for the meeting or actual technical issues.</p>
     <h2 class="display">It’s error-prone manual work under stress.</h2>
     <aside class="notes"><p>By talking to office workers, we realized that the issue wasn’t the software used for the meeting or actual technical issues. It’s error-prone manual work under stress.</p></aside>
   </section>
 
-  <section class="slide s-solution">
-    <p class="label">Our solution</p>
+  <section class="slide s-solution" data-section="Our solution">
     <h2 class="title">Introducing <span class="red">Molière</span>.</h2>
     <div class="pitch body">
       <p class="grey">We want to make the process of presenting in meetings seamless.</p>
@@ -211,19 +200,18 @@
     <aside class="notes"><p>We want to make the process of presenting in meetings seamless. This is why we’re introducing Molière. It’s an automated co-presenter that sets up the whole environment for you, knows exactly what you want to show while you speak and lets you focus entirely on interacting with your colleagues, getting your message across and having a productive meeting in general.</p></aside>
   </section>
 
-  <section class="slide s-demo">
-    <p class="label">Our solution</p>
-    <h2 class="display">Live demo<i class="live"></i></h2>
+  <section class="slide s-demo" data-section="Our solution">
+    <h2 class="display">Live demo</h2>
     <div class="ground"></div>
     <div class="solo" data-mole="loop"></div>
     <aside class="notes"><p>(Live demo)</p></aside>
   </section>
 
-  <section class="slide s-how">
-    <p class="label">How does our solution work?</p>
-    <h2 class="title">Not just AI agent talk: we have trained actual models.</h2>
-    <div class="ground"></div>
-    <img class="sprite flip" src="sprites/pickaxe.png" alt="" style="right: 80px; bottom: 428px; width: 200px">
+  <section class="slide s-how" data-section="How does our solution work?">
+    <div class="ledge">
+      <h2 class="title">Not just AI agent talk:<br> we have trained actual models.</h2>
+      <img class="sprite flip" src="sprites/pickaxe.png" alt="">
+    </div>
     <ul class="trio body">
       <li>Our UI is minimal and doesn’t disrupt the presenter.</li>
       <li>Work is done in the background.</li>
@@ -233,8 +221,7 @@
     <aside class="notes"><p>(Show the architecture, tech stack.) I am sure you will get tired of all the AI agent talk during these presentations, our solution is not that: we have trained actual models [etc.] Our UI is minimal and doesn’t disrupt the presenter. Work is done in the background and the presenter can cancel whenever he doesn’t agree with the assistant.</p></aside>
   </section>
 
-  <section class="slide s-comp">
-    <p class="label">Who are the competitors?</p>
+  <section class="slide s-comp" data-section="Who are the competitors?">
     <h2 class="title">Our solution works live, in any software.</h2>
     <table class="vs">
       <tr><th>Notetakers</th><td>Act after the call.</td></tr>
@@ -246,8 +233,7 @@
     <aside class="notes"><p>Unlike notetakers that act after the call, our solution works live, runs on your laptop, and hands control back the moment you want it. Meeting agents like Teams Facilitator answer in the chat, inside Teams only. Our solution works in any software.</p></aside>
   </section>
 
-  <section class="slide s-voices">
-    <p class="label">Interviews</p>
+  <section class="slide s-voices" data-section="Interviews">
     <blockquote class="title">“…without jumping between ten different windows.”</blockquote>
     <p class="who"><b>Mathias Sudres</b><span>Insurance advisor in Switzerland</span></p>
     <figure class="second">
@@ -259,8 +245,7 @@
     <aside class="notes"><p>Rodolphe Henzi, Accenture: “If this is something that is feasible, it for sure would help us a lot.”</p></aside>
   </section>
 
-  <section class="slide s-b2b">
-    <p class="label">Business model / go-to-market</p>
+  <section class="slide s-b2b" data-section="Business model / go-to-market">
     <h2 class="display">We will go <span class="red">B2B</span>.</h2>
     <div class="pair lead">
       <p>Integrating into the ecosystem of companies which would use Molière for all their meetings.</p>
@@ -269,18 +254,16 @@
     <aside class="notes"><p>We will go B2B, integrating into the ecosystem of companies which would use Molière for all their meetings. Our assistant will adapt to the architectures of these companies, to know exactly how to look for documents [etc.]</p></aside>
   </section>
 
-  <section class="slide s-next" data-foot="Alt+F4">
-    <p class="label">Roadmap &amp; next steps</p>
+  <section class="slide s-next" data-section="Roadmap &amp; next steps">
     <h2 class="title">Next, we will train <span class="red">Molière</span> on your workflow.</h2>
     <p class="head grey">For it to be able to help you to its full potential.</p>
+    <p class="team">Alt+F4</p>
     <div class="ground"></div>
     <img class="sprite flip" src="sprites/shovel.png" alt="" style="right: 80px; width: 300px">
     <aside class="notes"><p>Next, we will train Molière on your workflow, for it to be able to help you to its full potential.</p></aside>
   </section>
 
 </div>
-
-<p class="hint" id="hint">Arrow keys or click to move. N for notes. F for full screen.</p>
 
 <script src="mole.js"></script>
 <script>
@@ -307,20 +290,7 @@
     loop(bar, screen && (state => { if (state === "idle") screen.dataset.on = "6"; if (state === "ready") screen.dataset.on = "7"; }));
   }
 
-  let timerRun = 0;
-  function silence(step) {
-    const id = ++timerRun, label = step.querySelector("b"), start = performance.now() + 500, length = 3600;
-    const tick = now => {
-      if (id !== timerRun) return;
-      const p = Math.min(1, Math.max(0, (now - start) / length));
-      label.textContent = `${Math.round(30 * (1 - (1 - p) ** 2.2))} s`;
-      if (p < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
-
   const slides = [...document.querySelectorAll(".slide")];
-  slides.forEach((s, k) => s.insertAdjacentHTML("beforeend", `<footer class="foot"><span>${s.dataset.foot ?? "Molière"}</span><span>${String(k + 1).padStart(2, "0")}</span></footer>`));
 
   let notesWin = null, notesStart = 0;
   function openNotes() {
@@ -336,7 +306,7 @@
         #notes p { margin: 0 0 12px; max-width: 60ch; text-wrap: pretty; }
         #next { margin-top: 32px; padding-top: 16px; border-top: 1px solid oklch(0.88 0 0); font-size: 16px; color: oklch(0.5 0 0); }
       </style>
-      <header><span id="at"></span><span id="clock">00:00</span></header><h1 id="label"></h1><div id="notes"></div><p id="next"></p>`);
+      <header><span id="at"></span><span id="clock">00:00</span></header><h1 id="section"></h1><div id="notes"></div><p id="next"></p>`);
     notesWin.document.close();
     notesWin.addEventListener("keydown", onKey);
     const clock = setInterval(() => {
@@ -350,7 +320,7 @@
     if (!notesWin || notesWin.closed) return;
     const $ = id => notesWin.document.getElementById(id), s = slides[at], next = slides[at + 1];
     $("at").textContent = `Slide ${at + 1} of ${slides.length}`;
-    $("label").textContent = s.querySelector(".label").textContent;
+    $("section").textContent = s.dataset.section;
     $("notes").innerHTML = s.querySelector(".notes")?.innerHTML ?? "<p>No notes for this slide.</p>";
     $("next").textContent = next ? `Next: ${next.querySelector("h1, h2, blockquote").textContent}` : "Last slide.";
   }
@@ -360,8 +330,6 @@
     at = Math.min(slides.length - 1, Math.max(0, n));
     slides.forEach((s, k) => { s.hidden = k !== at; });
     history.replaceState(null, "", `${location.pathname}${location.search}#${at + 1}`);
-    const timer = slides[at].querySelector("[data-timer]");
-    if (timer) silence(timer); else timerRun++;
     showNotes();
   }
   function onKey(e) {
@@ -377,7 +345,6 @@
   addEventListener("resize", fit);
   addEventListener("keydown", onKey);
   addEventListener("click", e => go(at + (e.clientX < innerWidth / 3 ? -1 : 1)));
-  setTimeout(() => (hint.style.opacity = 0), 4000);
   fit();
   go(at);
 </script>
