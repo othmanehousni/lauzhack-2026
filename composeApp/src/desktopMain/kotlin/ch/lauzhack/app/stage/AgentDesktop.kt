@@ -2,6 +2,7 @@ package ch.lauzhack.app.stage
 
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -34,9 +35,10 @@ class AgentDesktop(
 
     private suspend fun <T> serial(block: suspend () -> T): T = lock.withLock { withContext(Dispatchers.IO) { block() } }
 
-    /** Checks what the shared screen needs, starts the VM if it is stopped, renders the decks and brings up the stage on
-     * the desktop picture. Returns notes for the presenter, one actionable line each, such as the fallback to a window
-     * on this Mac; throws with them when the shared screen cannot come up. */
+    /** Checks what the shared screen needs, starts the VM if it is stopped and sets it up (Vm.setup) if it cannot show
+     * the stage, renders the decks and brings up the stage on the desktop picture. Returns notes for the presenter, one
+     * actionable line each, such as the fallback to a window on this Mac; throws with them when the shared screen cannot
+     * come up. */
     suspend fun up(): List<String> = serial {
         val notes = mutableListOf<String>()
         fun fail(line: String): Nothing = error((notes + line).joinToString("\n"))
@@ -59,8 +61,10 @@ class AgentDesktop(
             }
         }
         stage = Stage(vm, data, if (vm != null) TUNNEL_PORT else hostPort, dry)
-        if (vm != null && !dry && vm.guest("test -r ${quote(stage.page.path)} && test -d '/Applications/Google Chrome.app' && echo ok", check = false).trim() != "ok") {
-            fail("the VM cannot read ${stage.page} or has no Chrome: run `uv run vm.py` once")
+        if (vm != null && !dry && !vm.ready(stage.page)) {
+            val did = try { vm.setup() } catch (e: CancellationException) { throw e } catch (e: Exception) { fail("setting up the sandbox VM $sandbox failed: ${e.message}") }
+            notes += "the VM could not read ${stage.page} or had no Chrome, so the app set it up: ${did.joinToString("; ")}"
+            if (!vm.ready(stage.page)) fail("the VM still cannot read ${stage.page} after its setup: keep the app's data under ${FOLDERS.joinToString { "~/$it" }}, which the VM mounts")
         }
         if (vm == null && !File("/Applications/Google Chrome.app").exists()) fail("Google Chrome is not installed on this Mac: https://www.google.com/chrome/")
         decks = decks(library, data)
