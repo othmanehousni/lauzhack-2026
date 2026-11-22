@@ -1,6 +1,8 @@
 package ch.lauzhack.app.session
 
 import ai.koog.embeddings.base.Embedder
+import ch.lauzhack.app.Agent
+import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.agent.Catalog
@@ -10,8 +12,13 @@ import ch.lauzhack.app.agent.MoleAgent
 import ch.lauzhack.app.agent.SlideText
 import ch.lauzhack.app.link.Link
 import ch.lauzhack.app.link.PhoneServer
+import ch.lauzhack.app.log
 import ch.lauzhack.app.stage.AgentDesktop
+import ch.lauzhack.app.stage.DATA
+import ch.lauzhack.app.stage.DeckPage
 import ch.lauzhack.app.stage.Ear
+import ch.lauzhack.app.stage.HOME
+import ch.lauzhack.app.stage.decks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -24,33 +31,43 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+import javax.imageio.ImageIO
 import kotlin.math.log10
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /**
  * The laptop's side of the product. Asleep outside a call: no ear, no phone server, no shared screen. When [meeting]
- * gives a call's title, it brings the shared screen up, reads the decks, files and apps into the agent's catalog, and
- * runs a [Session] on the laptop's ear or the phone's, whichever leads, until the call ends; then all of it stops.
- * The floater renders [line] and sends taps to [onPick]. [downloads] (a model file, and the fraction of it on disk) is
- * collected to its end before [embedder] is first used.
+ * gives a call's title, it brings the shared screen up, reads the decks in [library], files and apps into the catalog
+ * [agent] decides from, and runs a [Session] on the laptop's ear (or [typed] lines) or the phone's, whichever leads,
+ * until the call ends; then all of it stops. A library without a PDF keeps it asleep until one is there. The floater
+ * renders [line] and sends taps to [onPick]. [downloads] (a model file, and the fraction of it on disk) is collected to
+ * its end before [embedder] is first called. Every line, screen change and decision is [log]ged.
  */
 class Laptop(
     scope: CoroutineScope,
-    embedder: Embedder,
-    library: File,
+    embedder: () -> Embedder,
+    private val library: StateFlow<File>,
     private val meeting: StateFlow<String?>,
     private val downloads: Flow<Pair<String, Float>>? = null,
+    private val agent: (Catalog, Intents) -> Agent = ::MoleAgent,
+    private val sandbox: String? = "base",
+    private val typed: Flow<Heard>? = null,
+    private val shots: File? = null, // where a checked run keeps what the audience saw after each change, as PNGs
 ) {
     private val work = CoroutineScope(scope.coroutineContext + Dispatchers.Default.limitedParallelism(1)) // the session's state is one thread's
     private val mole = Mole(work)
-    private val desk = AgentDesktop(library)
-    private val embeddings = Embeddings(embedder) // kept across calls: each deck, file and example is embedded once
+    private var desk = AgentDesktop(library.value, sandbox)
+    private var deskFor = library.value
+    private val embeddings by lazy { Embeddings(embedder()) } // kept across calls: each deck, file and example is embedded once
     private var intents: Intents? = null
     private val session = MutableStateFlow<Session?>(null)
 
@@ -62,49 +79,100 @@ class Laptop(
 
     init {
         work.launch {
+            line.collect { l ->
+                log("mole    ${l.state.name.lowercase()}  ${l.title.orEmpty()}  ${l.heard}" +
+                    (if (l.options.isNotEmpty()) "  ${l.options.map { "${it.name} (${it.meta})" }}" else "") + (if (l.card.isNotEmpty()) "  [${l.card}]" else ""))
+            }
+        }
+        work.launch {
             if (downloads != null) {
                 try {
-                    downloads.collect { (file, done) -> mole.on(Event.Setup("Downloading $file · ${(done * 100).roundToInt()}%")) }
+                    downloads.collect { (_, done) -> mole.on(Event.Setup("Downloading models, ${(done * 100).roundToInt()}%")) }
                 } catch (e: Exception) {
                     currentCoroutineContext().ensureActive()
+                    log("download failed: $e")
                     mole.on(Event.Failed("Couldn't download the models.", first(e)))
                 }
                 mole.on(Event.Sleep)
             }
+            try { // now, so that a call starts without waiting for the models
+                val t = TimeSource.Monotonic.markNow()
+                if (intents == null) intents = Intents.train(embeddings)
+                log("models ready in ${t.elapsedNow().inWholeMilliseconds} ms")
+            } catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
+                log("models failed: $e")
+                mole.on(Event.Failed("Couldn't load the models.", first(e)))
+            }
+            try { // the first call then embeds only what changed since: 1500 files take half a minute
+                val t = TimeSource.Monotonic.markNow()
+                Catalog.build(embeddings, texts(decks(library.value, DATA)), emptyList(), desk.newestFiles())
+                log("catalog warm in ${t.elapsedNow().inWholeMilliseconds} ms")
+            } catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
+                log("catalog warm-up failed: $e")
+            }
+            if (!hasDecks(library.value)) empty(library.value)
             val title = meeting.map { it.orEmpty() }.stateIn(this, SharingStarted.Eagerly, "")
-            meeting.map { it != null }.distinctUntilChanged().collectLatest { on -> if (on) meet(title) else mole.on(Event.Sleep) }
+            combine(meeting.map { it != null }, library) { on, lib -> lib.takeIf { on } }.distinctUntilChanged()
+                .collectLatest { lib -> if (lib != null) meet(title, lib) else mole.on(Event.Sleep) }
         }
     }
 
-    private suspend fun meet(title: StateFlow<String>): Nothing = coroutineScope {
+    private suspend fun empty(lib: File) {
+        mole.on(Event.Setup("Put your PDF slides in ${lib.path.removePrefix("$HOME/")}."))
+        delay(6.seconds)
+        mole.on(Event.Sleep)
+    }
+
+    private suspend fun meet(title: StateFlow<String>, lib: File): Nothing = coroutineScope {
+        log("meeting \"${title.value}\", decks in $lib")
+        if (!hasDecks(lib)) {
+            empty(lib)
+            while (!hasDecks(lib)) delay(2.seconds)
+        }
+        if (lib != deskFor) {
+            desk = AgentDesktop(lib, sandbox)
+            deskFor = lib
+        }
+        val desk = desk
         val catalog = try {
-            ready()
+            ready(desk)
         } catch (e: Exception) {
             ensureActive()
+            log("shared screen failed: $e")
             mole.on(Event.Failed("Couldn't get the shared screen ready.", first(e)))
             awaitCancellation()
         }
-        val ear = Ear()
-        launch {
-            try {
-                ear.listen(catalog.vocabulary)
-            } catch (e: Exception) { // the phone may still hear
-                ensureActive()
-                mole.on(Event.Failed("Couldn't listen on this Mac.", first(e)))
+        val ear = Ear().takeIf { typed == null }
+        if (ear != null) {
+            launch { ear.notes.collect { log("ear: $it") } }
+            launch {
+                try {
+                    ear.listen(catalog.vocabulary)
+                } catch (e: Exception) { // the phone may still hear
+                    ensureActive()
+                    log("ear failed: $e")
+                    mole.on(Event.Failed("Couldn't listen on this Mac.", first(e)))
+                }
             }
         }
-        val laptopDb = ear.level.map { 20 * log10(maxOf(it, 1e-5f)) }.stateIn(this, SharingStarted.Eagerly, -100f)
+        val laptopDb = ear?.level?.map { 20 * log10(maxOf(it, 1e-5f)) }?.stateIn(this, SharingStarted.Eagerly, -100f) ?: MutableStateFlow(-100f)
         val screen = MutableStateFlow(Link.Screen())
         val phones = PhoneServer(mole.line, screen, title, laptopDb)
         phones.start()
         try {
-            val s = Session(MoleAgent(catalog, intents!!), desk.asScreen(), mole, ear.heard, phones.words, phones.lead.map { it.phone })
+            val s = Session(logged(agent(catalog, intents!!)), desk.asScreen(), mole, typed ?: ear!!.heard, phones.words, phones.lead.map { it.phone })
             session.value = s
             launch { phones.picks.collect(s::pick) }
+            launch { phones.connected.collect { log(if (it) "phone connected" else "no phone") } }
             launch {
                 s.onScreen.collectLatest { shown -> // again once a tab that just opened has drawn
+                    log("screen  ${shown.target ?: "the desktop"}  ${shown.name}")
                     repeat(2) {
-                        screen.value = Link.Screen(shown.name, quietly { desk.thumbnail() })
+                        val thumb = quietly { desk.thumbnail() }
+                        screen.value = Link.Screen(shown.name, thumb)
+                        if (it == 1 && thumb != null && shots != null) shot(thumb, shots)
                         delay(1500.milliseconds)
                     }
                 }
@@ -113,18 +181,54 @@ class Laptop(
         } finally {
             session.value = null
             phones.stop()
+            log("meeting over")
         }
     }
 
+    private var shotCount = 0
+
+    private fun shot(jpeg: ByteArray, dir: File) {
+        dir.mkdirs()
+        val file = File(dir, "%02d.png".format(++shotCount))
+        ImageIO.write(ImageIO.read(jpeg.inputStream()), "png", file)
+        log("shot    $file")
+    }
+
     /** The shared screen up, and the catalog of what can be put on it. */
-    private suspend fun ready(): Catalog {
+    private suspend fun ready(desk: AgentDesktop): Catalog {
         mole.on(Event.Setup("Getting the shared screen ready…"))
-        desk.up().forEach { println("shared screen: $it") }
+        for (note in desk.up()) {
+            log("shared screen: $note")
+            mole.on(Event.Setup(note.replaceFirstChar(Char::uppercase)))
+            delay(3.seconds)
+        }
         mole.on(Event.Setup("Reading your decks and files…"))
-        val slides = desk.decks.map { SlideText(it.deck, it.page, it.title, it.text) }
+        val t = TimeSource.Monotonic.markNow()
+        val slides = texts(desk.decks)
         val catalog = Catalog.build(embeddings, slides, desk.apps, desk.newestFiles())
         if (intents == null) intents = Intents.train(embeddings)
+        log("catalog of ${slides.size} slides, ${catalog.files.size} files, ${desk.apps.size} apps in ${t.elapsedNow().inWholeMilliseconds} ms")
         return catalog
+    }
+}
+
+private fun texts(pages: List<DeckPage>) = pages.map { SlideText(it.deck, it.page, it.title, it.text) }
+
+/** Whether [dir] holds a PDF to present. */
+fun hasDecks(dir: File) = !dir.listFiles { f -> f.extension.equals("pdf", ignoreCase = true) }.isNullOrEmpty()
+
+/** The agent, with one line in the log for each utterance it is asked about anew: the words, the move, how long it took. */
+private fun logged(agent: Agent): Agent {
+    var last: Heard? = null
+    return Agent { heard, onScreen ->
+        val t = TimeSource.Monotonic.markNow()
+        agent.anythingToDo(heard, onScreen).also { move ->
+            if (heard != last && heard.text.isNotBlank()) {
+                last = heard
+                val why = (agent as? MoleAgent)?.thought?.reason?.let { " ($it)" }.orEmpty()
+                log("decide  ${t.elapsedNow().inWholeMilliseconds} ms  \"${heard.text}\"${if (heard.ended) "" else " (still talking)"}  ->  $move$why")
+            }
+        }
     }
 }
 
