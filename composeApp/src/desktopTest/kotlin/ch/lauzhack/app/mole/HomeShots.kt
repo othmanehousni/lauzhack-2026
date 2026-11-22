@@ -10,7 +10,15 @@ import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import ch.lauzhack.app.Choice
+import ch.lauzhack.app.Lang
+import ch.lauzhack.app.lang
+import ch.lauzhack.app.ui
 import ch.lauzhack.app.MoleLine
 import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.OnScreen
@@ -35,9 +43,9 @@ private const val LONG_HEARD = "So how big is this market really, and how fast h
 private const val LONG_FOLDER = "Quarterly business reviews and board meeting decks for the whole of 2026"
 
 /**
- * Renders the window to build/home-shots/: asleep and in a meeting, light and dark, at the window's default size and its
- * smallest, each as the window shows it (<name>.png) and as one long page (<name>-page.png); a long folder name and a
- * long line heard at the smallest size; and contact.png of the window-sized ones.
+ * Renders the window to build/home-shots/: asleep and in a meeting, light and dark, at the window's opening size and its
+ * smallest; the same in German, in a meeting with a long folder and a long line heard; the settings page; one long page
+ * per size; and contact.png of the window-sized ones.
  */
 class HomeShots {
     @Test
@@ -45,17 +53,20 @@ class HomeShots {
         assumeTrue("set MOLE_SHOTS to render the window", System.getenv("MOLE_SHOTS") != null)
         val out = File("build/home-shots").apply { deleteRecursively(); mkdirs() }
         val sheet = mutableListOf<Pair<String, BufferedImage>>()
-        for ((w, h) in listOf(720 to 780, 480 to 600)) for (meeting in listOf(false, true)) for (theme in listOf(MoleTheme.Light, MoleTheme.Dark)) {
-            val name = "${if (meeting) "meeting" else "asleep"}-${w}x$h-${theme.name.lowercase()}"
-            sheet += name to save(File(out, "$name.png"), shoot(w, h, theme, meeting, long = false))
-            save(File(out, "$name-page.png"), shoot(w, if (w > 600) 1480 else 1760, theme, meeting, long = false))
-        }
-        for (theme in listOf(MoleTheme.Light, MoleTheme.Dark)) {
-            val name = "long-480x600-${theme.name.lowercase()}"
-            sheet += name to save(File(out, "$name.png"), shoot(480, 600, theme, meeting = true, long = true))
-            save(File(out, "$name-page.png"), shoot(480, 1760, theme, meeting = true, long = true))
-            val open = "choosing-480x600-${theme.name.lowercase()}" // the sample at its tallest, beside the panel's label
-            sheet += open to save(File(out, "$open.png"), shoot(480, 600, theme, meeting = false, long = false, sample = Choices[0].second))
+        for ((w, h) in listOf(1100 to 760, 720 to 560)) {
+            for (meeting in listOf(false, true)) for (theme in listOf(MoleTheme.Light, MoleTheme.Dark)) {
+                val name = "${if (meeting) "meeting" else "asleep"}-${w}x$h-${theme.name.lowercase()}"
+                sheet += name to save(File(out, "$name.png"), shoot(w, h, theme, meeting, long = false))
+            }
+            for (meeting in listOf(false, true)) {
+                val name = "de-${if (meeting) "meeting" else "asleep"}-${w}x$h"
+                sheet += name to save(File(out, "$name.png"), shoot(w, h, MoleTheme.Light, meeting, long = meeting, language = Lang.De))
+            }
+            for (theme in listOf(MoleTheme.Light, MoleTheme.Dark)) {
+                val name = "settings-${w}x$h-${theme.name.lowercase()}"
+                sheet += name to save(File(out, "$name.png"), shoot(w, h, theme, meeting = false, long = false, settings = true))
+            }
+            save(File(out, "asleep-${w}-page.png"), shoot(w, 1700, MoleTheme.Light, meeting = false, long = false))
         }
         ImageIO.write(contact(sheet), "png", File(out, "contact.png"))
     }
@@ -65,10 +76,12 @@ class HomeShots {
         return ImageIO.read(file)
     }
 
-    private fun shoot(w: Int, h: Int, theme: MoleTheme, meeting: Boolean, long: Boolean, sample: MoleLine = Announce): ByteArray {
+    @OptIn(ExperimentalComposeUiApi::class)
+    private fun shoot(w: Int, h: Int, theme: MoleTheme, meeting: Boolean, long: Boolean, sample: MoleLine = Announce, language: Lang = Lang.En, settings: Boolean = false): ByteArray {
+        lang = language
         val lib = File(Files.createTempDirectory("home").toFile(), if (long) LONG_FOLDER else "library").apply { mkdirs() }
         for (deck in if (long) (1..12).map { "Deck $it" } else listOf("Company_Overview", "Q3_2026_Financials", "Product_Roadmap")) File(lib, "$deck.pdf").writeText("")
-        val settings = Settings(MemoryPrefs(), MutableStateFlow(lib), MutableStateFlow(true), MutableStateFlow(2500.milliseconds), WAITS, mutableStateOf(theme))
+        val prefs = Settings(MemoryPrefs(), MutableStateFlow(lib), MutableStateFlow(true), MutableStateFlow(2500.milliseconds), WAITS, mutableStateOf(theme))
         val call = MutableStateFlow(if (meeting) Meeting("", "Meeting", false, Clock.System.now()) else null)
         val said = if (long) LONG_HEARD else MARKET
         val line = MutableStateFlow(
@@ -77,23 +90,30 @@ class HomeShots {
         )
         val screen = MutableStateFlow(if (meeting) OnScreen(Target.Slide("Company_Overview", 7, "Traction"), "Company Overview") else OnScreen())
         val scene = ImageComposeScene(w * 2, h * 2, Density(2f)) {
-            Column(Modifier.fillMaxSize().background(theme.colors().page)) {
+            Column(Modifier.fillMaxSize().background(frameOf(theme.colors()).frame)) {
                 Spacer(Modifier.height(28.dp)) // HomeWindow's clear title bar
-                Home(call, {}, {}, line, {}, MutableStateFlow(sample), {}, screen, MutableStateFlow(meeting), settings, { null })
+                Home(call, {}, {}, line, {}, MutableStateFlow(sample), {}, screen, MutableStateFlow(meeting), prefs, { null })
             }
         }
         var image = scene.render(0)
+        if (settings) {
+            scene.semanticsOwners.flatMap { all(it.rootSemanticsNode) }
+                .first { it.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull() == ui.settings }.config[SemanticsActions.OnClick].action!!.invoke()
+        }
         repeat(72) { image = scene.render((it + 1) * 1_000_000_000L / 60) } // 1.2 s: the stop has drained about half
         scene.close()
         lib.parentFile.deleteRecursively()
+        lang = Lang.En
         return image.encodeToData(EncodedImageFormat.PNG)!!.bytes
     }
 
+    private fun all(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::all)
+
     private fun contact(shots: List<Pair<String, BufferedImage>>): BufferedImage {
         val cols = 4
-        val cell = 720 + 24
+        val cell = 1100 + 24
         val rows = (shots.size + cols - 1) / cols
-        val sheet = BufferedImage(cols * cell + 24, rows * (780 + 56) + 24, BufferedImage.TYPE_INT_RGB)
+        val sheet = BufferedImage(cols * cell + 24, rows * (760 + 56) + 24, BufferedImage.TYPE_INT_RGB)
         val g = sheet.createGraphics()
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
@@ -102,7 +122,7 @@ class HomeShots {
         g.font = Font(Font.SANS_SERIF, Font.PLAIN, 18)
         shots.forEachIndexed { i, (name, img) ->
             val x = 24 + (i % cols) * cell
-            val y = 24 + (i / cols) * (780 + 56)
+            val y = 24 + (i / cols) * (760 + 56)
             g.color = Color.WHITE
             g.drawString(name, x, y + 18)
             g.drawImage(img, x, y + 32, img.width / 2, img.height / 2, null)

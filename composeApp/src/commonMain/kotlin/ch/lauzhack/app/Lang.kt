@@ -114,6 +114,16 @@ class Wording(
     val chooseFolderTitle: String,
     val resetPosition: String,
     val quit: String,
+    // the main window's frame
+    val welcome: String,
+    val home: String,
+    val heroTitle: String,
+    val heroLine: String,
+    val kinds: List<String>, // what a line of SAY does: a slide, a site, nothing
+    val thisMeeting: String,
+    val live: String,
+    val otherFiles: String,
+    val spokenEnglish: String,
 ) {
     fun theme(t: MoleTheme) = themes[t.ordinal]
 }
@@ -206,6 +216,15 @@ private val EN = Wording(
     chooseFolderTitle = "Choose the folder of your decks",
     resetPosition = "Reset floater position",
     quit = "Quit Molière",
+    welcome = "Welcome back",
+    home = "Home",
+    heroTitle = "The right slide, on cue.",
+    heroLine = "Molière listens while you present and puts the slide, file or site you mean on the screen you share.",
+    kinds = listOf("Slide", "Site", "Nothing"),
+    thisMeeting = "This meeting",
+    live = "Live",
+    otherFiles = "other files",
+    spokenEnglish = "What you say to Molière stays in English.",
 )
 
 // Swiss German: du, ss for ß, «».
@@ -295,6 +314,15 @@ private val DE = Wording(
     chooseFolderTitle = "Wähle den Ordner deiner Präsentationen",
     resetPosition = "Position zurücksetzen",
     quit = "Molière beenden",
+    welcome = "Willkommen zurück",
+    home = "Start",
+    heroTitle = "Die richtige Folie, im richtigen Moment.",
+    heroLine = "Molière hört zu, während du präsentierst, und zeigt die gemeinte Folie, Datei oder Website auf dem Bildschirm, den du teilst.",
+    kinds = listOf("Folie", "Website", "Nichts"),
+    thisMeeting = "Dieses Meeting",
+    live = "Live",
+    otherFiles = "weitere Dateien",
+    spokenEnglish = "Mit Molière sprichst du weiterhin Englisch.",
 )
 
 // Swiss French: vous, «» without inner spaces and no space before ? or !, as Swiss print sets them.
@@ -384,6 +412,15 @@ private val FR = Wording(
     chooseFolderTitle = "Choisissez le dossier de vos présentations",
     resetPosition = "Réinitialiser la position",
     quit = "Quitter Molière",
+    welcome = "Bon retour",
+    home = "Accueil",
+    heroTitle = "La bonne diapo, au bon moment.",
+    heroLine = "Molière écoute pendant que vous présentez et affiche la diapo, le fichier ou le site voulu sur l’écran que vous partagez.",
+    kinds = listOf("Diapo", "Site", "Rien"),
+    thisMeeting = "Cette réunion",
+    live = "En direct",
+    otherFiles = "autres fichiers",
+    spokenEnglish = "Vous parlez toujours anglais à Molière.",
 )
 
 // Italian as a tool says it: tu, «».
@@ -473,6 +510,15 @@ private val IT = Wording(
     chooseFolderTitle = "Scegli la cartella delle tue presentazioni",
     resetPosition = "Ripristina la posizione",
     quit = "Esci da Molière",
+    welcome = "Bentornato",
+    home = "Home",
+    heroTitle = "La slide giusta, al momento giusto.",
+    heroLine = "Molière ascolta mentre presenti e mette la slide, il file o il sito che intendi sullo schermo che condividi.",
+    kinds = listOf("Slide", "Sito", "Niente"),
+    thisMeeting = "Questa riunione",
+    live = "In diretta",
+    otherFiles = "altri file",
+    spokenEnglish = "A Molière parli sempre in inglese.",
 )
 
 // Rumantsch Grischun, ti, «». Written by a non-native: every line wants a native speaker's check.
@@ -562,6 +608,15 @@ private val RM = Wording(
     chooseFolderTitle = "Tscherna l’ordinatur da tias preschentaziuns",
     resetPosition = "Reinizialisar la posiziun",
     quit = "Terminar Molière",
+    welcome = "Bainvegni puspè",
+    home = "Entschatta",
+    heroTitle = "La dretga folia, al dretg mument.",
+    heroLine = "Molière tadla durant che ti preschentas e metta la folia, la datoteca u la pagina d’internet che ti manegias sin il visur che ti cumpartas.",
+    kinds = listOf("Folia", "Pagina", "Nagut"),
+    thisMeeting = "Quest inscunter",
+    live = "Live",
+    otherFiles = "autras datotecas",
+    spokenEnglish = "Cun Molière discurras ti englais.",
 )
 
 private val WORDING = mapOf(Lang.En to EN, Lang.De to DE, Lang.Fr to FR, Lang.It to IT, Lang.Rm to RM)
