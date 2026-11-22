@@ -8,6 +8,7 @@ import androidx.compose.foundation.LocalContextMenuRepresentation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -106,22 +107,30 @@ internal fun ApplicationScope.MoleFloater(
                     )
                 },
             ) {
-                Box(Modifier.fillMaxSize().padding(RING.dp), contentAlignment = Alignment.BottomCenter) {
-                    WindowDraggableArea {
-                        MoleBar(line, onPick, Modifier.onSizeChanged { window.hug(it) }, theme)
-                    }
+                WindowDraggableArea {
+                    FloaterBar(line, onPick, theme) { window.hug(it) }
                 }
             }
         }
     }
 }
 
+/** The floater window's content: the bar inside its ring, anchored at the bottom edge; [onBar] gets the bar's size in px. */
+@Composable
+internal fun FloaterBar(line: MoleLine, onPick: (Int) -> Unit, theme: MoleTheme, onBar: (IntSize) -> Unit) {
+    Box(Modifier.fillMaxSize().padding(RING.dp), contentAlignment = Alignment.BottomCenter) {
+        // Unbounded: the bar measures as tall as its options, not as the window is, so the window can grow to it.
+        MoleBar(line, onPick, Modifier.wrapContentHeight(Alignment.Bottom, unbounded = true).onSizeChanged(onBar), theme)
+    }
+}
+
+/** The window size, in AWT units, that holds a bar of [bar] px and its ring at [scale] px per unit. */
+internal fun hugged(bar: IntSize, scale: Double) = IntSize(ceil(bar.width / scale).toInt() + 2 * RING, ceil(bar.height / scale).toInt() + 2 * RING)
+
 // The window is the bar and its ring, no more, so clicks around the bar reach the app below. The bar is anchored at its
 // bottom edge, so as the options open the window grows upward.
 private fun ComposeWindow.hug(bar: IntSize) {
-    val scale = graphicsConfiguration.defaultTransform.scaleY
-    val w = ceil(bar.width / scale).toInt() + 2 * RING
-    val h = ceil(bar.height / scale).toInt() + 2 * RING
+    val (w, h) = hugged(bar, graphicsConfiguration.defaultTransform.scaleY)
     if (w != width || h != height) setBounds(x, y + height - h, w, h)
 }
 
