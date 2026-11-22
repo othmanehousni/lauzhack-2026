@@ -76,7 +76,7 @@ def synthesize(dest):
 
 
 def run(out, audio):
-    while subprocess.run(['pgrep', '-f', 'Moliere.app/Contents/MacOS'], capture_output=True).stdout.strip(): time.sleep(5)
+    while subprocess.run(['pgrep', '-x', 'Moliere'], capture_output=True).stdout.strip(): time.sleep(5)
     log = os.path.join(out, 'out.txt')
     with open(log, 'w') as f:
         p = subprocess.Popen([APP, '--audio', audio, '--library', LIB, '--no-history'], stdout=f, stderr=subprocess.STDOUT)
