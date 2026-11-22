@@ -1,6 +1,7 @@
 package ch.lauzhack.app.decider
 
 import ai.koog.embeddings.base.Embedder
+import ch.lauzhack.app.ON_STAGE
 import ch.lauzhack.app.Target
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -11,7 +12,6 @@ private const val BONUS = 0.04 // for a slide of the deck on screen (tune/CONTRA
 private const val OWN = 3      // places kept for the meeting's slides (rehearsal/rule.py)
 private const val LEAD = 0.08  // how far something seen lately must lead the eighth best of them (rehearsal/rule.py)
 private const val ALONE = 0.035 // or how far the best of them must lead the second: a request singles one out
-private val ON_STAGE = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "mp4", "mov", "m4v", "webm") // stage.ON_STAGE
 
 /** What the presenter can ask for, each item embedded once by each of its documents (tune/CONTRACT.md, Candidates): the
  * slides of the [meeting]'s decks, what the presenter saw [recent]ly, and the rest. [vectors] are those of the items'

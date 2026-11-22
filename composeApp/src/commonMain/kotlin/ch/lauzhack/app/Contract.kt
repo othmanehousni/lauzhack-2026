@@ -13,6 +13,12 @@ import kotlinx.serialization.Serializable
     @Serializable data class App(val name: String) : Target
 }
 
+/** Pictures and videos: a file of these kinds replaces the deck on the stage instead of opening in a tab over it. */
+val ON_STAGE = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "mp4", "mov", "m4v", "webm")
+
+/** The file's extension, lowercase, without its dot. */
+val Target.File.ext get() = path.substringAfterLast('/').substringAfterLast('.', "").lowercase()
+
 /** One row of the choosing panel, as mole.js draws it. */
 @Serializable data class Choice(val name: String, val meta: String, val kind: Kind) {
     @Serializable enum class Kind { Pdf, Slides, Sheet, Site, Image, Other }
@@ -60,7 +66,7 @@ sealed interface Move {
     data object Nothing : Move
 }
 
-/** Whatever decides the moves: the rules in [ch.lauzhack.app.agent.MoleAgent], a model behind the same call. */
+/** Whatever decides the moves: [ch.lauzhack.app.decider.ModelAgent], or a fake in tests. */
 fun interface Agent {
     suspend fun anythingToDo(heard: Heard, onScreen: OnScreen): Move
 }

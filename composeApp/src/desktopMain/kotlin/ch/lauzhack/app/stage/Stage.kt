@@ -1,5 +1,6 @@
 package ch.lauzhack.app.stage
 
+import ch.lauzhack.app.ON_STAGE
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -46,7 +47,6 @@ private val FLAGS = listOf(
     "--no-first-run", "--no-default-browser-check", "--autoplay-policy=no-user-gesture-required",
     "--disable-features=Translate,MediaRouter", "--hide-crash-restore-bubble",
 )
-val ON_STAGE = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "mp4", "mov", "m4v", "webm")
 val IN_A_TAB = setOf("pdf", "html", "htm", "txt", "md", "json", "csv")
 
 // Run in the tab on screen, keyed by what a presenter would say. MEDIA_JS is the biggest video on the page, the one a

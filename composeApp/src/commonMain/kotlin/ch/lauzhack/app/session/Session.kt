@@ -5,10 +5,10 @@ import ch.lauzhack.app.Choice
 import ch.lauzhack.app.Heard
 import ch.lauzhack.app.MoleState
 import ch.lauzhack.app.Move
+import ch.lauzhack.app.ON_STAGE
 import ch.lauzhack.app.OnScreen
 import ch.lauzhack.app.Target
-import ch.lauzhack.app.agent.ON_STAGE
-import ch.lauzhack.app.agent.suffix
+import ch.lauzhack.app.ext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -298,7 +298,7 @@ private fun plain(e: Exception): String =
 private fun same(a: Target?, b: Target?) = if (a is Target.Slide && b is Target.Slide) a.deck == b.deck && a.page == b.page else a == b
 
 /** A tab or app over the stage, which close takes off; slides, pictures and videos are on the stage itself. */
-internal fun inFront(t: Target?) = t != null && t !is Target.Slide && !(t is Target.File && suffix(t.path).lowercase() in ON_STAGE)
+internal fun inFront(t: Target?) = t != null && t !is Target.Slide && !(t is Target.File && t.ext in ON_STAGE)
 
 internal fun name(t: Target): String = when (t) {
     is Target.Slide -> "slide ${t.page}"
@@ -343,16 +343,16 @@ private fun waiting(said: String) = VERBS.findAll(said).lastOrNull()?.value?.low
 /** A row of the choosing panel: what the target is called, where it is, and its kind. */
 internal fun choice(t: Target): Choice = when (t) {
     is Target.Slide -> Choice(t.title.ifEmpty { "Slide ${t.page}" }, "${t.deck.replace('_', ' ')}, slide ${t.page}", Choice.Kind.Slides)
-    is Target.File -> Choice(t.path.substringAfterLast('/'), t.path.substringBeforeLast('/', "").substringAfterLast('/'), kind(t.path))
+    is Target.File -> Choice(t.path.substringAfterLast('/'), t.path.substringBeforeLast('/', "").substringAfterLast('/'), kind(t))
     is Target.Site -> Choice(t.name.ifEmpty { host(t.url) }, host(t.url), Choice.Kind.Site)
     is Target.App -> Choice(t.name, "App", Choice.Kind.Other)
 }
 
-private fun kind(path: String) = when (suffix(path).lowercase()) {
-    ".pdf" -> Choice.Kind.Pdf
-    ".pptx", ".ppt", ".key" -> Choice.Kind.Slides
-    ".xlsx", ".xls", ".csv", ".numbers" -> Choice.Kind.Sheet
-    ".png", ".jpg", ".jpeg", ".gif", ".heic", ".webp" -> Choice.Kind.Image
-    ".html", ".htm" -> Choice.Kind.Site
+private fun kind(f: Target.File) = when (f.ext) {
+    "pdf" -> Choice.Kind.Pdf
+    "pptx", "ppt", "key" -> Choice.Kind.Slides
+    "xlsx", "xls", "csv", "numbers" -> Choice.Kind.Sheet
+    "png", "jpg", "jpeg", "gif", "heic", "webp" -> Choice.Kind.Image
+    "html", "htm" -> Choice.Kind.Site
     else -> Choice.Kind.Other
 }
