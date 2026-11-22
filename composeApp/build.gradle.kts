@@ -55,13 +55,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.ktor.client.okhttp)
         }
-        // The model engine (package engine): LiteRT-LM has the same classes on both targets, so one source dir serves both.
-        listOf("desktopMain", "androidMain").forEach { getByName(it).kotlin.srcDir("src/litert/kotlin") }
+        // The model engine (package engine) runs on the laptop only: the phone decides nothing and loads no model.
+        desktopMain.kotlin.srcDir("src/litert/kotlin")
         // litertlm asks for kotlin-reflect 2.4.0, which lifts kotlin-stdlib past this compiler; only its unused ToolSet API reflects.
-        // A strict version (!!) also holds in :androidApp, which resolves this module's dependencies itself.
-        val reflect = "org.jetbrains.kotlin:kotlin-reflect:${libs.versions.kotlin.get()}!!"
-        desktopMain.dependencies { implementation(libs.litertlm.jvm); implementation(reflect) }
-        androidMain.dependencies { implementation(libs.litertlm.android); implementation(reflect) }
+        desktopMain.dependencies { implementation(libs.litertlm.jvm); implementation("org.jetbrains.kotlin:kotlin-reflect:${libs.versions.kotlin.get()}!!") }
     }
 }
 
