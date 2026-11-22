@@ -33,7 +33,7 @@ private val revised = Target.File("/Users/hamid/Documents/Clients/Dubois/Home of
 private val youtube = Target.Site("https://www.youtube.com/watch?v=grip", "Robot gripper demo")
 
 /** The shared screen: a stage with a tab or app over it, the calls it got at which virtual time, failures on demand. */
-private class FakeScreen(private val scope: TestScope, shows: Target?) : SharedScreen {
+internal class FakeScreen(private val scope: TestScope, shows: Target?) : SharedScreen {
     val calls = mutableListOf<Pair<Long, String>>()
     var fails = 0
     var latency = 30.milliseconds
@@ -64,7 +64,7 @@ private class FakeScreen(private val scope: TestScope, shows: Target?) : SharedS
 
 /** A session with a scripted agent, a fake screen and both microphones, on virtual time; [lines] is every line the
  * mole showed, with when. */
-private class Rig(private val scope: TestScope, shows: Target? = null, script: suspend (Heard, OnScreen) -> Move) {
+internal class Rig(private val scope: TestScope, shows: Target? = null, script: suspend (Heard, OnScreen) -> Move) {
     val laptop = MutableSharedFlow<Heard>(extraBufferCapacity = 64) // like the ear's: nobody listening, nobody hears
     val phone = MutableSharedFlow<Heard>(extraBufferCapacity = 64)
     val phoneLeads = MutableStateFlow(false)

@@ -9,15 +9,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.application
-import ch.lauzhack.app.agent.Catalog
-import ch.lauzhack.app.agent.Intents
-import ch.lauzhack.app.agent.MoleAgent
+import ch.lauzhack.app.decider.DECIDER
+import ch.lauzhack.app.decider.ModelBrain
 import ch.lauzhack.app.engine.desktopEngines
 import ch.lauzhack.app.meeting.MeetingDetector
 import ch.lauzhack.app.mole.Demo
 import ch.lauzhack.app.mole.MoleTheme
 import ch.lauzhack.app.mole.Playground
 import ch.lauzhack.app.session.Laptop
+import ch.lauzhack.app.session.RulesBrain
 import ch.lauzhack.app.session.hasDecks
 import ch.lauzhack.app.stage.HOME
 import ch.lauzhack.app.stage.typed
@@ -50,8 +50,11 @@ import kotlin.time.Duration.Companion.seconds
  *   --demo        the scripted story on the floater
  *   --typed       lines from standard input instead of the microphone, one line one utterance; starts a meeting,
  *                 and keeps what the audience saw after each change in ~/Library/Logs/Moliere/screens
+ *   --paced       with --typed, each line comes as speech does: word by word at 150 words a minute, then finished
  *   --library DIR the decks for this run instead of the chosen folder
  *   --host        a Chrome window on this Mac as the shared screen instead of the VM
+ *   --rules       the rules decide even when decider.litertlm is in the models folder
+ *   --no-history  no browser history for this run, whatever the tray says
  */
 fun main(args: Array<String>) {
     if ("--playground" in args || "--demo" in args) return application {
@@ -74,29 +77,37 @@ fun main(args: Array<String>) {
     val detector = MeetingDetector()
     val typed = if ("--typed" in args) {
         val lines = Channel<Heard>(Channel.UNLIMITED)
-        CoroutineScope(Dispatchers.IO).launch { typed().collect { lines.send(it.heard) } } // not app's: a read of stdin does not cancel
+        CoroutineScope(Dispatchers.IO).launch { // not app's: a read of stdin does not cancel
+            typed(paced = "--paced" in args).collect {
+                log("typed   \"${it.heard.text}\"${if (it.heard.ended) "" else " …"}")
+                lines.send(it.heard)
+            }
+        }
         lines.receiveAsFlow()
     } else null
     if (typed == null) app.launch { detector.run() } else detector.start("Typed lines")
-    // The decider's factory goes here once a model is in engines.modelsDir; until then the rules decide.
-    val agent: (Catalog, Intents) -> Agent = ::MoleAgent
+    val model = "--rules" !in args && File(engines.modelsDir, DECIDER).isFile
+    val history = MutableStateFlow("--no-history" !in args && prefs.getBoolean("history", true))
     val laptop = Laptop(
         app,
-        engines::embedder,
+        if (model) ModelBrain(engines) else RulesBrain(engines::embedder),
         library,
         detector.meeting.map { it?.title }.stateIn(app, SharingStarted.Eagerly, null),
         engines.download().filter { it.bytes < it.total }.map { it.file to it.bytes.toFloat() / it.total },
-        agent,
+        history,
         sandbox = if ("--host" in args) null else "base",
         typed = typed,
         shots = if (typed != null) File(LOGS, "screens").also { it.deleteRecursively() } else null,
     )
-    log("Molière: decks in ${library.value}, ${if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, ${if (typed != null) "typed lines" else "the microphone"}")
+    log("Molière: decks in ${library.value}, ${if ("--host" in args) "Chrome on this Mac" else "the VM"} as the shared screen, " +
+        "${if (typed != null) "typed lines" else "the microphone"}, ${if (model) "the model decides" else "the rules decide"}, " +
+        "browser history ${if (history.value) "on" else "off"}")
 
     application {
         var theme by remember { mutableStateOf(runCatching { MoleTheme.valueOf(prefs.get("theme", "")) }.getOrDefault(MoleTheme.System)) }
         val meeting by detector.meeting.collectAsState()
         val lib by library.collectAsState()
+        val browsing by history.collectAsState()
         val empty by produceState(false, lib) { while (true) { value = !hasDecks(lib); delay(3.seconds) } }
         MoleFloater(laptop.line, laptop::onPick, ::exitApplication, theme) {
             if (meeting == null) Item("Start a meeting", onClick = { detector.start("Meeting") })
@@ -110,6 +121,11 @@ fun main(args: Array<String>) {
                     prefs.put("decks", it.path)
                     prefs.flush()
                 }
+            })
+            CheckboxItem("Use browser history", checked = browsing, onCheckedChange = {
+                history.value = it
+                prefs.putBoolean("history", it)
+                prefs.flush()
             })
             Separator()
             Menu("Theme") {

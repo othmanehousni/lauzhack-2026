@@ -15,7 +15,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The shared screen as AgentDesktop and the session change it: slides and pictures on the stage, the rest in front. */
+/** The shared screen as AgentDesktop and the session change it: slides and pictures on the stage, the rest in front; an
+ * announce is shown as if its window had run out. */
 internal class FakeDesk(start: Target? = null) {
     private var stage: Target? = start
     private var front: Target? = null
@@ -23,10 +24,10 @@ internal class FakeDesk(start: Target? = null) {
     val onScreen get() = OnScreen(front ?: stage)
 
     fun apply(m: Move) {
+        val t = (m as? Move.Show)?.target ?: (m as? Move.Ask)?.options?.singleOrNull()
         when {
-            m is Move.Show -> {
+            t != null -> {
                 before += stage to front
-                val t = m.target
                 if (t is Target.Slide || t is Target.File && onStage(Catalog.file(t.path))) { stage = t; front = null } else front = t
             }
             m == Move.Control("close") -> {
@@ -51,14 +52,15 @@ class ModelAgentTest {
     private val plan = Catalog.file("/u/Docs/Plan.pdf")
     private val photo = Catalog.file("/u/Pictures/House.jpg")
     private val catalog = Catalog(listOf(slide(1), slide(2), slide(3), github, notes, photo, plan), List(7) { floatArrayOf(1f, 0f) })
+    private fun ask(c: Item) = Move.Ask(listOf(c.target))
 
     /** A model that answers from a script and records what it was asked. */
     private inner class Run(start: Target? = null, val apply: Boolean = true) {
         val desk = FakeDesk(start)
         val asked = mutableListOf<Pair<String, String?>>()
         val answers = ArrayDeque<String>()
-        val agent = ModelAgent(catalog, Flat) { p, g -> asked += p to g; answers.removeFirst() }
-        private var n = 0
+        val agent = ModelAgent(catalog, Flat, { p, g -> asked += p to g; answers.removeFirst() })
+        var n = 0
         private val said = mutableListOf<String>()
 
         /** One utterance, two words at a time as the evals replay it; each call's move, with [answers] for the calls that reach the model. */
@@ -82,16 +84,31 @@ class ModelAgentTest {
     @Test
     fun twoPartialsInARowActAndDoneDoesNotRepeatIt() {
         val r = Run(slide(1).target, apply = false)
-        assertEquals(listOf(Move.Nothing, Move.Show(github.target), Move.Nothing), r.say("can you open github please", "show 4", "show 4", "show 4"))
+        assertEquals(listOf(Move.Nothing, ask(github), Move.Nothing), r.say("can you open github please", "show 4", "show 4", "show 4"))
         assertEquals(listOf(null, null), r.asked.take(2).map { it.second }, "partials are unconstrained")
         assertEquals(grammar(State(screen = slide(1), candidates = catalog.items.take(6))), r.asked.last().second, "done is constrained")
     }
 
     @Test
+    fun untilItsAnnounceIsOnScreenItDecidesOnEveryWordAndANoTwoPartialsAgreeOnStopsIt() = runBlocking {
+        val r = Run(slide(1).target, apply = false) // the announce's window has not run out
+        r.say("github", "show 4")
+        r.answers += listOf("undo", "undo", "nothing")
+        val w = "no no not that".split(' ')
+        val moves = w.indices.map { k -> r.agent.anythingToDo(Heard(w.take(k + 1).joinToString(" "), k == w.lastIndex, r.n + 1, listOf("github")), r.desk.onScreen) }.also { r.n++ }
+        assertEquals(listOf(Move.Nothing, Move.Undo, Move.Nothing, Move.Nothing), moves)
+        assertEquals(listOf("no", "no no", "no no not that"), r.asked.drop(1).map { it.first.lines().first { l -> l.startsWith("now") }.substringAfter("): ") },
+            "every word until the no, every two words after it")
+        assertTrue("\nshown: site GitHub (github.com)\n" in r.asked[1].first)
+        r.say("hmm", "nothing")
+        assertTrue("\nshown: none\n" in r.prompt, "stopped, it was never shown")
+    }
+
+    @Test
     fun partialsDisagreeingOrOfTheWrongKindWaitForTheEnd() {
         val r = Run(slide(1).target)
-        assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Show(notes.target)), r.say("one two three four five", "show 4", "show 5", "show 5"))
-        assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Show(search("cold storage"))), r.say("look up cold storage robots please", "search cold storage", "search cold storage", "search cold storage"))
+        assertEquals(listOf(Move.Nothing, Move.Nothing, ask(notes)), r.say("one two three four five", "show 4", "show 5", "show 5"))
+        assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Ask(listOf(search("cold storage")))), r.say("look up cold storage robots please", "search cold storage", "search cold storage", "search cold storage"))
         assertEquals(listOf(Move.Nothing, Move.Nothing, Move.Unsure), r.say("our internal dash board please", "unsure", "unsure", "unsure"))
     }
 
@@ -173,7 +190,7 @@ class ModelAgentTest {
         assertEquals(Move.Nothing, mapped("nothing"))
         assertEquals(Move.Wait, mapped("wait"))
         assertEquals(Move.Unsure, mapped("unsure"))
-        assertEquals(Move.Show(slide(3).target), mapped("show 3"))
+        assertEquals(ask(slide(3)), mapped("show 3"))
         assertEquals(Move.Ask(listOf(slide(1).target, slide(2).target)), mapped("ask 1 2"))
         assertEquals(Move.Ask(listOf(slide(2).target, notes.target)), mapped("ask 2 2 5"))
         assertEquals(Move.Show(slide(1).target), mapped("slide 1"))
@@ -181,16 +198,16 @@ class ModelAgentTest {
         assertEquals(Move.Show(slide(3).target), mapped("next"))
         assertEquals(Move.Show(slide(1).target), mapped("previous"))
         assertEquals(Move.Show(slide(2).target), mapped("slides"))
-        assertEquals(Move.Show(notes.target), mapped("open notes"))
-        assertEquals(Move.Show(Target.Site("https://example.org/a", "example.org/a")), mapped("open example.org/a"))
+        assertEquals(ask(notes), mapped("open notes"))
+        assertEquals(Move.Ask(listOf(Target.Site("https://example.org/a", "example.org/a"))), mapped("open example.org/a"))
         assertEquals(Move.Unsure, mapped("open nonsense"))
-        assertEquals(Move.Show(Target.Site("https://www.google.com/search?q=cold+storage+robot%27s", "cold storage robot's")), mapped("search cold storage robot's"))
+        assertEquals(Move.Ask(listOf(Target.Site("https://www.google.com/search?q=cold+storage+robot%27s", "cold storage robot's"))), mapped("search cold storage robot's"))
         assertEquals(Move.Control("click:sign up"), mapped("click sign up"))
         assertEquals(Move.Control("scroll down"), mapped("control scroll down"))
         assertEquals(Move.Control("close"), mapped("close"))
         assertEquals(Move.Undo, mapped("undo"))
-        assertEquals(Move.Show(github.target), mapped("open github", slide(1).target))
-        assertEquals(Move.Show(github.target), mapped("open github.com", slide(1).target))
+        assertEquals(ask(github), mapped("open github", slide(1).target))
+        assertEquals(ask(github), mapped("open github.com", slide(1).target))
         assertEquals(Move.Nothing, mapped("show 1", slide(1).target), "already on screen")
     }
 
@@ -218,16 +235,16 @@ class ModelAgentTest {
         val hold = CompletableDeferred<String>()
         val started = CompletableDeferred<Unit>()
         val asked = mutableListOf<String>()
-        val agent = ModelAgent(catalog, Flat) { p, _ ->
+        val agent = ModelAgent(catalog, Flat, { p, _ ->
             asked += p
             if ("now (done): open github" in p) started.complete(Unit).let { hold.await() } else "show 5"
-        }
+        })
         val first = async { agent.anythingToDo(Heard("open github", true, 1), OnScreen()) }
         started.await()
         val second = agent.anythingToDo(Heard("open notes", true, 2, listOf("open github")), OnScreen())
         hold.complete("show 4")
         assertEquals(Move.Nothing, first.await())
-        assertEquals(Move.Show(notes.target), second)
+        assertEquals(ask(notes), second)
         assertNull(asked.getOrNull(2))
     }
 }

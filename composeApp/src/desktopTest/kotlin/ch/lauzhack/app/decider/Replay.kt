@@ -126,14 +126,18 @@ class Replay {
         is Target.File -> "file ${t.path}"
     }
 
-    /** A move as brain.py prints its action; what the vision model did then (search, click, unsure) is an `ask`. */
+    /** A move as brain.py prints its action; what the vision model did then (search, click, unsure) is an `ask`. An
+     * announce is shown unless the presenter stops it. */
     private fun act(m: Move): String? = when (m) {
-        is Move.Show -> (m.target as? Target.Site)?.takeIf { it == search(it.name) }?.let { "ask search ${it.name}" } ?: id(m.target)
+        is Move.Show -> shown(m.target)
+        is Move.Ask -> m.options.singleOrNull()?.let(::shown)
         is Move.Control -> if (m.name == "close") "close" else if (m.name.startsWith("click:")) "ask click ${m.name.removePrefix("click:")}" else "control ${m.name}"
         Move.Unsure -> "ask unsure"
         Move.Undo -> "undo"
         else -> null
     }
+
+    private fun shown(t: Target) = (t as? Target.Site)?.takeIf { it == search(it.name) }?.let { "ask search ${it.name}" } ?: id(t)
 
     private fun offer(m: Move.Ask) = m.options.map { id(it)!! }
 
@@ -141,7 +145,7 @@ class Replay {
     private fun verdict(line: Line, ids: Set<String>): String {
         fun shows(onair: String?) = line.want.any { w -> if (w == null) onair == null else w in ids && onair == "slide $w" }
         val taken = line.calls.mapNotNull { act(it.move) }
-        val offered = line.calls.lastOrNull { it.move is Move.Ask }?.let { offer(it.move as Move.Ask) }.orEmpty()
+        val offered = line.calls.lastOrNull { (it.move as? Move.Ask)?.options.orEmpty().size > 1 }?.let { offer(it.move as Move.Ask) }.orEmpty()
         val kind = { a: String -> a.substringBefore(' ') }
         val did = line.want.any { w -> w != null && w !in ids && w != "keep" && taken.any { w == kind(it) || w == it } } ||
             "choose" in line.want && offered.size > 1

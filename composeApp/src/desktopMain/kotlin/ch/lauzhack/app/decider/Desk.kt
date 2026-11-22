@@ -1,19 +1,33 @@
 package ch.lauzhack.app.decider
 
+import ai.koog.embeddings.base.Embedder
+import ch.lauzhack.app.Agent
 import ch.lauzhack.app.Target
 import ch.lauzhack.app.engine.EmbeddingGemma
 import ch.lauzhack.app.engine.Engines
+import ch.lauzhack.app.engine.LiteRTClientConfig
+import ch.lauzhack.app.engine.LiteRTLLMClient
+import ch.lauzhack.app.log
+import ch.lauzhack.app.session.Brain
 import ch.lauzhack.app.stage.AgentDesktop
 import ch.lauzhack.app.stage.DeckPage
+import ch.lauzhack.app.stage.Page
+import ch.lauzhack.app.stage.Recents
+import com.google.ai.edge.litertlm.Backend
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.Volatile
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeSource
 
 /** The presenter's bookmarks: the websites brain.py offered. */
 val BOOKMARKS = listOf(
@@ -31,36 +45,99 @@ val BOOKMARKS = listOf(
     "LauzHack" to "https://lauzhack.com", "EPFL" to "https://www.epfl.ch", "OpenAI" to "https://openai.com", "Anthropic" to "https://www.anthropic.com",
 ).map { (name, url) -> Target.Site(url, name) }
 
-/** The catalog's items: every deck page, the bookmarks, the apps and the files. */
-fun items(decks: List<DeckPage>, apps: List<String>, files: List<String>, sites: List<Target.Site> = BOOKMARKS): List<Item> {
-    val pages = decks.groupingBy { it.deck }.eachCount()
-    return decks.map {
+/** The catalog's items: every deck page, the bookmarks, the apps and the files, and what the presenter saw lately: the
+ * pages of [recents]' decks as slides, its browser pages as sites and its files, most recent first, before [files]. */
+fun items(decks: List<DeckPage>, apps: List<String>, files: List<String>, sites: List<Target.Site> = BOOKMARKS, recents: Recents? = null): List<Item> {
+    val slides = decks + recents?.decks.orEmpty().flatMap { it.pages }
+    val pages = slides.groupingBy { it.deck }.eachCount()
+    return slides.map {
         Item.Slide(it.deck.replace('_', ' '), it.page, pages.getValue(it.deck), it.title, it.text.removePrefix(it.title).trim(), Target.Slide(it.deck, it.page, it.title))
-    } + sites.map(Catalog::site) + apps.map { Item.App(it, Target.App(it)) } + files.map(Catalog::file)
+    } + (sites.map(Catalog::site) + recents?.pages.orEmpty().map(::page)).distinctBy { Catalog.site(it.target).url } +
+        apps.map { Item.App(it, Target.App(it)) } + (recents?.files.orEmpty().map { it.path } + files).distinct().map(Catalog::file)
 }
 
+/** A browser page as the decider reads it: its address without the query or fragment, noise to it, and long. */
+fun page(p: Page): Item.Site = Catalog.site(p.target).let { it.copy(url = it.url.substringBefore('?').substringBefore('#')) }
+
+/** The names the ear is to expect, most useful first: decks, slide titles, sites and apps, then files without extension. */
+fun vocabulary(items: List<Item>): List<String> {
+    val slides = items.filterIsInstance<Item.Slide>()
+    val names = slides.map { it.deck } + slides.map { it.title } + items.mapNotNull { (it as? Item.Site)?.name ?: (it as? Item.App)?.name } +
+        items.filterIsInstance<Item.File>().map { it.name.substringBeforeLast('.') }
+    return names.map(::clean).filter(String::isNotEmpty).distinct()
+}
+
+private const val FILES = 1500 // the newest, after those used in the last 14 days: what the rules searched
+private val REBUILD = 1.minutes  // a page opened a minute ago is a candidate
+
 /**
- * The model agent over [desk]'s decks and apps, the bookmarks and the files the stage lists, or null while
- * `decider.litertlm` is not in the models folder: use MoleAgent then. It starts without files; they are embedded in
- * [scope] once the stage has listed them, and the catalog is rebuilt every ten minutes. Vectors are kept on disk by
- * document, so a restart or a rebuild embeds only what is new.
+ * The model decides: [ModelAgent] over the desk's decks, apps and files, the bookmarks and what the presenter saw lately
+ * (AgentDesktop.recents). A call starts on what is quick to have: the library, the apps, the bookmarks and whatever was
+ * embedded before; the rest is embedded in the background, and the catalog is rebuilt every [REBUILD] of the call.
+ * Vectors are kept on disk by document, so a restart or a rebuild embeds only what is new, except those of the browser's
+ * pages, which stay in memory as the history does.
  */
-suspend fun modelAgent(engines: Engines, desk: AgentDesktop, scope: CoroutineScope): ModelAgent? {
-    val client = engines.client(DECIDER) ?: return null
-    val embedder = engines.embedder()
-    val cache = File(engines.cacheDir, "decider-vectors-${EmbeddingGemma.name}.bin")
-    var known = withContext(Dispatchers.IO) { loadVectors(cache) }
-    val agent = ModelAgent(Catalog.build(items(desk.decks, desk.apps, emptyList()), embedder, known), embedder, decider(client))
-    scope.launch {
-        while (true) {
-            val catalog = Catalog.build(items(desk.decks, desk.apps, desk.newestFiles()), embedder, known)
-            agent.catalog = catalog
-            known = catalog.known
-            withContext(Dispatchers.IO) { saveVectors(cache, known) }
-            delay(10.minutes)
-        }
+class ModelBrain(private val engines: Engines) : Brain {
+    private val cache = File(engines.cacheDir, "decider-vectors-${EmbeddingGemma.name}.bin")
+    private lateinit var embedder: Embedder
+    private lateinit var model: suspend (String, String?) -> String
+    @Volatile private var known = emptyMap<String, FloatArray>()
+    private var saved = emptySet<String>()
+    private val browsed = ConcurrentHashMap.newKeySet<String>() // documents of browser pages, never written
+
+    override suspend fun warm(library: File, desk: AgentDesktop) = coroutineScope {
+        val vectors = async(Dispatchers.IO) { loadVectors(cache) }
+        // on CPU, as the contract has it: on the GPU, LLGuidance lets <pad> through and the constrained answer fails
+        val client = LiteRTLLMClient(LiteRTClientConfig(engines.modelsDir, engines.cacheDir, backends = listOf(Backend.CPU())))
+        val decide = async(Dispatchers.IO) { ahead(decider(client)) }
+        val gemma = withContext(Dispatchers.IO) { engines.embedder() }
+        gemma.embed("task: search result | query: hello") // its first call takes longer
+        embedder = gemma
+        known = vectors.await().also { saved = it.keys }
+        model = decide.await()
     }
-    return agent
+
+    override suspend fun meet(desk: AgentDesktop, scope: CoroutineScope): Pair<Agent, List<String>> {
+        val recents = desk.recents()
+        val all = items(desk.decks, desk.apps, emptyList(), recents = recents)
+        val base = items(desk.decks, desk.apps, emptyList())
+        val quick = base.toSet()
+        val agent = ModelAgent(build(all.filter { it in quick || Catalog.doc(it) in known }, recents, whole = false), embedder, model)
+        scope.launch(Dispatchers.Default) {
+            var seen = recents
+            while (true) {
+                agent.catalog = build(items(desk.decks, desk.apps, desk.newestFiles(FILES), recents = seen), seen, whole = true)
+                delay(REBUILD)
+                seen = desk.recents()
+            }
+        }
+        return agent to (vocabulary(base) + vocabulary(all)).distinct() // the library's before recent decks' hundreds of titles
+    }
+
+    /** The catalog of [items], embedding only what is new; a [whole] one is all there is to keep. */
+    private suspend fun build(items: List<Item>, recents: Recents, whole: Boolean): Catalog {
+        val t = TimeSource.Monotonic.markNow()
+        val catalog = Catalog.build(items, embedder, known)
+        val new = catalog.known.keys.count { it !in known }
+        known = if (whole) catalog.known else known + catalog.known
+        recents.pages.mapTo(browsed) { Catalog.doc(page(it)) }
+        val keep = known.filterKeys { it !in browsed }
+        if (keep.keys != saved) {
+            withContext(Dispatchers.IO) { saveVectors(cache, keep) }
+            saved = keep.keys
+        }
+        log("catalog of ${items.count { it is Item.Slide }} slides, ${items.count { it is Item.File }} files, ${items.count { it is Item.Site }} sites " +
+            "(${recents.pages.size} browser pages), " +
+            "${items.count { it is Item.App }} apps; $new embedded, in ${t.elapsedNow().inWholeMilliseconds} ms")
+        return catalog
+    }
+}
+
+/** [decide] with its engine loaded and a conversation of each kind made ahead, so that the first utterance waits for neither. */
+private suspend fun ahead(decide: suspend (String, String?) -> String) = decide.also {
+    val s = State()
+    it(prompt(s), null)
+    it(prompt(s), grammar(s))
 }
 
 fun loadVectors(file: File): Map<String, FloatArray> = runCatching {
